@@ -1,10 +1,12 @@
-// .tts <words>  ->  TikTok search shown as a swipeable card carousel (image + title + OPEN button).
-// Tapping OPEN runs `.tt <video link>`, which opens the normal Video / Audio / Document download menu.
+// .tts <words>  ->  TikTok search shown as a swipeable card carousel (image + title + 3 buttons).
+//   VIDEO -> .ttdl <link>  sends the video straight away      AUDIO -> .ttmp3 <link>  sends the sound
+//   MORE  -> .tt <link>    opens the normal Video / Audio / Document menu
 import fs from 'node:fs';
 import path from 'node:path';
 import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup } from '@whiskeysockets/baileys';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
+import { MAX_DL_BYTES, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -141,11 +143,11 @@ async function sendCarousel(sock, jid, results, query, quoted) {
       header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
       body: IM.Body.create({ text: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n') }),
       footer: IM.Footer.create({ text: BOT_NAME }),
-      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎵 OPEN', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
+      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
     });
   }));
   const interactiveMessage = IM.create({
-    body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap OPEN` }),
+    body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO` }),
     footer: IM.Footer.create({ text: BOT_NAME }),
     carouselMessage: IM.CarouselMessage.create({ cards, messageVersion: 1 })
   });
@@ -169,6 +171,26 @@ function textList(results, query) {
   ].join('\n');
 }
 
+// Direct download used by the card buttons (no format menu in between).
+async function sendDirect(sock, jid, msg, rawUrl, kind, reply) {
+  const url = parseUrl(rawUrl, 'tiktok');
+  if (!url) return reply(`❌ Send a valid TikTok link.\nExample: ${PREFIX}ttdl <TikTok link>`);
+  await reply(kind === 'audio' ? '⏳ Preparing audio...' : '⏳ Downloading...');
+  try {
+    const info = await tikwm(url);
+    if (kind === 'audio') {
+      const buf = info.audio ? await fetchBuffer(info.audio) : await fetchBuffer(info.video, info.headers);
+      return await sock.sendMessage(jid, { audio: buf, mimetype: info.audio ? 'audio/mpeg' : 'audio/mp4', ptt: false }, { quoted: msg });
+    }
+    const buf = await fetchBuffer(info.video, info.headers);
+    return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(info.title, 200)}\n\n> ${BOT_NAME}` }, { quoted: msg });
+  } catch (err) {
+    console.error('TikTok direct download error:', err?.message || err);
+    if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`);
+    return reply(`❌ Download failed. Try ${PREFIX}tt <link> instead.`);
+  }
+}
+
 export default [
   {
     name: 'tts', aliases: ['ttsearch', 'tiktoksearch'], react: '🔎',
@@ -189,5 +211,13 @@ export default [
       }
       return reply(textList(results, query));
     },
+  },
+  {
+    name: 'ttdl', aliases: ['ttvideo'], react: '🎬',
+    async run({ sock, msg, jid, args, reply }) { return sendDirect(sock, jid, msg, args[0], 'video', reply); },
+  },
+  {
+    name: 'ttmp3', aliases: ['ttaudio'], react: '🎵',
+    async run({ sock, msg, jid, args, reply }) { return sendDirect(sock, jid, msg, args[0], 'audio', reply); },
   },
 ];
