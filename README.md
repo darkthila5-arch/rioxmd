@@ -57,7 +57,7 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `OWNER_NUMBER` | Your number with country code, digits only. Owner button, owner contact card, `.restart`. |
 | `BOT_NAME`, `PREFIX` | Bot name and command prefix (default `.`). |
 | `MENU_IMAGE` | Picture for the menu / alive message (also the DP-card fallback). |
-| `BUTTONS` | `off` = image + text only, no buttons. |
+| `BUTTONS` | Default `off`: image + text (always shows). `on` = try tappable buttons first (WhatsApp often hides them, so only use if they work for you). |
 | `MODE` | `public` (default) or `private` (only the owner can use the bot). `.mode` changes it per session. |
 | `CARD_URL` | Link opened by the DP card on replies. |
 | `MONGO_URL`, `MONGO_DB` | MongoDB Atlas connection. Sessions survive redeploys. Allow `0.0.0.0/0` in Atlas network access. |
