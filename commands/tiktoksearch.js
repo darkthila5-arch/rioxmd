@@ -44,22 +44,40 @@ async function getJson(url, opts = {}) {
 const BROWSER = { 'user-agent': UA, accept: 'application/json, text/plain, */*', 'accept-language': 'en-US,en;q=0.9' };
 const form = (q) => new URLSearchParams({ keywords: q, count: '12', cursor: '0', hd: '1' });
 
+// Web search fallback: Bing / DuckDuckGo find tiktok.com video links, then TikTok's own oEmbed gives each one's title + thumbnail.
+function extractTikTokLinks(html) {
+  const found = new Set();
+  const scan = (t) => { for (const m of t.matchAll(/https?:\/\/(?:www\.)?tiktok\.com\/@[\w.\-]+\/video\/\d+/g)) found.add(m[0]); };
+  const h = String(html || '').replace(/&amp;/g, '&');
+  scan(h);
+  for (const m of h.matchAll(/[?&]uddg=([^&"'\s]+)/g)) { try { scan(decodeURIComponent(m[1])); } catch { /* skip */ } }          // DuckDuckGo redirect links
+  for (const m of h.matchAll(/[?&]u=a1([A-Za-z0-9_\-]+)/g)) { try { scan(Buffer.from(m[1], 'base64url').toString()); } catch { /* skip */ } } // Bing redirect links
+  return [...found];
+}
+async function viaWebSearch(searchUrl, init) {
+  const res = await fetch(searchUrl, { ...init, signal: AbortSignal.timeout(15000) });
+  const links = extractTikTokLinks(await res.text()).slice(0, MAX_CARDS);
+  if (!links.length) throw new Error(`no TikTok links (HTTP ${res.status})`);
+  return Promise.all(links.map(async (url) => {
+    try {
+      const o = await getJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, { headers: BROWSER });
+      return { url, title: o.title, author: o.author_name, handle: o.author_unique_id, thumbnail: o.thumbnail_url };
+    } catch { return { url }; } // keep the link even if its preview could not be read
+  }));
+}
+const WEB_HEADERS = { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-US,en;q=0.9' };
+
 // Providers are tried in order until one returns videos. Add your own with TIKTOK_SEARCH_URL (use {q} where the words go;
-// it must return JSON with a list of videos). The free public APIs below can change or go down at any time.
+// it must return JSON with a list of videos). The free public APIs can change or go down at any time.
 const PROVIDERS = [
   ['tikwm', async (q) => {
     const j = await getJson('https://www.tikwm.com/api/feed/search', { method: 'POST', headers: { ...BROWSER, 'content-type': 'application/x-www-form-urlencoded', origin: 'https://www.tikwm.com', referer: 'https://www.tikwm.com/' }, body: form(q) });
     if (j.code !== 0) throw new Error(j.msg || 'tikwm refused');
     return pick(j);
   }],
-  ['tikwm-get', async (q) => {
-    const j = await getJson(`https://tikwm.com/api/feed/search?${form(q)}`, { headers: { ...BROWSER, referer: 'https://tikwm.com/' } });
-    if (j.code !== 0) throw new Error(j.msg || 'tikwm refused');
-    return pick(j);
-  }],
   ['siputzx', async (q) => pick(await getJson(`https://api.siputzx.my.id/api/s/tiktok?query=${encodeURIComponent(q)}`, { headers: BROWSER }))],
-  ['agatz', async (q) => pick(await getJson(`https://api.agatz.xyz/api/tiktoksearch?message=${encodeURIComponent(q)}`, { headers: BROWSER }))],
-  ['ryzen', async (q) => pick(await getJson(`https://api.ryzendesu.vip/api/search/tiktok?query=${encodeURIComponent(q)}`, { headers: BROWSER }))]
+  ['bing', (q) => viaWebSearch(`https://www.bing.com/search?q=${encodeURIComponent(`site:tiktok.com/video ${q}`)}&count=30`, { headers: WEB_HEADERS })],
+  ['ddg', (q) => viaWebSearch('https://html.duckduckgo.com/html/', { method: 'POST', headers: { ...WEB_HEADERS, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ q: `site:tiktok.com ${q} video` }) })]
 ];
 if (process.env.TIKTOK_SEARCH_URL) {
   PROVIDERS.unshift(['custom', async (q) => pick(await getJson(process.env.TIKTOK_SEARCH_URL.replace('{q}', encodeURIComponent(q)), { headers: BROWSER }))]);
@@ -69,9 +87,10 @@ async function searchTikTok(query) {
   const errors = [];
   for (const [name, fn] of PROVIDERS) {
     try {
-      const list = normalize(await fn(query));
-      if (list.length) return list;
-      errors.push(`${name}: no results`);
+      const raw = await fn(query);
+      const list = normalize(raw);
+      if (list.length) { console.log(`TikTok search: ${list.length} result(s) via ${name}`); return list; }
+      errors.push(`${name}: no results (${JSON.stringify(raw)?.slice(0, 120)})`); // shows what the provider actually sent
     } catch (err) { errors.push(`${name}: ${err?.message || err}`); }
     await sleep(300);
   }
