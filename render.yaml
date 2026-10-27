@@ -1,0 +1,39 @@
+# Render Blueprint. Persistent disks need a paid plan (starter or higher).
+# Without a disk, linked WhatsApp sessions are lost on every restart/redeploy.
+services:
+  - type: web
+    name: rio-x-md
+    runtime: docker          # Docker build = Node bot + Go call service + ffmpeg (see Dockerfile)
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PAIRING_API_KEY
+        generateValue: true   # Render creates a long random key; view it in the Environment tab
+      - key: WEB_SECRET
+        generateValue: true   # signs web logins; keep it so users stay logged in across restarts
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false           # set this in Render to turn the /admin site on (10+ characters)
+      - key: PUBLIC_URL
+        sync: false           # e.g. https://your-app.onrender.com (used in the web password message)
+      - key: BOT_NAME
+        value: RIO X MD
+      - key: PREFIX
+        value: "."
+      - key: MENU_IMAGE
+        value: https://files.catbox.moe/jy9p51.jpg
+      - key: OWNER_NUMBER
+        sync: false
+      - key: BUTTONS
+        value: on
+      - key: MAX_SESSIONS
+        value: 20
+      - key: SESSION_DIR
+        value: /var/data/sessions
+    disk:
+      name: rio-sessions
+      mountPath: /var/data
+      sizeGB: 1

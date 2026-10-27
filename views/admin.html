@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex">
+<title>Admin • RIO X MD</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/web.css">
+</head>
+<body data-page="admin">
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<header class="top"><div class="wrap wide">
+  <a class="brand" href="/admin" aria-label="RIO X MD admin">
+    <img class="mark" src="/ghost.png" alt="" width="34" height="41">
+    <span class="wordmark">
+      <span class="w-top">RIO<span class="x">X</span>MD</span>
+      <span class="w-bot">ADMIN CONSOLE</span>
+    </span>
+  </a>
+  <button class="btn alt sm" id="logout" type="button" hidden>Log out</button>
+</div></header>
+
+<main><div class="wrap wide">
+  <section id="login" class="narrow" style="max-width:640px;margin:0 auto">
+    <div class="hero">
+      <div class="hero-mark" aria-hidden="true"><span class="ring"></span><span class="ring r2"></span><img class="hero-ghost" src="/ghost.png" alt=""></div>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Owner only</p>
+      <h1>Admin <span class="grad">console</span></h1>
+      <p class="lede">Control every linked number from one place.</p>
+    </div>
+    <form id="loginForm" class="card">
+      <label for="user">Username</label>
+      <div class="field"><input id="user" name="user" type="text" autocomplete="username" required></div>
+      <label for="password">Password</label>
+      <div class="field"><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <p class="error" id="loginError" role="alert"></p>
+      <button class="btn" type="submit"><span class="label">Log in</span><span class="spin" aria-hidden="true"></span></button>
+    </form>
+  </section>
+
+  <section id="panel" hidden>
+    <div class="hero compact">
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Live • refreshes by itself</p>
+      <h1>Admin <span class="grad">console</span></h1>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="banner" id="bulkBar" hidden><span id="bulkLabel"></span><span class="meter"><span id="bulkFill" style="width:0"></span></span><b id="bulkCount"></b></div>
+
+    <section class="card">
+      <h2>New links</h2>
+      <label class="row" for="pairSwitch" style="border-top:0">
+        <span class="txt"><b>Let people link new numbers</b><small>Turn this off to pause the pair page. Numbers that are already linked keep working.</small></span>
+        <input type="checkbox" class="sw" id="pairSwitch" role="switch" aria-label="Allow new links">
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Linked numbers</h2>
+      <p class="note">Tick the numbers you want, then use the control box below. Tap a number to manage it on its own.</p>
+      <div class="toolbar">
+        <div class="field sm"><input id="q" type="text" inputmode="search" placeholder="Search by digits" autocomplete="off" aria-label="Search numbers"></div>
+        <div class="chips" id="filters" role="group" aria-label="Filter">
+          <button class="chip" type="button" data-f="all" aria-pressed="true">All</button>
+          <button class="chip" type="button" data-f="on" aria-pressed="false">Online</button>
+          <button class="chip" type="button" data-f="off" aria-pressed="false">Offline</button>
+        </div>
+      </div>
+      <div class="selbar"><span id="selInfo">Nothing selected</span><span class="links"><button class="link" id="selShown" type="button">Select shown</button><button class="link" id="selOnline" type="button">Select online</button><button class="link" id="selNone" type="button">Clear</button></span></div>
+      <ul class="slist" id="sessions"></ul>
+    </section>
+
+    <section class="card bulkbox" id="bulk">
+      <h2>Control box</h2>
+      <p class="note"><span class="count" id="bulkSel">0 selected</span>. These actions run on every ticked number.</p>
+      <label for="bulkKey">Change an option for all of them</label>
+      <div class="inline">
+        <div class="field sm"><select id="bulkKey" aria-label="Option"></select></div>
+        <div class="field sm" id="bulkValBox"></div>
+        <button class="btn" id="bulkApply" type="button"><span class="label">Apply</span><span class="spin" aria-hidden="true"></span></button>
+      </div>
+      <div class="actions">
+        <button class="btn alt" id="bRestart" type="button">Restart</button>
+        <button class="btn alt" id="bPass" type="button">Send web password</button>
+        <button class="btn alt" id="bNotice" type="button">Send a message</button>
+        <button class="btn alt" id="bReset" type="button">Reset settings</button>
+        <button class="btn danger" id="bDelete" type="button">Unlink and delete</button>
+      </div>
+    </section>
+
+    <section id="detail" hidden>
+      <div class="card">
+        <h3 id="detailTitle"></h3>
+        <div class="pills" id="detailPills" style="margin-top:8px"></div>
+        <div class="actions">
+          <button class="btn alt" id="restart" type="button">Restart bot</button>
+          <button class="btn alt" id="resetPass" type="button">Send new web password</button>
+          <button class="btn alt" id="notice" type="button">Send a message</button>
+          <button class="btn alt" id="resetOne" type="button">Reset settings</button>
+          <button class="btn danger" id="remove" type="button">Unlink and delete</button>
+        </div>
+      </div>
+      <div id="groups"></div>
+    </section>
+
+    <section class="card">
+      <h2>Recent admin activity</h2>
+      <ul class="log" id="audit"></ul>
+    </section>
+  </section>
+</div></main>
+
+<footer><div class="wrap wide">RIO X MD • Admin console<br><small>Numbers are partly hidden here on purpose.</small></div></footer>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="card sheet">
+    <h2 id="mTitle"></h2>
+    <p class="msg" id="mBody"></p>
+    <div class="field area" id="mField" hidden><textarea id="mInput" maxlength="1000" aria-label="Message"></textarea></div>
+    <div class="actions"><button class="btn alt" id="mCancel" type="button">Cancel</button><button class="btn" id="mOk" type="button"><span class="label">Confirm</span></button></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/web.js"></script>
+</body>
+</html>
