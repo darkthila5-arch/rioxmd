@@ -28,7 +28,7 @@ services:
       - key: OWNER_NUMBER
         sync: false
       - key: BUTTONS
-        value: off
+        value: on
       - key: MAX_SESSIONS
         value: 20
       - key: SESSION_DIR
