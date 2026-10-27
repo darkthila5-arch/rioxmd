@@ -56,7 +56,7 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `PAIRING_API_KEY` | Secret for the pairing API (only enforced when `PAIRING_REQUIRE_KEY=true`). |
 | `OWNER_NUMBER` | Your number with country code, digits only. Owner button, owner contact card, `.restart`. |
 | `BOT_NAME`, `PREFIX` | Bot name and command prefix (default `.`). |
-| `MENU_IMAGE` | Picture for the menu / alive message (also the DP-card fallback). |
+| `MENU_IMAGE` | Picture for the menu / alive message (also the DP-card fallback). Downloaded once and cached; if the host is blocked from Render the bot also tries an image proxy. For zero network dependence, put the picture at `public/menu.jpg` and it is used first. |
 | `BUTTONS` | Default `off`: image + text (always shows). `on` = try tappable buttons first (WhatsApp often hides them, so only use if they work for you). |
 | `MODE` | `public` (default) or `private` (only the owner can use the bot). `.mode` changes it per session. |
 | `CARD_URL` | Link opened by the DP card on replies. |
