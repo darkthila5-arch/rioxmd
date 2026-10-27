@@ -13,32 +13,69 @@ const FALLBACK_IMG = path.join(ROOT_DIR, 'public', 'ghost.png');
 const abs = (v) => (v ? (v.startsWith('/') ? `https://www.tikwm.com${v}` : v) : null);
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
-async function searchTikTok(query, attempt = 0) {
-  const res = await fetch('https://www.tikwm.com/api/feed/search', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA },
-    body: new URLSearchParams({ keywords: query, count: '12', cursor: '0', hd: '1' }),
-    signal: AbortSignal.timeout(30000)
-  });
-  const text = await res.text();
-  let j;
-  try { j = JSON.parse(text); }
-  catch {
-    if (attempt < 1) { await sleep(1500); return searchTikTok(query, attempt + 1); } // free API allows ~1 request/second
-    throw new Error(`empty reply (HTTP ${res.status})`);
+// Turns the different reply shapes of the search providers into one list.
+function normalize(items) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    const id = it.video_id || it.aweme_id || it.id;
+    const a = it.author;
+    const handle = (typeof a === 'object' ? a?.unique_id || a?.uniqueId || a?.username : '') || it.unique_id || it.username || '';
+    const author = (typeof a === 'string' ? a : a?.nickname || a?.name || handle) || '';
+    const url = it.url || it.share_url || it.link || (id ? `https://www.tiktok.com/@${handle || 'user'}/video/${id}` : '');
+    if (!/^https?:\/\/[^ ]*tiktok\.com\//i.test(url)) continue;
+    out.push({
+      title: it.title || it.desc || it.description || it.caption || '',
+      author, handle,
+      cover: abs(it.cover || it.origin_cover || it.thumbnail || it.thumb || it.video?.cover || it.dynamic_cover),
+      plays: it.play_count ?? it.plays ?? it.stats?.playCount ?? it.statistics?.play_count,
+      url
+    });
+    if (out.length >= MAX_CARDS) break;
   }
-  if (j.code !== 0 || !j.data) throw new Error(j.msg || 'search failed');
-  return (j.data.videos || [])
-    .filter((v) => v.video_id)
-    .slice(0, MAX_CARDS)
-    .map((v) => ({
-      title: v.title || '',
-      author: v.author?.nickname || v.author?.unique_id || '',
-      handle: v.author?.unique_id || '',
-      cover: abs(v.cover || v.origin_cover),
-      plays: v.play_count,
-      url: `https://www.tiktok.com/@${v.author?.unique_id || 'user'}/video/${v.video_id}`
-    }));
+  return out;
+}
+const pick = (j) => j?.data?.videos || j?.data?.data || j?.data?.items || j?.data || j?.result?.videos || j?.result || j?.videos || j?.items || j;
+
+async function getJson(url, opts = {}) {
+  const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(15000) });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`not JSON (HTTP ${res.status})`); }
+}
+const BROWSER = { 'user-agent': UA, accept: 'application/json, text/plain, */*', 'accept-language': 'en-US,en;q=0.9' };
+const form = (q) => new URLSearchParams({ keywords: q, count: '12', cursor: '0', hd: '1' });
+
+// Providers are tried in order until one returns videos. Add your own with TIKTOK_SEARCH_URL (use {q} where the words go;
+// it must return JSON with a list of videos). The free public APIs below can change or go down at any time.
+const PROVIDERS = [
+  ['tikwm', async (q) => {
+    const j = await getJson('https://www.tikwm.com/api/feed/search', { method: 'POST', headers: { ...BROWSER, 'content-type': 'application/x-www-form-urlencoded', origin: 'https://www.tikwm.com', referer: 'https://www.tikwm.com/' }, body: form(q) });
+    if (j.code !== 0) throw new Error(j.msg || 'tikwm refused');
+    return pick(j);
+  }],
+  ['tikwm-get', async (q) => {
+    const j = await getJson(`https://tikwm.com/api/feed/search?${form(q)}`, { headers: { ...BROWSER, referer: 'https://tikwm.com/' } });
+    if (j.code !== 0) throw new Error(j.msg || 'tikwm refused');
+    return pick(j);
+  }],
+  ['siputzx', async (q) => pick(await getJson(`https://api.siputzx.my.id/api/s/tiktok?query=${encodeURIComponent(q)}`, { headers: BROWSER }))],
+  ['agatz', async (q) => pick(await getJson(`https://api.agatz.xyz/api/tiktoksearch?message=${encodeURIComponent(q)}`, { headers: BROWSER }))],
+  ['ryzen', async (q) => pick(await getJson(`https://api.ryzendesu.vip/api/search/tiktok?query=${encodeURIComponent(q)}`, { headers: BROWSER }))]
+];
+if (process.env.TIKTOK_SEARCH_URL) {
+  PROVIDERS.unshift(['custom', async (q) => pick(await getJson(process.env.TIKTOK_SEARCH_URL.replace('{q}', encodeURIComponent(q)), { headers: BROWSER }))]);
+}
+
+async function searchTikTok(query) {
+  const errors = [];
+  for (const [name, fn] of PROVIDERS) {
+    try {
+      const list = normalize(await fn(query));
+      if (list.length) return list;
+      errors.push(`${name}: no results`);
+    } catch (err) { errors.push(`${name}: ${err?.message || err}`); }
+    await sleep(300);
+  }
+  throw new Error(errors.join(' | '));
 }
 
 async function coverBuffer(url) {
