@@ -126,10 +126,18 @@ async function imageBuffer(url) {
   } catch { return null; }
 }
 
+// Some sites repeat the headline inside the description (and add a tagline). Drop that so the post is not the same text twice.
+const norm = (x) => String(x || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
+function cleanSummary(title, summary) {
+  let t = String(summary || '').replace(/\s*Most visited website in Sri Lanka\.?\s*$/i, '').trim();
+  const nt = norm(title).slice(0, 40);
+  if (nt && norm(t).startsWith(nt)) t = t.startsWith(title) ? t.slice(title.length).trim() : '';
+  return norm(t) === norm(title) ? '' : t;
+}
 const captionOf = (key, it) => [
   `${SOURCES[key].icon} *${SOURCES[key].name}*`, '',
   `*${clip(it.title, 220)}*`,
-  it.summary ? `\n${clip(it.summary, 380)}` : '',
+  cleanSummary(it.title, it.summary) ? `\n${clip(cleanSummary(it.title, it.summary), 380)}` : '',
   `\n🔗 ${it.link}`,
   `\n> ${BOT_NAME}`
 ].join('\n');
@@ -212,7 +220,21 @@ async function headlines(reply, keys, n) {
   }));
   return reply(`📰 *Latest news*\n\n${parts.join('\n\n')}`);
 }
-const one = (key) => ({ name: key, react: SOURCES[key].icon, async run({ reply }) { return headlines(reply, [key], 6); } });
+// .hiru            latest headlines        .hiru on / .hiru off   switch this one channel on or off for THIS chat (owner only)
+const one = (key) => ({
+  name: key, aliases: [`${key}news`], react: SOURCES[key].icon,
+  async run({ reply, args, sessionId, jid, isOwner }) {
+    const sw = (args[0] || '').toLowerCase();
+    if (sw === 'on' || sw === 'off') {
+      if (!isOwner) return reply('🚫 Only the bot owner can change auto news.');
+      const cur = new Set(getTargets(sessionId)[jid] || []);
+      if (sw === 'on') cur.add(key); else cur.delete(key);
+      if (cur.size) setTarget(sessionId, jid, [...cur]); else removeTarget(sessionId, jid);
+      return reply(`${SOURCES[key].icon} ${SOURCES[key].name} auto news is ${sw.toUpperCase()} for this chat.${cur.size ? `\n📰 Now on: ${[...cur].map((k) => SOURCES[k].name).join(', ')}` : ''}`);
+    }
+    return headlines(reply, [key], 6);
+  }
+});
 const names = (keys) => keys.map((k) => SOURCES[k].name).join(', ');
 
 export default [
