@@ -39,6 +39,17 @@ function toVoiceNote(buf, ext) {
   });
 }
 
+// A 1 second silent Opus voice note, only used by the "test" mode.
+function silentVoiceNote() {
+  const out = path.join(os.tmpdir(), `csong-silence-${crypto.randomBytes(3).toString('hex')}.ogg`);
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '1', '-c:a', 'libopus', '-b:a', '24k', '-f', 'ogg', out], { timeout: 60000 }, (err, _o, stderr) => {
+      try { if (err) return reject(new Error(`ffmpeg: ${String(stderr || err.message).slice(0, 150)}`)); resolve(fs.readFileSync(out)); }
+      finally { fs.rmSync(out, { force: true }); }
+    });
+  });
+}
+
 async function thumbnail(info) {
   const id = String(info.sourceUrl || '').match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1];
   for (const url of [id && `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, info.thumb].filter(Boolean)) { // jpg first: WhatsApp does not like webp pictures
@@ -71,7 +82,7 @@ export default [
   {
     name: 'csong', aliases: ['channelsong'], owner: true, react: '🎙️',
     async run({ sock, jid, args, reply }) {
-      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}csong <channel link or jid> <song name>\nExample: ${PREFIX}csong https://whatsapp.com/channel/xxxx shape of you\n\nWithout the channel it posts in this chat.`);
+      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}csong <channel link or jid> <song name>\nExample: ${PREFIX}csong https://whatsapp.com/channel/xxxx shape of you\n\nWithout the channel it posts in this chat.\n\nTest first (no YouTube): ${PREFIX}csong <channel> test`);
 
       let target = jid, rest = args;
       if (looksLikeTarget(args[0])) {
@@ -81,6 +92,17 @@ export default [
       }
       const query = rest.join(' ').trim();
       if (!query) return reply(`❌ Add the song name.\nExample: ${PREFIX}csong <channel> shape of you`);
+
+      if (/^(test|check)$/i.test(query)) { // .csong <channel> test : proves the bot can post there, without touching YouTube
+        try {
+          await sock.sendMessage(target, { text: `✅ Test post from ${BOT_NAME}. If you can read this, text posts work here.` });
+          await sock.sendMessage(target, { audio: await silentVoiceNote(), mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 1 });
+          return reply(`✅ Test posted to ${target.endsWith('@newsletter') ? 'the channel' : 'the chat'}: a text and a 1 second voice note.\nIf both arrived, ${PREFIX}csong will work there.`);
+        } catch (err) {
+          console.error('csong test error:', err?.message || err);
+          return reply(`❌ Could not post there: ${clip(err?.message || err, 150)}\nFor a channel the linked number must be its owner or an admin.`);
+        }
+      }
 
       let ytTarget = `ytsearch1:${query}`;
       if (/^https?:\/\//i.test(query)) {
@@ -101,7 +123,12 @@ export default [
       await reply(`⏳ Preparing *${clip(info.title, 80)}*...`);
       try {
         const token = crypto.randomBytes(4).toString('hex');
-        const { buf, ext } = await ytDlpFile(info.sourceUrl, token, { format: 'bestaudio[ext=m4a]/bestaudio', cookies: true });
+        let got;
+        for (const cookies of [true, false]) { // with the account cookies first, then without (some YouTube clients refuse cookies)
+          try { got = await ytDlpFile(info.sourceUrl, token, { format: 'bestaudio/best', cookies }); break; }
+          catch (err) { if (!cookies || err?.message === 'TOO_BIG') throw err; console.error('csong download with cookies failed, retrying without:', String(err?.message).split('\n').pop()); }
+        }
+        const { buf, ext } = got;
         const voice = await toVoiceNote(buf, ext);
         if (voice.length > MAX_DL_BYTES) throw new Error('TOO_BIG');
         const pic = await thumbnail(info);
