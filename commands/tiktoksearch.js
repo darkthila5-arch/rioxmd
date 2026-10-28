@@ -113,6 +113,25 @@ if (process.env.TIKTOK_RAPIDAPI_KEY) {
     if (j?.code !== undefined && j.code !== 0) throw new Error(`code ${j.code}: ${String(j.msg || '').slice(0, 120)}`);
     return pick(j);
   };
+  // "TikTok Scraper" (host tiktok-scraper20, endpoint "Search Videos", parameter `query`). This one goes FIRST.
+  // The exact path is not shown in the playground's Params tab, so a few likely paths are tried and the one that works is remembered.
+  // If none works, open Search Videos -> "Code snippet" on RapidAPI and set TIKTOK_RAPIDAPI_PATH to the path in the URL (e.g. /search/videos).
+  let path20 = null;
+  PROVIDERS.unshift(['rapidapi20', async (q) => {
+    const host = 'tiktok-scraper20.p.rapidapi.com';
+    const paths = path20 ? [path20] : [process.env.TIKTOK_RAPIDAPI_PATH, '/search/videos', '/search/video', '/videos/search', '/search/posts', '/search'].filter(Boolean);
+    const errs = [];
+    for (const pth of paths) {
+      try {
+        const j = await rapidJson(host, `${pth}?query=${q1(q)}`);
+        if (j?.message && !j.data && !Array.isArray(j)) throw new Error(String(j.message).slice(0, 80));
+        const list = pick(j);
+        if (list.length) { path20 = pth; return list; }
+        errs.push(`${pth}: empty ${JSON.stringify(j).slice(0, 80)}`);
+      } catch (e) { errs.push(`${pth}: ${e?.message || e}`); }
+    }
+    throw new Error(errs.join(' ; '));
+  }]);
   // "TikTok Scraper" (tikwm). The search words are sent 4 different ways because the gateway rejected the plain GET with "keywords is failed".
   PROVIDERS.unshift(['rapidapi', async (q) => {
     const host = 'tiktok-scraper7.p.rapidapi.com';
@@ -145,6 +164,8 @@ function remember(list) {
   for (const [k, v] of dlCache) if (now - v.at > 3600e3) dlCache.delete(k);
   for (const r of list) { const id = idOf(r.url); if (id) dlCache.set(id, { ...r, at: now }); }
 }
+
+PROVIDERS.sort((a, b) => (b[0] === 'rapidapi20') - (a[0] === 'rapidapi20')); // the tiktok-scraper20 API is tried first
 
 async function searchTikTok(query) {
   const errors = [];
