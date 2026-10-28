@@ -13,6 +13,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const FALLBACK_IMG = path.join(ROOT_DIR, 'public', 'ghost.png');
 
 const abs = (v) => (v ? (v.startsWith('/') ? `https://www.tikwm.com${v}` : v) : null);
+const httpUrl = (v) => { const u = abs(typeof v === 'string' ? v : ''); return /^https?:\/\//i.test(u || '') ? u : null; };
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
 // Turns the different reply shapes of the search providers into one list.
@@ -30,6 +31,8 @@ function normalize(items) {
       author, handle,
       cover: abs(it.cover || it.origin_cover || it.thumbnail || it.thumb || it.video?.cover || it.dynamic_cover),
       plays: it.play_count ?? it.plays ?? it.stats?.playCount ?? it.statistics?.play_count,
+      video: httpUrl(it.hdplay) || httpUrl(it.play) || httpUrl(it.video_url) || httpUrl(it.nowm),       // direct no-watermark file, when the provider sends it
+      audio: httpUrl(it.music) || httpUrl(it.music_info?.play) || httpUrl(it.audio),
       url
     });
     if (out.length >= MAX_CARDS) break;
@@ -37,7 +40,9 @@ function normalize(items) {
   return out;
 }
 // Finds the list of videos wherever the provider put it (data.videos, meta, result.search_data, ...).
+let lastRaw = null; // raw reply of the provider being tried (shown in the error log)
 function pick(j, depth = 0) {
+  if (depth === 0) lastRaw = j;
   if (Array.isArray(j)) return j;
   if (!j || typeof j !== 'object' || depth > 3) return [];
   for (const v of Object.values(j)) {
@@ -103,19 +108,34 @@ if (process.env.TIKTOK_SEARCH_URL) {
   PROVIDERS.unshift(['custom', async (q) => pick(await getJson(process.env.TIKTOK_SEARCH_URL.replace('{q}', q1(q)), { headers: BROWSER }))]);
 }
 if (process.env.TIKTOK_RAPIDAPI_KEY) {
-  PROVIDERS.unshift(['rapidapi', async (q) => pick(await getJson(`https://tiktok-scraper7.p.rapidapi.com/feed/search?keywords=${q1(q)}&region=us&count=12&cursor=0&publish_time=0&sort_type=0`, {
-    headers: { ...BROWSER, 'x-rapidapi-key': process.env.TIKTOK_RAPIDAPI_KEY.trim(), 'x-rapidapi-host': 'tiktok-scraper7.p.rapidapi.com' }
-  }))]);
+  PROVIDERS.unshift(['rapidapi', async (q) => {
+    const j = await getJson(`https://tiktok-scraper7.p.rapidapi.com/feed/search?keywords=${q1(q)}&count=12&cursor=0`, {
+      headers: { ...BROWSER, 'x-rapidapi-key': process.env.TIKTOK_RAPIDAPI_KEY.trim(), 'x-rapidapi-host': 'tiktok-scraper7.p.rapidapi.com' }
+    });
+    if (j?.message && !j.data) throw new Error(`RapidAPI says: ${String(j.message).slice(0, 150)}`); // e.g. "You are not subscribed to this API"
+    if (j?.code !== undefined && j.code !== 0) throw new Error(`RapidAPI code ${j.code}: ${String(j.msg || '').slice(0, 150)}`);
+    return pick(j);
+  }]);
+}
+
+// Search results are remembered for an hour so a button only needs the short video id (no long link in the button, no extra lookup).
+const dlCache = new Map(); // video id -> { url, video, audio, title, at }
+const idOf = (url) => (String(url).match(/\/video\/(\d+)/) || [])[1] || '';
+function remember(list) {
+  const now = Date.now();
+  for (const [k, v] of dlCache) if (now - v.at > 3600e3) dlCache.delete(k);
+  for (const r of list) { const id = idOf(r.url); if (id) dlCache.set(id, { ...r, at: now }); }
 }
 
 async function searchTikTok(query) {
   const errors = [];
   for (const [name, fn] of PROVIDERS) {
     try {
+      lastRaw = null;
       const raw = await fn(query);
       const list = normalize(raw);
-      if (list.length) { console.log(`TikTok search: ${list.length} result(s) via ${name}`); return list; }
-      errors.push(`${name}: no results (${JSON.stringify(raw)?.slice(0, 120)})`); // shows what the provider actually sent
+      if (list.length) { console.log(`TikTok search: ${list.length} result(s) via ${name}`); remember(list); return list; }
+      errors.push(`${name}: no results (${JSON.stringify(lastRaw ?? raw)?.slice(0, 200)})`); // shows what the provider actually sent
     } catch (err) { errors.push(`${name}: ${err?.message || err}`); }
     await sleep(300);
   }
@@ -143,7 +163,7 @@ async function sendCarousel(sock, jid, results, query, quoted) {
       header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
       body: IM.Body.create({ text: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n') }),
       footer: IM.Footer.create({ text: BOT_NAME }),
-      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
+      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
     });
   }));
   const interactiveMessage = IM.create({
@@ -171,19 +191,28 @@ function textList(results, query) {
   ].join('\n');
 }
 
-// Direct download used by the card buttons (no format menu in between).
-async function sendDirect(sock, jid, msg, rawUrl, kind, reply) {
-  const url = parseUrl(rawUrl, 'tiktok');
+// Direct download used by the card buttons (no format menu in between). Accepts a video id (from a card) or a TikTok link.
+async function sendDirect(sock, jid, msg, arg, kind, reply) {
+  console.log(`TikTok ${kind} download requested:`, arg);
+  const cached = dlCache.get(String(arg || ''));
+  const url = cached?.url || (/^\d+$/.test(arg || '') ? `https://www.tiktok.com/@user/video/${arg}` : parseUrl(arg, 'tiktok'));
   if (!url) return reply(`❌ Send a valid TikTok link.\nExample: ${PREFIX}ttdl <TikTok link>`);
   await reply(kind === 'audio' ? '⏳ Preparing audio...' : '⏳ Downloading...');
   try {
-    const info = await tikwm(url);
-    if (kind === 'audio') {
-      const buf = info.audio ? await fetchBuffer(info.audio) : await fetchBuffer(info.video, info.headers);
-      return await sock.sendMessage(jid, { audio: buf, mimetype: info.audio ? 'audio/mpeg' : 'audio/mp4', ptt: false }, { quoted: msg });
+    let buf = null, isAudio = false, title = cached?.title || '';
+    const direct = kind === 'audio' ? (cached?.audio || cached?.video) : cached?.video; // file link that came with the search result
+    if (direct) {
+      try { buf = await fetchBuffer(direct); isAudio = kind === 'audio' && direct === cached.audio; }
+      catch (err) { if (err?.message === 'TOO_BIG') throw err; console.error('Direct file failed, asking tikwm:', err?.message || err); }
     }
-    const buf = await fetchBuffer(info.video, info.headers);
-    return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(info.title, 200)}\n\n> ${BOT_NAME}` }, { quoted: msg });
+    if (!buf) {
+      const info = await tikwm(url);
+      title = info.title || title;
+      if (kind === 'audio' && info.audio) { buf = await fetchBuffer(info.audio); isAudio = true; }
+      else buf = await fetchBuffer(info.video, info.headers);
+    }
+    if (kind === 'audio') return await sock.sendMessage(jid, { audio: buf, mimetype: isAudio ? 'audio/mpeg' : 'audio/mp4', ptt: false }, { quoted: msg });
+    return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(title, 200)}\n\n> ${BOT_NAME}` }, { quoted: msg });
   } catch (err) {
     console.error('TikTok direct download error:', err?.message || err);
     if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`);
