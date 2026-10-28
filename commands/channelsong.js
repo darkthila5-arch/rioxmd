@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { sendCards } from '../lib/carousel.js';
-import { MAX_DL_BYTES, ytDlpFile, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
+import { MAX_DL_BYTES, ytDownload, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -146,11 +146,7 @@ export default [
       await reply(`⏳ Preparing *${clip(info.title, 80)}*...`);
       try {
         const token = crypto.randomBytes(4).toString('hex');
-        let got;
-        for (const cookies of [true, false]) { // with the account cookies first, then without (some YouTube clients refuse cookies)
-          try { got = await ytDlpFile(info.sourceUrl, token, { format: 'bestaudio/best', cookies }); break; }
-          catch (err) { if (!cookies || err?.message === 'TOO_BIG') throw err; console.error('csong download with cookies failed, retrying without:', String(err?.message).split('\n').pop()); }
-        }
+        const got = await ytDownload(info.sourceUrl, token, { format: 'bestaudio/best' });
         const { buf, ext } = got;
         const voice = await toVoiceNote(buf, ext);
         if (voice.length > MAX_DL_BYTES) throw new Error('TOO_BIG');
@@ -173,7 +169,7 @@ export default [
         console.error('csong error:', err?.stderr || err?.message || err);
         const m = String(err?.stderr || err?.message || err);
         if (err?.message === 'TOO_BIG') return reply(`❌ The file is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB.`);
-        if (/confirm you.?re not a bot|sign in|cookies|netscape/i.test(m)) return reply(youtubeProblem(err));
+        if (/confirm you.?re not a bot|sign in|cookies|netscape|format is not available/i.test(m)) return reply(youtubeProblem(err) + `\n🔧 Owner: send ${PREFIX}ytcheck to see why.`);
         if (/ffmpeg/i.test(m)) return reply('❌ Could not convert the audio to a voice note (ffmpeg problem). Check the logs.');
         if (/forbidden|not-authorized|401|403|admin|owner/i.test(m)) return reply('❌ WhatsApp refused the post. For a channel, the linked number must be its owner or an admin; for a group it must be a member.');
         return reply('❌ Could not post the song. Check the logs.');
