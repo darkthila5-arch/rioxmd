@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { sendCards } from '../lib/carousel.js';
-import { MAX_DL_BYTES, ytDownload, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
+import { MAX_DL_BYTES, getSong, rememberSong, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -107,7 +107,7 @@ export default [
       }
 
       // A song NAME (not a link) with buttons on: show picture cards first. Tapping 📢 POST runs this command again with that video's link.
-      if (USE_BUTTONS && !/^https?:\/\//i.test(query)) {
+      if (USE_BUTTONS && !/^https?:\/\//i.test(query) && !/^[0-9a-f]{8}$/.test(query)) { // (not for a link, and not for the id a POST button carries)
         try {
           await reply('🔎 Searching YouTube...');
           const list = await ytSearchList(query, 8);
@@ -119,7 +119,7 @@ export default [
               cards: list.map((r) => ({
                 image: [r.thumb, r.thumb.replace('mqdefault', 'hqdefault')],
                 body: [`🎵 ${clip(r.title, 110)}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.duration ? `⏱️ ${mmss(r.duration)}` : null].filter(Boolean).join('\n'),
-                buttons: [qr('📢 POST', `${PREFIX}csong ${dest}${r.sourceUrl}`)]
+                buttons: [qr('📢 POST', `${PREFIX}csong ${dest}${rememberSong(r)}`)]
               }))
             });
             return;
@@ -127,19 +127,24 @@ export default [
         } catch (err) { console.error('csong cards failed, posting the first result instead:', err?.stderr || err?.message || err); }
       }
 
-      let ytTarget = `ytsearch1:${query}`;
-      if (/^https?:\/\//i.test(query)) {
-        let u; try { u = new URL(query); } catch { /* checked below */ }
-        if (!u || !/(^|\.)(youtube\.com|youtu\.be|music\.youtube\.com)$/i.test(u.hostname)) return reply('❌ Only YouTube links are supported.');
-        ytTarget = u.toString();
-      }
-
-      await reply('🔎 Searching YouTube...');
-      let info;
-      try { info = await ytSearchInfo(ytTarget); }
-      catch (err) {
-        console.error('csong search error:', err?.stderr || err?.message || err);
-        return reply(youtubeProblem(err));
+      let info = null;
+      if (/^[0-9a-f]{8}$/.test(query)) { // the id a 📢 POST button carries: everything about the song is already known, no YouTube lookup needed
+        info = getSong(query);
+        if (!info) return reply(`⌛ That card expired. Search again with ${PREFIX}csong <channel> <song name>.`);
+      } else {
+        let ytTarget = `ytsearch1:${query}`;
+        if (/^https?:\/\//i.test(query)) {
+          let u; try { u = new URL(query); } catch { /* checked below */ }
+          if (!u || !/(^|\.)(youtube\.com|youtu\.be|music\.youtube\.com)$/i.test(u.hostname)) return reply('❌ Only YouTube links are supported.');
+          ytTarget = u.toString();
+        }
+        await reply('🔎 Searching YouTube...');
+        try {
+          info = /^https?:\/\//i.test(query) ? await ytQuickInfo(ytTarget) : ((await ytSearchList(query, 1))[0] || await ytSearchInfo(ytTarget));
+        } catch (err) {
+          console.error('csong search error:', err?.stderr || err?.message || err);
+          return reply(youtubeProblem(err));
+        }
       }
       if (info.duration && info.duration > MAX_SONG_MIN * 60) return reply(`❌ That video is longer than ${MAX_SONG_MIN} minutes.`);
 
