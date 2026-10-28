@@ -52,6 +52,19 @@ async function thumbnail(info) {
   return null;
 }
 
+// The real reason sits on the LAST lines of yt-dlp's message (the first line is only the command), so it is shown in the reply.
+function youtubeProblem(err) {
+  const raw = String(err?.stderr || err?.message || err);
+  const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l && !/^Command failed:/i.test(l));
+  const reason = clip(lines.filter((l) => /error/i.test(l)).pop() || lines.pop() || 'unknown', 220);
+  let hint = '';
+  if (/netscape|cookie.*(format|invalid)|does not look like/i.test(raw)) hint = '\n💡 The cookies file is not in Netscape format (tabs were lost). Use a Render *Secret File* named cookies.txt instead of an env variable.';
+  else if (/no longer valid|rotated|invalid.*cookie/i.test(raw)) hint = '\n💡 The cookies expired. Export new ones (private window, log in to YouTube, export, close the window) and update the secret file.';
+  else if (/not a bot|sign in/i.test(raw)) hint = '\n💡 YouTube still sees a bot. Fresh cookies from a logged-in account usually fix it.';
+  else if (/Requested format|unavailable|private|removed/i.test(raw)) hint = '\n💡 That video cannot be downloaded. Try another song name or link.';
+  return `❌ YouTube problem:\n${reason}${hint}`;
+}
+
 const mmss = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '-');
 
 export default [
@@ -81,8 +94,7 @@ export default [
       try { info = await ytSearchInfo(ytTarget); }
       catch (err) {
         console.error('csong search error:', err?.stderr || err?.message || err);
-        const bot = /confirm you.?re not a bot|sign in/i.test(String(err?.stderr || err?.message));
-        return reply(bot ? '❌ YouTube blocked this server (bot check). Add YouTube cookies (YTDLP_COOKIES env or a Render secret file cookies.txt) and try again.' : '❌ Could not find that song.');
+        return reply(youtubeProblem(err));
       }
       if (info.duration && info.duration > MAX_SONG_MIN * 60) return reply(`❌ That video is longer than ${MAX_SONG_MIN} minutes.`);
 
@@ -111,7 +123,7 @@ export default [
         console.error('csong error:', err?.stderr || err?.message || err);
         const m = String(err?.stderr || err?.message || err);
         if (err?.message === 'TOO_BIG') return reply(`❌ The file is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB.`);
-        if (/confirm you.?re not a bot|sign in/i.test(m)) return reply('❌ YouTube blocked this server (bot check). Add YouTube cookies and try again.');
+        if (/confirm you.?re not a bot|sign in|cookies|netscape/i.test(m)) return reply(youtubeProblem(err));
         if (/ffmpeg/i.test(m)) return reply('❌ Could not convert the audio to a voice note (ffmpeg problem). Check the logs.');
         if (/forbidden|not-authorized|401|403|admin|owner/i.test(m)) return reply('❌ WhatsApp refused the post. For a channel, the linked number must be its owner or an admin; for a group it must be a member.');
         return reply('❌ Could not post the song. Check the logs.');
