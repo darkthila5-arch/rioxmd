@@ -16,10 +16,14 @@ const abs = (v) => (v ? (v.startsWith('/') ? `https://www.tikwm.com${v}` : v) : 
 const httpUrl = (v) => { const u = abs(typeof v === 'string' ? v : ''); return /^https?:\/\//i.test(u || '') ? u : null; };
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
+const coverOf = (c) => (typeof c === 'string' ? c : c?.url_list?.[0] || null); // ScrapTik sends { url_list: [...] }
+
 // Turns the different reply shapes of the search providers into one list.
 function normalize(items) {
   const out = [];
-  for (const it of Array.isArray(items) ? items : []) {
+  for (const raw of Array.isArray(items) ? items : []) {
+    const it = raw?.aweme_info || raw?.item || raw?.video_info || raw; // some APIs (ScrapTik) wrap every video in aweme_info
+    if (!it || typeof it !== 'object') continue;
     const id = it.video_id || it.aweme_id || it.id;
     const a = it.author;
     const handle = (typeof a === 'object' ? a?.unique_id || a?.uniqueId || a?.username : '') || it.unique_id || it.username || '';
@@ -29,7 +33,7 @@ function normalize(items) {
     out.push({
       title: it.title || it.desc || it.description || it.caption || '',
       author, handle,
-      cover: abs(it.cover || it.origin_cover || it.thumbnail || it.thumb || it.video?.cover || it.dynamic_cover),
+      cover: abs(coverOf(it.cover) || coverOf(it.origin_cover) || coverOf(it.thumbnail) || coverOf(it.thumb) || coverOf(it.video?.cover) || coverOf(it.video?.origin_cover) || coverOf(it.dynamic_cover)),
       plays: it.play_count ?? it.plays ?? it.stats?.playCount ?? it.statistics?.play_count,
       video: httpUrl(it.hdplay) || httpUrl(it.play) || httpUrl(it.video_url) || httpUrl(it.nowm),       // direct no-watermark file, when the provider sends it
       audio: httpUrl(it.music) || httpUrl(it.music_info?.play) || httpUrl(it.audio),
@@ -46,7 +50,7 @@ function pick(j, depth = 0) {
   if (Array.isArray(j)) return j;
   if (!j || typeof j !== 'object' || depth > 3) return [];
   for (const v of Object.values(j)) {
-    if (Array.isArray(v) && v.some((x) => x && typeof x === 'object' && (x.video_id || x.aweme_id || x.id || x.url || x.play))) return v;
+    if (Array.isArray(v) && v.some((x) => x && typeof x === 'object' && (x.video_id || x.aweme_id || x.id || x.url || x.play || x.aweme_info || x.item))) return v;
   }
   for (const v of Object.values(j)) { const r = pick(v, depth + 1); if (r.length) return r; }
   return [];
@@ -148,6 +152,28 @@ if (process.env.TIKTOK_RAPIDAPI_KEY) {
     if (hit) { path20 = hit.pth; console.log(`rapidapi20 works with path ${hit.pth}`); return hit.list; }
     throw new Error(errs.length ? errs.join(' ; ') : `no endpoint matched (${paths.length} paths tried) - set TIKTOK_RAPIDAPI_PATH`);
   }]);
+  // ScrapTik (endpoint "Search Posts", parameter `keyword`). The path/host are guesses, so a few are tried together and the working one is remembered.
+  // If none works, copy the URL from Search Posts -> "Code snippet" into TIKTOK_SEARCH_URL (put {q} instead of the word).
+  let scrap = null;
+  PROVIDERS.unshift(['scraptik', async (q) => {
+    const hosts = ['scraptik.p.rapidapi.com'];
+    const paths = ['/search-posts', '/search-post', '/search/posts', '/search_posts', '/searchPosts', '/search-videos'];
+    const combos = scrap ? [scrap] : hosts.flatMap((h) => paths.map((pth) => [h, pth]));
+    const errs = [];
+    const results = await Promise.all(combos.map(async ([h, pth]) => {
+      try {
+        const j = await rapidJson(h, `${pth}?keyword=${q1(q)}&count=20&offset=0`);
+        if (j?.message && !Array.isArray(j) && !j.search_item_list && !j.data) throw new Error(String(j.message).slice(0, 60));
+        const list = pick(j);
+        if (list.length) return { combo: [h, pth], list };
+        errs.push(`${pth}: empty ${JSON.stringify(j).slice(0, 80)}`);
+      } catch (e) { if (!/does not exist/i.test(e?.message || '')) errs.push(`${pth}: ${e?.message || e}`); }
+      return null;
+    }));
+    const hit = results.find(Boolean);
+    if (hit) { scrap = hit.combo; console.log(`scraptik works with ${hit.combo.join('')}`); return hit.list; }
+    throw new Error(errs.length ? errs.join(' ; ') : 'no ScrapTik endpoint matched - use TIKTOK_SEARCH_URL');
+  }]);
 }
 
 // Search results are remembered for an hour so a button only needs the short video id (no long link in the button, no extra lookup).
@@ -159,8 +185,8 @@ function remember(list) {
   for (const r of list) { const id = idOf(r.url); if (id) dlCache.set(id, { ...r, at: now }); }
 }
 
-const rank = (n) => (n === 'custom' ? 0 : n === 'rapidapi20' ? 1 : 2);
-PROVIDERS.sort((a, b) => rank(a[0]) - rank(b[0])); // your own URL first, then tiktok-scraper20
+const rank = (n) => (n === 'custom' ? 0 : n === 'scraptik' ? 1 : n === 'rapidapi20' ? 2 : 3);
+PROVIDERS.sort((a, b) => rank(a[0]) - rank(b[0])); // your own URL first, then ScrapTik, then tiktok-scraper20
 
 async function searchTikTok(query) {
   const errors = [];
