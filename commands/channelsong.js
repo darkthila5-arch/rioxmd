@@ -1,0 +1,121 @@
+// .csong <channel link | channel jid | group jid> <song name or YouTube link>
+// Posts a song to a WhatsApp channel (or group) as: 1) the thumbnail with the song details, 2) the song as a voice note.
+// Leave the target out and it posts into the chat where you typed the command.
+// The linked number must be the channel owner / admin (channels) or a member (groups).
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { BOT_NAME, PREFIX } from '../lib/config.js';
+import { MAX_DL_BYTES, ytDlpFile, ytSearchInfo } from '../lib/downloader.js';
+
+const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
+
+async function resolveTarget(sock, raw) {
+  const t = String(raw || '').trim();
+  if (/@(g\.us|newsletter)$/.test(t)) return t;
+  const ch = t.match(/whatsapp\.com\/channel\/([\w-]+)/i);
+  if (ch) return (await sock.newsletterMetadata('invite', ch[1])).id;
+  const gr = t.match(/chat\.whatsapp\.com\/([\w-]+)/i);
+  if (gr) return (await sock.groupGetInviteInfo(gr[1])).id;
+  return null;
+}
+const looksLikeTarget = (t) => /@(g\.us|newsletter)$/.test(t) || /whatsapp\.com\/(channel|chat)|chat\.whatsapp\.com/i.test(t);
+
+// WhatsApp voice notes are mono Opus in an Ogg file. Anything else shows as a normal audio file instead of a voice note.
+function toVoiceNote(buf, ext) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `csong-${crypto.randomBytes(3).toString('hex')}-`));
+  const input = path.join(dir, `in.${ext || 'm4a'}`), output = path.join(dir, 'out.ogg');
+  fs.writeFileSync(input, buf);
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', ['-y', '-v', 'error', '-i', input, '-vn', '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', '48k', '-ar', '48000', '-ac', '1', '-f', 'ogg', output],
+      { timeout: 180000 }, (err, _out, stderr) => {
+        try { if (err) return reject(new Error(`ffmpeg: ${String(stderr || err.message).slice(0, 200)}`)); resolve(fs.readFileSync(output)); }
+        finally { fs.rmSync(dir, { recursive: true, force: true }); }
+      });
+  });
+}
+
+async function thumbnail(info) {
+  const id = String(info.sourceUrl || '').match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1];
+  for (const url of [id && `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, info.thumb].filter(Boolean)) { // jpg first: WhatsApp does not like webp pictures
+    try {
+      const res = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(10000) });
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > 1000) return buf;
+    } catch { /* try the next one */ }
+  }
+  return null;
+}
+
+const mmss = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '-');
+
+export default [
+  {
+    name: 'csong', aliases: ['channelsong'], owner: true, react: '🎙️',
+    async run({ sock, jid, args, reply }) {
+      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}csong <channel link or jid> <song name>\nExample: ${PREFIX}csong https://whatsapp.com/channel/xxxx shape of you\n\nWithout the channel it posts in this chat.`);
+
+      let target = jid, rest = args;
+      if (looksLikeTarget(args[0])) {
+        try { target = await resolveTarget(sock, args[0]); } catch (err) { console.error('csong resolve error:', err?.message || err); target = null; }
+        if (!target) return reply('❌ I could not read that channel / group. Send the channel link, or a jid ending in @newsletter / @g.us.');
+        rest = args.slice(1);
+      }
+      const query = rest.join(' ').trim();
+      if (!query) return reply(`❌ Add the song name.\nExample: ${PREFIX}csong <channel> shape of you`);
+
+      let ytTarget = `ytsearch1:${query}`;
+      if (/^https?:\/\//i.test(query)) {
+        let u; try { u = new URL(query); } catch { /* checked below */ }
+        if (!u || !/(^|\.)(youtube\.com|youtu\.be|music\.youtube\.com)$/i.test(u.hostname)) return reply('❌ Only YouTube links are supported.');
+        ytTarget = u.toString();
+      }
+
+      await reply('🔎 Searching YouTube...');
+      let info;
+      try { info = await ytSearchInfo(ytTarget); }
+      catch (err) {
+        console.error('csong search error:', err?.stderr || err?.message || err);
+        const bot = /confirm you.?re not a bot|sign in/i.test(String(err?.stderr || err?.message));
+        return reply(bot ? '❌ YouTube blocked this server (bot check). Add YouTube cookies (YTDLP_COOKIES env or a Render secret file cookies.txt) and try again.' : '❌ Could not find that song.');
+      }
+      if (info.duration && info.duration > MAX_SONG_MIN * 60) return reply(`❌ That video is longer than ${MAX_SONG_MIN} minutes.`);
+
+      await reply(`⏳ Preparing *${clip(info.title, 80)}*...`);
+      try {
+        const token = crypto.randomBytes(4).toString('hex');
+        const { buf, ext } = await ytDlpFile(info.sourceUrl, token, { format: 'bestaudio[ext=m4a]/bestaudio', cookies: true });
+        const voice = await toVoiceNote(buf, ext);
+        if (voice.length > MAX_DL_BYTES) throw new Error('TOO_BIG');
+        const pic = await thumbnail(info);
+
+        const details = [
+          `🎵 *${clip(info.title, 150)}*`,
+          info.author ? `👤 ${clip(info.author, 60)}` : null,
+          `⏱️ ${mmss(info.duration)}`,
+          info.sourceUrl ? `🔗 ${info.sourceUrl}` : null,
+          '', `🎧 Voice note below ⬇️`, `> ${BOT_NAME}`
+        ].filter((l) => l !== null).join('\n');
+
+        // 1) thumbnail + details, 2) the song as a voice note
+        if (pic) await sock.sendMessage(target, { image: pic, caption: details });
+        else await sock.sendMessage(target, { text: details });
+        await sock.sendMessage(target, { audio: voice, mimetype: 'audio/ogg; codecs=opus', ptt: true, ...(info.duration ? { seconds: Math.round(info.duration) } : {}) });
+        return target === jid ? undefined : reply(`✅ Posted to ${target.endsWith('@newsletter') ? 'the channel' : 'the group'}:\n🎵 ${clip(info.title, 80)}`);
+      } catch (err) {
+        console.error('csong error:', err?.stderr || err?.message || err);
+        const m = String(err?.stderr || err?.message || err);
+        if (err?.message === 'TOO_BIG') return reply(`❌ The file is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB.`);
+        if (/confirm you.?re not a bot|sign in/i.test(m)) return reply('❌ YouTube blocked this server (bot check). Add YouTube cookies and try again.');
+        if (/ffmpeg/i.test(m)) return reply('❌ Could not convert the audio to a voice note (ffmpeg problem). Check the logs.');
+        if (/forbidden|not-authorized|401|403|admin|owner/i.test(m)) return reply('❌ WhatsApp refused the post. For a channel, the linked number must be its owner or an admin; for a group it must be a member.');
+        return reply('❌ Could not post the song. Check the logs.');
+      }
+    }
+  }
+];
