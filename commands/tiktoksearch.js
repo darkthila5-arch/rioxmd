@@ -99,8 +99,6 @@ const PROVIDERS = [
     if (j.code !== 0) throw new Error(j.msg || 'tikwm refused');
     return pick(j);
   }],
-  ['delirius', async (q) => pick(await getJson(`https://delirius-apiofc.vercel.app/search/tiktoksearch?query=${q1(q)}`, { headers: BROWSER }))],
-  ['vreden', async (q) => pick(await getJson(`https://api.vreden.web.id/api/tiktoksearch?query=${q1(q)}`, { headers: BROWSER }))],
   ['davidcyril', async (q) => pick(await getJson(`https://apis.davidcyriltech.my.id/search/tiktok?query=${q1(q)}`, { headers: BROWSER }))],
   ['bing', (q) => viaWebSearch(`https://www.bing.com/search?q=${q1(`site:tiktok.com ${q}`)}&count=30&setlang=en`, { headers: WEB_HEADERS })]
 ];
@@ -108,13 +106,34 @@ if (process.env.TIKTOK_SEARCH_URL) {
   PROVIDERS.unshift(['custom', async (q) => pick(await getJson(process.env.TIKTOK_SEARCH_URL.replace('{q}', q1(q)), { headers: BROWSER }))]);
 }
 if (process.env.TIKTOK_RAPIDAPI_KEY) {
-  PROVIDERS.unshift(['rapidapi', async (q) => {
-    const j = await getJson(`https://tiktok-scraper7.p.rapidapi.com/feed/search?keywords=${q1(q)}&count=12&cursor=0`, {
-      headers: { ...BROWSER, 'x-rapidapi-key': process.env.TIKTOK_RAPIDAPI_KEY.trim(), 'x-rapidapi-host': 'tiktok-scraper7.p.rapidapi.com' }
-    });
+  const key = () => process.env.TIKTOK_RAPIDAPI_KEY.trim();
+  const rapidJson = (host, path, init = {}) => getJson(`https://${host}${path}`, { ...init, headers: { ...BROWSER, 'x-rapidapi-key': key(), 'x-rapidapi-host': host, ...(init.headers || {}) } });
+  const check = (j) => {
     if (j?.message && !j.data) throw new Error(`RapidAPI says: ${String(j.message).slice(0, 150)}`); // e.g. "You are not subscribed to this API"
-    if (j?.code !== undefined && j.code !== 0) throw new Error(`RapidAPI code ${j.code}: ${String(j.msg || '').slice(0, 150)}`);
+    if (j?.code !== undefined && j.code !== 0) throw new Error(`code ${j.code}: ${String(j.msg || '').slice(0, 120)}`);
     return pick(j);
+  };
+  // "TikTok Scraper" (tikwm). The search words are sent 4 different ways because the gateway rejected the plain GET with "keywords is failed".
+  PROVIDERS.unshift(['rapidapi', async (q) => {
+    const host = 'tiktok-scraper7.p.rapidapi.com';
+    const tries = [
+      () => rapidJson(host, `/feed/search?keywords=${q1(q)}&region=us&count=12&cursor=0&publish_time=0&sort_type=0`),
+      () => rapidJson(host, `/feed/search?keywords=${q1(q).replace(/%20/g, '+')}&count=12&cursor=0`),
+      () => rapidJson(host, '/feed/search', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form(q) }),
+      () => rapidJson(host, '/feed/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ keywords: q, count: 12, cursor: 0 }) })
+    ];
+    const errs = [];
+    for (const t of tries) {
+      try { const list = check(await t()); if (list.length) return list; errs.push('empty'); }
+      catch (e) { errs.push(e?.message || String(e)); }
+      await sleep(1100); // this API allows about 1 request per second
+    }
+    throw new Error(errs.join(' / '));
+  }]);
+  // A second RapidAPI search, "TikTok API" by Lundehund (host tiktok-api23). Subscribe to it with the same key to enable it.
+  PROVIDERS.splice(1, 0, ['rapidapi23', async (q) => {
+    const j = await rapidJson('tiktok-api23.p.rapidapi.com', `/api/search/video?keyword=${q1(q)}&cursor=0&search_id=0`);
+    return pick(j?.item_list ? j.item_list : j);
   }]);
 }
 
