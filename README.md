@@ -10,6 +10,8 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Pairing site | Link your own number with a pair code or QR. Live "online" counter. |
 | Menu | `.menu` image + buttons, `.alive`, emoji reaction on every command, bot DP link-preview card on every reply. |
 | Downloaders | TikTok, Facebook, Pinterest, YouTube song / video. |
+| TikTok search | `.tts <words>` shows results as swipeable cards with **VIDEO / AUDIO / MORE** buttons. |
+| Sri Lanka news | `.news`, `.hiru`, `.derana`, `.itn` and **auto posting** of new headlines to the groups and channels you add. |
 | Status tools | Auto view, auto react (your own emojis), auto save, view-once recovery. |
 | Owner tools | public / private mode, broadcast, block, join, leave, bio, profile picture, restart. |
 | Web settings | After linking, the bot sends a password to your own chat. Log in at `/settings` with your number to switch features on or off. |
@@ -63,20 +65,26 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `MONGO_URL`, `MONGO_DB` | MongoDB Atlas connection. Sessions survive redeploys. Allow `0.0.0.0/0` in Atlas network access. |
 | `SESSION_DIR` | Where sessions and settings are stored (`/var/data/sessions` on Render). |
 | `MAX_SESSIONS` | Maximum linked numbers (default 20). |
-| `MAX_DL_MB` | Download size limit (default 90). |
+| `MAX_DL_MB` | Download size limit (default 50). |
 | `YTDLP_PATH`, `YTDLP_COOKIES` | yt-dlp location / YouTube cookies when YouTube asks for a bot check. |
 | `CALLBOT_DIR`, `CALLBOT_PORT` | Optional, call service data folder / localhost port (8099). |
 | `PUBLIC_URL` | Public address of the site (for example `https://your-app.onrender.com`). Used in the web password message. Render's own `RENDER_EXTERNAL_URL` is used when this is empty. |
 | `WEB_SECRET` | Long random text used to sign web logins. Set it, otherwise everyone is logged out on each restart. |
 | `ADMIN_USER`, `ADMIN_PASSWORD` | Login for `/admin` (user defaults to `admin`). The admin site stays off unless the password has 10+ characters. |
 | `TIMEZONE` | Greeting and clock time zone (default `Asia/Colombo`). |
+| `TIKTOK_RAPIDAPI_KEY` | Your RapidAPI key for `.tts` (ScrapTik, subscribe on rapidapi.com, the free plan is enough). **Never put it in the repo or share it: set it only in Render's Environment tab.** |
+| `TIKTOK_SEARCH_URL` | Optional: any other JSON search API for `.tts`. Paste the URL from its "Code snippet" and write `{q}` where the search words go. RapidAPI URLs get the key and host headers added automatically. |
+| `TIKTOK_RAPIDAPI_PATH` | Optional: path of a `tiktok-scraper20` search endpoint, only if its automatic path guess fails. |
+| `NEWS_LANG` | `si` (default, Sinhala) or `en`: language of the news feeds. |
+| `NEWS_POLL_MIN` | Minutes between news checks (default 3). |
 
 ## Commands
 Send `menu` or `help` without the prefix and it works too.
 
 **Public (`.menu`)**
 - General: `.alive`, `.ping`, `.runtime`, `.about`, `.owner`, `.status`
-- Download: `.tt <link>`, `.fb <link>`, `.pin <link>`, `.song <name or link>`
+- Download: `.tt <link>`, `.fb <link>`, `.pin <link>`, `.song <name or link>`, `.tts <search words>` (TikTok search), `.ttdl <link>` / `.ttmp3 <link>` (TikTok video / sound straight away)
+- News: `.news [hiru|derana|itn]`, `.hiru`, `.derana`, `.itn`
 - Media: `.sticker`, `.media`
 - Group (anyone): `.groupinfo`, `.grouphelp`, `.admins`, `.rules`, `.tagadmins`, `.poll Question | A | B`, `.gsettings`
 - Group admin (the bot must be a group admin): `.kick`, `.add`, `.promote`, `.demote`, `.warn`, `.resetwarn`, `.warnlist`, `.tagall`, `.hidetag`, `.del`, `.group open|close` (`.mute` / `.unmute`), `.setname`, `.setdesc`, `.setgpp`, `.link`, `.revoke`, `.lockinfo` / `.unlockinfo`, `.ephemeral`, `.requests`, `.approveall`, `.rejectall`, `.rules set <text>`, `.antilink off|on|all`, `.welcome` / `.goodbye` (`on`, `off`, `set <text>`, `reset`, placeholders `{user} {group} {count} {desc}`)
@@ -85,6 +93,7 @@ Send `menu` or `help` without the prefix and it works too.
 - Status & view-once (work for the account that linked the bot): `.autostatus`, `.statusseen`, `.statusreact`, `.statusemoji`, `.statussave`, `.viewonce`, `.vv`, `.save`
 
 **Owner (`.momenu`, aliases `.ownermenu`, `.omenu`)** works only for the linked account or `OWNER_NUMBER`. For everybody else `.momenu` is ignored silently and owner commands answer "owner only".
+- News auto posting: `.newson [hiru derana itn]` (this chat), `.hiru on|off` / `.derana on|off` / `.itn on|off` (one channel, this chat), `.newsadd <group link | channel link | jid> [sources]`, `.newsoff`, `.newsdel <target>`, `.newslist`
 - `.mode public|private`, `.broadcast <text>`, `.block` / `.unblock`, `.join <group link>`, `.leave`, `.setbio <text>`, `.setpp` (reply to an image), `.restart` (only `OWNER_NUMBER`, restarts every session)
 - Calls: `.call`, `.callstream`, `.callreject`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`
 
@@ -93,6 +102,18 @@ Send `menu` or `help` without the prefix and it works too.
 - `.pin <pinterest or pin.it link>`: image pins are sent straight away (original size when possible), video pins show **Video / Document** buttons. It reads the public pin page and falls back to yt-dlp.
 - `.song <name or link>`: YouTube audio / document / video. If YouTube blocks the server, add cookies (`YTDLP_COOKIES` or a Render secret file `cookies.txt`).
 - Only public content works. Files over `MAX_DL_MB` are refused. Download only what you have the right to save.
+
+## TikTok search (`.tts`)
+`.tts funny cats` searches TikTok and answers with swipeable cards (picture, title, author, views). Each card has three buttons: **VIDEO** (sends the video), **AUDIO** (sends the sound) and **MORE** (the normal Video / Audio / Document menu). The same downloads work without buttons: `.ttdl <link>` and `.ttmp3 <link>`. Needs `BUTTONS=on`; otherwise the results come as a text list with the links.
+
+Search providers are tried in this order until one returns videos: your `TIKTOK_SEARCH_URL`, **ScrapTik** (`TIKTOK_RAPIDAPI_KEY`), `tiktok-scraper20`, tikwm, a free public API, Bing. Free public search APIs change or die often and some block Render's IP, so for a dependable setup subscribe to ScrapTik on RapidAPI and set `TIKTOK_RAPIDAPI_KEY` in Render. If every provider fails, the Render logs show one line per provider with the reason (`TikTok search error: ...`).
+
+## Sri Lanka news and auto posting
+- `.news` shows the latest headlines of Hiru, Derana and ITN. `.hiru`, `.derana`, `.itn` show one channel.
+- **Auto posting:** the bot checks the news sites every few minutes (`NEWS_POLL_MIN`) and posts every **new** story (picture, headline, short text, link) to the chats you added. Run `.newson` inside a group, or `.newsadd <group link / channel link / jid>` from anywhere. Owner only. Targets are saved with the other settings (MongoDB or `SESSION_DIR`).
+- The first check after the first start only remembers the existing stories and posts nothing. At most 3 new stories per channel are posted per check, with a pause between chats, because bulk posting is what gets numbers restricted.
+- For **WhatsApp channels** the linked number must be the channel owner or admin; for **groups** it must be a member.
+- Facebook pages cannot be read without Facebook's API, so stories come from the news sites themselves. Derana uses its RSS feed, Hiru is read from its home page, ITN blocks servers and falls back to Google News (text and link, usually no picture). The Render logs show which source each channel uses (`News: hiru uses ...`).
 
 ## Emoji reactions and the DP card
 Every command message gets an emoji reaction (🏓 ping, 🎵 tt, 📌 pin ...). Every text reply carries a link-preview style card with the bot's profile picture (falls back to `MENU_IMAGE`). `.setpp` refreshes it.
@@ -141,6 +162,11 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 - Click one number to manage it alone: status, settings, restart, web password, message, reset, unlink.
 - A log of recent admin actions (kept in memory, cleared on restart). Numbers are shown partly hidden.
 - WhatsApp auth keys and session files are never shown.
+
+## Troubleshooting
+- **`MENU_IMAGE could not be downloaded ... timeout`**: some image hosts (catbox.moe) are unreachable from Render. The bot caches the picture, tries an image proxy as well, and falls back to the bundled picture. For a fix that needs no network, save your picture as `public/menu.jpg`.
+- **Buttons not showing**: WhatsApp sometimes accepts button messages and never displays them. Check the Render logs for `Button send failed` and `Button tap:` lines.
+- **`.tts` says "search failed"**: see the `TikTok search error:` line in the logs; it lists every provider and why it failed.
 
 ## What happens on restart
 Paired sessions are restored automatically (from MongoDB or `SESSION_DIR`). Unpaired attempts expire after 5 minutes. Logged-out sessions are deleted.
