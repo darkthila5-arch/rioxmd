@@ -59,12 +59,7 @@ export default [
         return reply(lines.join('\n'));
     },
   },
-  {
-    name: 'song', aliases: ['play', 'yt', 'ytmp3'],
-    async run({ sock, msg, jid, args }) {
-        return startSong(sock, jid, msg, args.join(' ').trim());
-    },
-  },
+  // .song / .play / .yt / .ytmp3 now live in commands/songsearch.js (picture cards)
   {
     name: 'ytdl',
     async run({ sock, msg, jid, args }) {
