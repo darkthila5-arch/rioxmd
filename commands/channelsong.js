@@ -7,8 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { BOT_NAME, PREFIX } from '../lib/config.js';
-import { MAX_DL_BYTES, ytDlpFile, ytSearchInfo } from '../lib/downloader.js';
+import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
+import { qr } from '../lib/menu.js';
+import { sendCards } from '../lib/carousel.js';
+import { MAX_DL_BYTES, ytDlpFile, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -81,7 +83,7 @@ const mmss = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).pad
 export default [
   {
     name: 'csong', aliases: ['channelsong'], owner: true, react: '🎙️',
-    async run({ sock, jid, args, reply }) {
+    async run({ sock, msg, jid, args, reply }) {
       if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}csong <channel link or jid> <song name>\nExample: ${PREFIX}csong https://whatsapp.com/channel/xxxx shape of you\n\nWithout the channel it posts in this chat.\n\nTest first (no YouTube): ${PREFIX}csong <channel> test`);
 
       let target = jid, rest = args;
@@ -102,6 +104,27 @@ export default [
           console.error('csong test error:', err?.message || err);
           return reply(`❌ Could not post there: ${clip(err?.message || err, 150)}\nFor a channel the linked number must be its owner or an admin.`);
         }
+      }
+
+      // A song NAME (not a link) with buttons on: show picture cards first. Tapping 📢 POST runs this command again with that video's link.
+      if (USE_BUTTONS && !/^https?:\/\//i.test(query)) {
+        try {
+          await reply('🔎 Searching YouTube...');
+          const list = await ytSearchList(query, 8);
+          if (list.length) {
+            const dest = target === jid ? '' : `${target} `; // the channel / group id travels inside the button
+            await sendCards(sock, jid, {
+              title: `🔎 *YouTube results for* “${clip(query, 60)}”\nSwipe and tap 📢 POST to send the song ${target === jid ? 'here' : target.endsWith('@newsletter') ? 'to the channel' : 'to the group'}`,
+              quoted: msg,
+              cards: list.map((r) => ({
+                image: [r.thumb, r.thumb.replace('mqdefault', 'hqdefault')],
+                body: [`🎵 ${clip(r.title, 110)}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.duration ? `⏱️ ${mmss(r.duration)}` : null].filter(Boolean).join('\n'),
+                buttons: [qr('📢 POST', `${PREFIX}csong ${dest}${r.sourceUrl}`)]
+              }))
+            });
+            return;
+          }
+        } catch (err) { console.error('csong cards failed, posting the first result instead:', err?.stderr || err?.message || err); }
       }
 
       let ytTarget = `ytsearch1:${query}`;
