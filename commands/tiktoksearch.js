@@ -117,20 +117,25 @@ if (process.env.TIKTOK_RAPIDAPI_KEY) {
   // The exact path is not shown in the playground's Params tab, so a few likely paths are tried and the one that works is remembered.
   // If none works, open Search Videos -> "Code snippet" on RapidAPI and set TIKTOK_RAPIDAPI_PATH to the path in the URL (e.g. /search/videos).
   let path20 = null;
+  const PATHS20 = ['/search/videos', '/search/video', '/videos/search', '/video/search', '/search/posts', '/search', '/search-videos', '/search_videos', '/searchVideos',
+    '/api/search/videos', '/api/search/video', '/api/videos/search', '/v1/search/videos', '/v1/videos/search', '/videos', '/search/general', '/search/item', '/search/feed', '/feed/search', '/tiktok/search/videos', '/search/videos/list'];
   PROVIDERS.unshift(['rapidapi20', async (q) => {
     const host = 'tiktok-scraper20.p.rapidapi.com';
-    const paths = path20 ? [path20] : [process.env.TIKTOK_RAPIDAPI_PATH, '/search/videos', '/search/video', '/videos/search', '/search/posts', '/search'].filter(Boolean);
+    const paths = path20 ? [path20] : [...new Set([process.env.TIKTOK_RAPIDAPI_PATH, ...PATHS20].filter(Boolean))];
     const errs = [];
-    for (const pth of paths) {
+    const results = await Promise.all(paths.map(async (pth) => { // all paths at once; a wrong path answers "Endpoint does not exist" straight away
       try {
         const j = await rapidJson(host, `${pth}?query=${q1(q)}`);
-        if (j?.message && !j.data && !Array.isArray(j)) throw new Error(String(j.message).slice(0, 80));
+        if (j?.message && !j.data && !Array.isArray(j)) throw new Error(String(j.message).slice(0, 60));
         const list = pick(j);
-        if (list.length) { path20 = pth; return list; }
+        if (list.length) return { pth, list };
         errs.push(`${pth}: empty ${JSON.stringify(j).slice(0, 80)}`);
-      } catch (e) { errs.push(`${pth}: ${e?.message || e}`); }
-    }
-    throw new Error(errs.join(' ; '));
+      } catch (e) { if (!/does not exist/i.test(e?.message || '')) errs.push(`${pth}: ${e?.message || e}`); }
+      return null;
+    }));
+    const hit = results.find(Boolean);
+    if (hit) { path20 = hit.pth; console.log(`rapidapi20 works with path ${hit.pth}`); return hit.list; }
+    throw new Error(errs.length ? errs.join(' ; ') : `no endpoint matched (${paths.length} paths tried) - set TIKTOK_RAPIDAPI_PATH`);
   }]);
   // "TikTok Scraper" (tikwm). The search words are sent 4 different ways because the gateway rejected the plain GET with "keywords is failed".
   PROVIDERS.unshift(['rapidapi', async (q) => {
