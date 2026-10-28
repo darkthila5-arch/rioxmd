@@ -103,7 +103,18 @@ const PROVIDERS = [
   ['bing', (q) => viaWebSearch(`https://www.bing.com/search?q=${q1(`site:tiktok.com ${q}`)}&count=30&setlang=en`, { headers: WEB_HEADERS })]
 ];
 if (process.env.TIKTOK_SEARCH_URL) {
-  PROVIDERS.unshift(['custom', async (q) => pick(await getJson(process.env.TIKTOK_SEARCH_URL.replace('{q}', q1(q)), { headers: BROWSER }))]);
+  // Paste the URL from any search API's "Code snippet" and put {q} where the words go. For rapidapi.com URLs the key and host headers are added for you.
+  PROVIDERS.unshift(['custom', async (q) => {
+    const url = process.env.TIKTOK_SEARCH_URL.trim().replace('{q}', q1(q));
+    const headers = { ...BROWSER };
+    try {
+      const host = new URL(url).hostname;
+      if (/rapidapi\.com$/i.test(host) && process.env.TIKTOK_RAPIDAPI_KEY) { headers['x-rapidapi-key'] = process.env.TIKTOK_RAPIDAPI_KEY.trim(); headers['x-rapidapi-host'] = host; }
+    } catch { /* bad URL: the request below reports it */ }
+    const j = await getJson(url, { headers });
+    if (j?.message && !Array.isArray(j) && !j.data) throw new Error(String(j.message).slice(0, 150));
+    return pick(j);
+  }]);
 }
 if (process.env.TIKTOK_RAPIDAPI_KEY) {
   const key = () => process.env.TIKTOK_RAPIDAPI_KEY.trim();
@@ -137,28 +148,6 @@ if (process.env.TIKTOK_RAPIDAPI_KEY) {
     if (hit) { path20 = hit.pth; console.log(`rapidapi20 works with path ${hit.pth}`); return hit.list; }
     throw new Error(errs.length ? errs.join(' ; ') : `no endpoint matched (${paths.length} paths tried) - set TIKTOK_RAPIDAPI_PATH`);
   }]);
-  // "TikTok Scraper" (tikwm). The search words are sent 4 different ways because the gateway rejected the plain GET with "keywords is failed".
-  PROVIDERS.unshift(['rapidapi', async (q) => {
-    const host = 'tiktok-scraper7.p.rapidapi.com';
-    const tries = [
-      () => rapidJson(host, `/feed/search?keywords=${q1(q)}&region=us&count=12&cursor=0&publish_time=0&sort_type=0`),
-      () => rapidJson(host, `/feed/search?keywords=${q1(q).replace(/%20/g, '+')}&count=12&cursor=0`),
-      () => rapidJson(host, '/feed/search', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form(q) }),
-      () => rapidJson(host, '/feed/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ keywords: q, count: 12, cursor: 0 }) })
-    ];
-    const errs = [];
-    for (const t of tries) {
-      try { const list = check(await t()); if (list.length) return list; errs.push('empty'); }
-      catch (e) { errs.push(e?.message || String(e)); }
-      await sleep(1100); // this API allows about 1 request per second
-    }
-    throw new Error(errs.join(' / '));
-  }]);
-  // A second RapidAPI search, "TikTok API" by Lundehund (host tiktok-api23). Subscribe to it with the same key to enable it.
-  PROVIDERS.splice(1, 0, ['rapidapi23', async (q) => {
-    const j = await rapidJson('tiktok-api23.p.rapidapi.com', `/api/search/video?keyword=${q1(q)}&cursor=0&search_id=0`);
-    return pick(j?.item_list ? j.item_list : j);
-  }]);
 }
 
 // Search results are remembered for an hour so a button only needs the short video id (no long link in the button, no extra lookup).
@@ -170,7 +159,8 @@ function remember(list) {
   for (const r of list) { const id = idOf(r.url); if (id) dlCache.set(id, { ...r, at: now }); }
 }
 
-PROVIDERS.sort((a, b) => (b[0] === 'rapidapi20') - (a[0] === 'rapidapi20')); // the tiktok-scraper20 API is tried first
+const rank = (n) => (n === 'custom' ? 0 : n === 'rapidapi20' ? 1 : 2);
+PROVIDERS.sort((a, b) => rank(a[0]) - rank(b[0])); // your own URL first, then tiktok-scraper20
 
 async function searchTikTok(query) {
   const errors = [];
