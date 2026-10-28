@@ -4,7 +4,7 @@
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { sendCards } from '../lib/carousel.js';
-import { rememberSong, startSong, ytSearchList } from '../lib/downloader.js';
+import { rememberSong, startSong, ytDiagnose, ytSearchList } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -54,6 +54,14 @@ export default [
         } catch (err) { console.error('Song carousel failed, using text list:', err?.message || err); }
       }
       return reply(textList(items, query));
+    },
+  },
+  {
+    name: 'ytcheck', owner: true, react: '🩺',
+    async run({ reply }) {
+      await reply('🩺 Checking YouTube downloads (about 10 to 30 seconds)...');
+      try { return await reply(await ytDiagnose()); }
+      catch (err) { return reply(`❌ Check failed: ${clip(err?.message || err, 150)}`); }
     },
   },
 ];
