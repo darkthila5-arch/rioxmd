@@ -16,10 +16,17 @@ const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per cha
 
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
 const gnews = (site) => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
+const html = (page, re) => ({ html: page, re }); // fallback: read the site's own home page and pick the story links
 const SOURCES = {
-  hiru:   { name: 'HIRU NEWS',  icon: '🔴', feeds: ['https://www.hirunews.lk/rss', gnews('hirunews.lk')] },
+  hiru: { name: 'HIRU NEWS', icon: '🔴', feeds: [
+    'https://www.hirunews.lk/rss', 'https://www.hirunews.lk/feed', 'https://www.hirunews.lk/rss.xml',
+    html('https://www.hirunews.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?hirunews\.lk)?\/(?:[a-z]{2}\/)?\d{4,}[^"']*)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+    gnews('hirunews.lk')] },
   derana: { name: 'ADA DERANA', icon: '🔵', feeds: [LANG === 'si' ? 'https://sinhala.adaderana.lk/rss.php' : 'https://www.adaderana.lk/rss.php', gnews('adaderana.lk')] },
-  itn:    { name: 'ITN NEWS',   icon: '🟢', feeds: ['https://www.itnnews.lk/feed/', gnews('itnnews.lk')] }
+  itn: { name: 'ITN NEWS', icon: '🟢', feeds: [
+    'https://www.itnnews.lk/feed/', 'https://itnnews.lk/feed/', 'https://www.itnnews.lk/?feed=rss2',
+    html('https://www.itnnews.lk/', /<a[^>]+href=["'](https?:\/\/(?:www\.)?itnnews\.lk\/\d{4}\/\d{2}\/\d{2}\/[^"']+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+    gnews('itnnews.lk')] }
 };
 const ALL = Object.keys(SOURCES);
 
@@ -34,6 +41,29 @@ async function fetchText(url, ms = 15000) {
   return res.text();
 }
 
+// Google News links hide the real article inside the id (base64). Decoding it gives the real link, so the page can be opened for its picture.
+function decodeGoogle(link) {
+  const m = String(link).match(/news\.google\.com\/(?:rss\/)?articles\/([^?/]+)/);
+  if (!m) return link;
+  try {
+    const u = Buffer.from(m[1], 'base64url').toString('latin1').match(/https?:\/\/[\x21-\x7e]+/);
+    if (u) return u[0];
+  } catch { /* keep the Google link */ }
+  return link;
+}
+function parseHtml(page, f) {
+  const out = [], seen = new Set();
+  for (const m of String(page).matchAll(f.re)) {
+    let link = dec(m[1]).trim();
+    if (link.startsWith('/')) link = new URL(link, f.html).toString();
+    const title = plain(m[2]);
+    if (title.length < 15 || seen.has(link)) continue; // short anchors are menu items, not headlines
+    seen.add(link);
+    out.push({ id: keyOf(title), title, link, summary: '', image: '' });
+  }
+  return out;
+}
+
 function parseFeed(xml, isGoogle) {
   const items = [];
   for (const m of String(xml).matchAll(/<(item|entry)[\s>][\s\S]*?<\/\1>/g)) {
@@ -43,6 +73,7 @@ function parseFeed(xml, isGoogle) {
     if (isGoogle) title = title.replace(/\s+-\s+[^-]+$/, ''); // Google adds " - Publisher"
     let link = get('link') || (b.match(/<link[^>]+href=["']([^"']+)/i) || [])[1] || '';
     link = dec(link).trim();
+    if (isGoogle) link = decodeGoogle(link);
     const raw = get('description') || get('summary') || get('content:encoded') || get('content');
     const image = (b.match(/<(?:media:content|media:thumbnail|enclosure)[^>]+url=["']([^"']+)/i) || [])[1] || (raw.match(/<img[^>]+src=["']([^"']+)/i) || [])[1] || '';
     let summary = plain(raw);
@@ -54,16 +85,21 @@ function parseFeed(xml, isGoogle) {
 }
 
 const working = {}; // source -> index of the feed that last worked
+const warned = new Set();
+const feedUrl = (f) => (typeof f === 'string' ? f : f.html);
 async function latest(key) {
   const feeds = SOURCES[key].feeds;
   const order = [...new Set([working[key] ?? 0, ...feeds.keys()])];
   const errs = [];
   for (const i of order) {
+    const f = feeds[i], url = feedUrl(f);
     try {
-      const items = parseFeed(await fetchText(feeds[i]), feeds[i].includes('news.google.com'));
-      if (items.length) { if (working[key] !== i) { working[key] = i; console.log(`News: ${key} uses ${feeds[i]}`); } return items.slice(0, 15); }
-      errs.push(`feed ${i}: no stories`);
-    } catch (err) { errs.push(`feed ${i}: ${err?.message || err}`); }
+      const body = await fetchText(url);
+      const items = typeof f === 'string' ? parseFeed(body, url.includes('news.google.com')) : parseHtml(body, f);
+      if (items.length) { if (working[key] !== i) { working[key] = i; console.log(`News: ${key} uses ${url}`); } return items.slice(0, 15); }
+      errs.push(`${url}: no stories`);
+    } catch (err) { errs.push(`${url}: ${err?.message || err}`); }
+    if (!warned.has(url)) { warned.add(url); console.log(`News: ${key} source skipped - ${errs[errs.length - 1]}`); } // logged once per source
   }
   throw new Error(errs.join(' | '));
 }
