@@ -35,7 +35,7 @@ export default [
       catch (err) {
         console.error('YouTube search error:', err?.stderr || err?.message || err);
         const bot = /confirm you.?re not a bot|sign in/i.test(String(err?.stderr || err?.message));
-        return reply(bot ? '❌ YouTube blocked this server (bot check). Add fresh YouTube cookies (cookies.txt secret file), or try again later.' : '❌ YouTube search failed. Try again in a few seconds.');
+        return reply(bot ? '❌ YouTube blocked this server (bot check). Add fresh YouTube cookies (cookies.txt secret file), or try again later.'+'\n\nයූටියුබ් එක අපිව බ්ලොක් කරලා බං, පොඩ්ඩකින් ට්‍රයි කරපන් 😒' : '❌ YouTube search failed. Try again in a few seconds.'+'\n\nමොකක්හරි අවුලක් බං, ආයෙ ට්‍රයි කරපන් 😒');
       }
       if (!results.length) return reply(`😕 No songs found for “${clip(query, 60)}”.`);
 
