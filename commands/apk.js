@@ -72,7 +72,7 @@ export default [
       await reply('🔎 Searching apps...');
       let apps;
       try { apps = await searchApps(query); }
-      catch (err) { console.error('apk search error:', err?.message || err); return reply('❌ The app store did not answer. Try again in a minute.'); }
+      catch (err) { console.error('apk search error:', err?.message || err); return reply('❌ The app store did not answer. Try again in a minute.\n\nඇප් ස්ටෝර් එක උත්තර දෙන්නෙ නෑ බං, පොඩ්ඩකින් ට්‍රයි කරපන් 😒'); }
       if (!apps.length) return reply(`😕 No apps found for “${clip(query, 60)}”.`);
 
       const items = apps.map((a) => { const id = crypto.randomBytes(4).toString('hex'); pending.set(id, { ...a, expires: Date.now() + KEEP_MS }); return { a, id }; });
@@ -106,7 +106,7 @@ export default [
         const len = Number(head.headers.get('content-length') || 0);
         if (head.ok && len > 0) size = len;
       } catch { /* the store's size is used */ }
-      if (size > limit) return reply(`❌ ${clip(e.name, 40)} is ${mb(size)} MB. The limit here is ${MAX_APK_MB} MB.`);
+      if (size > limit) return reply(`❌ ${clip(e.name, 40)} is ${mb(size)} MB. The limit here is ${MAX_APK_MB} MB.\n\nමේක ලොකු වැඩියි බං, වෙන එකක් බලපන් 😑`);
       if (sending >= MAX_SENDING) return reply('⏳ Two APKs are being sent right now. Try again in a minute.');
 
       sending++;
@@ -128,7 +128,7 @@ export default [
         throw lastErr || new Error('no link worked');
       } catch (err) {
         console.error('apk error:', err?.message || err);
-        return reply('❌ I could not send that APK. Try another result.');
+        return reply('❌ I could not send that APK. Try another result.\n\nමේක යවන්න බැරි උනා බං, වෙන එකක් ට්‍රයි කරපන් 😒');
       } finally { sending--; }
     }
   }
