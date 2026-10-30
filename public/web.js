@@ -59,6 +59,9 @@
       { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces "Powered by Rio Editz". Leave empty for the default.', placeholder: 'Powered by me' },
       { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
     ] },
+    { title: '📣 Support other channels', userOnly: true, items: [
+      { k: 'boostOptIn', type: 'switch', label: 'Let my number follow and react to channels added by premium users', hint: 'Off by default. When on, your number follows those channels and reacts to their new posts. Turn it off any time and your number unfollows them again. Heavy automatic following can make WhatsApp limit an account, so only turn it on if you accept that.' },
+    ] },
     { title: 'Statuses', items: [
       { k: 'statusSeen', type: 'switch', label: 'View statuses automatically' },
       { k: 'statusReact', type: 'switch', label: 'React to new statuses', hint: 'Only statuses under 30 minutes old. Too much automatic reacting can look like spam to WhatsApp.' },
@@ -83,7 +86,7 @@
     ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
-  const BULKABLE = FLAT.filter((i) => !/^brand/.test(i.k)); // name / footer / logo are per number, never bulk
+  const BULKABLE = FLAT.filter((i) => !/^(brand|boostOptIn)/.test(i.k)); // name / footer / logo / consent switch are per number, never bulk
   const SWITCHES = FLAT.filter((i) => i.type === 'switch').map((i) => i.k);
 
   // premium: true / undefined = branding can be edited (admin sees everything); false = locked for a free number.
@@ -91,6 +94,7 @@
     root.replaceChildren();
     const send = async (patch) => { const res = await save(patch); if (res?.settings) Object.assign(values, res.settings); onChange?.(values); return res; };
     SCHEMA.forEach((group, gi) => {
+      if (group.userOnly && premium === undefined) return; // the admin cannot change a number's own consent switch
       const locked = !!group.premiumOnly && premium === false;
       const card = h('section', { class: 'card flat' }, h('h2', {}, group.title));
       card.style.setProperty('--i', gi);
@@ -150,6 +154,35 @@
   const uptime = (s) => { const d = Math.floor(s / 86400), hr = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${hr}h` : hr ? `${hr}h ${m}m` : `${m}m`; };
   const tile = (value, label) => h('div', {}, h('b', {}, String(value)), h('span', {}, label));
 
+  /* ---------- channel support card (premium adds a channel; the pool is the numbers that opted in) ---------- */
+  async function boostCard(box, premium) {
+    if (!box) return;
+    box.hidden = false;
+    const draw = (b) => {
+      const body = [h('h2', {}, '📣 Channel support'), h('p', { class: 'note' }, premium
+        ? `Add your WhatsApp channel. Numbers whose owners turned on "Support other channels" follow it and react to new posts. Right now ${b.poolSize} number${b.poolSize === 1 ? ' is' : 's are'} in the pool.`
+        : '🔒 Premium only. Ask the bot owner to activate premium for your number, then you can add a channel here.')];
+      for (const j of b.jobs) {
+        const del = h('button', { class: 'btn alt', type: 'button' }, 'Remove');
+        del.addEventListener('click', busy(del, async () => { try { draw(await api('DELETE', `/api/me/boost/${j.id}`)); toast('Channel removed. Helper numbers will unfollow.'); } catch (e) { toast(e.message, true); } }));
+        body.push(h('div', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${j.followers} following · reactions: ${j.emojis.join(' ')}`)), del));
+      }
+      if (premium && b.jobs.length < b.max) {
+        const link = h('input', { type: 'text', maxlength: 300, placeholder: 'https://whatsapp.com/channel/0029Va…', 'aria-label': 'Channel link' });
+        const emo = h('input', { type: 'text', maxlength: 60, placeholder: `Reaction emojis (optional): ${b.defaultEmojis.join(' ')}`, 'aria-label': 'Reaction emojis' });
+        const btn = h('button', { class: 'btn alt', type: 'submit' }, h('span', { class: 'label' }, 'Add channel'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
+        const form = h('form', { class: 'inline' }, h('div', { class: 'field sm' }, link), h('div', { class: 'field sm' }, emo), btn);
+        form.addEventListener('submit', busy(btn, async (ev) => {
+          ev.preventDefault();
+          try { draw(await api('POST', '/api/me/boost', { link: link.value, emojis: emo.value })); toast('Channel added. Followers join gradually.'); } catch (e) { toast(e.message, true); }
+        }));
+        body.push(form);
+      }
+      box.replaceChildren(...body);
+    };
+    try { draw(await api('GET', '/api/me/boost')); } catch { box.hidden = true; }
+  }
+
   /* ---------- /settings ---------- */
   async function settingsPage() {
     const phoneBox = $('#phone');
@@ -179,7 +212,7 @@
         const up = me.status === 'connected';
         $('#status').textContent = up ? 'Your bot is online. Changes apply right away.' : 'Your bot is reconnecting. Changes are saved and apply once it is back.';
         $('#statusDot').className = up ? 'dot' : 'dot warn';
-        tiles(me, me.settings); premium(me.premium);
+        tiles(me, me.settings); premium(me.premium); boostCard($('#boostCard'), !!me.premium?.active);
         renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active);
       } catch { out(); }
     };
