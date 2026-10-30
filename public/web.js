@@ -238,7 +238,7 @@
     let current = null, first = true, all = [], overview = null, filter = 'all', timer = null;
     const sel = new Set();
 
-    const stat = (value, label, count) => {
+    const stat = (value, label, count, tone) => {
       const animate = count != null && first && count > 0;
       const num = h('span', {}, animate ? '0' : String(value));
       if (animate) {
@@ -246,9 +246,12 @@
         const tick = (t) => { const k = Math.min(1, Math.max(0, (t - t0 - 200) / 800)); num.textContent = k < 1 ? String(Math.round(k * count)) : String(value); if (k < 1) requestAnimationFrame(tick); };
         requestAnimationFrame(tick);
       }
-      return h('div', { class: 'stat' }, h('b', {}, num), h('small', {}, label));
+      return h('div', { class: `stat${tone ? ` ${tone}` : ''}` }, h('b', {}, num), h('small', {}, label));
     };
     const isOnline = (s) => s.status === 'connected';
+    const FRIENDLY = { connected: 'Online', starting: 'Starting…', waiting_for_scan: 'Waiting to pair', waiting_for_pair: 'Waiting to pair', pair_error: 'Pairing failed', disconnected: 'Reconnecting', replaced: 'Used elsewhere', logged_out: 'Logged out', error: 'Error' };
+    const friendly = (st) => FRIENDLY[st] || String(st).replace(/_/g, ' ');
+    const dotClass = (s) => (isOnline(s) ? 'on' : /pair|scan|starting/.test(s.status) ? 'warn' : '');
     const shown = () => all.filter((s) => (filter === 'all' || (filter === 'on' ? isOnline(s) : !isOnline(s))) && (!$('#q').value.trim() || s.phone.includes($('#q').value.replace(/\D/g, ''))));
     const selIds = () => [...sel];
 
@@ -256,6 +259,9 @@
       const n = sel.size;
       $('#selInfo').textContent = n ? `${n} selected` : 'Nothing selected';
       $('#bulkSel').textContent = `${n} selected`;
+      $('#bbCount').textContent = String(n);
+      $('#bulkbar').hidden = !n;
+      if (!n) closeBulk();
     };
     const drawList = () => {
       const ul = $('#sessions'); ul.replaceChildren();
@@ -267,13 +273,12 @@
         chk.checked = sel.has(s.id);
         chk.addEventListener('change', () => { chk.checked ? sel.add(s.id) : sel.delete(s.id); drawSelection(); });
         ul.append(h('li', {}, chk, h('button', { class: 'go', type: 'button', 'aria-current': s.id === current ? 'true' : 'false', onclick: () => open(s.id) },
-          h('span', { class: 'num' }, s.linked ? `+${s.phone}` : 'Pairing in progress'),
+          h('span', { class: 'who' }, h('span', { class: `sdot ${dotClass(s)}`, 'aria-hidden': 'true' }), h('span', { class: 'num' }, s.linked ? `+${s.phone}` : 'Pairing in progress')),
           h('span', { class: 'pills' },
-            h('span', { class: `pill${isOnline(s) ? ' on' : ''}` }, s.status.replace(/_/g, ' ')),
-            h('span', { class: 'pill' }, s.mode),
+            h('span', { class: `pill${isOnline(s) ? ' on' : ''}` }, friendly(s.status)),
+            h('span', { class: 'pill' }, s.mode === 'private' ? 'Private' : 'Public'),
             s.premium && h('span', { class: 'pill gold' }, `👑 ${s.premiumDays}d`),
-            s.linked && h('span', { class: 'pill' }, `${s.features} on`),
-            s.linked && !s.webPassword && h('span', { class: 'pill warn' }, 'no web password')))));
+            s.linked && !s.webPassword && h('span', { class: 'pill warn' }, 'No web password')))));
       }
       drawSelection();
     };
@@ -294,6 +299,17 @@
         ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `Added by +${j.owner || '?'} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), del));
       }
     };
+    const drawAttention = () => {
+      const ul = $('#attention'); ul.replaceChildren();
+      const bad = all.filter((s) => s.linked && (!isOnline(s) || !s.webPassword));
+      if (!bad.length) { ul.append(h('li', { class: 'good-note' }, '✅ All good. Every linked number is online and has a web password.')); return; }
+      for (const s of bad.slice(0, 8)) {
+        ul.append(h('li', {}, h('button', { class: 'go', type: 'button', onclick: () => { showTab('numbers'); open(s.id); } },
+          h('span', { class: 'who' }, h('span', { class: `sdot ${dotClass(s)}`, 'aria-hidden': 'true' }), h('span', { class: 'num' }, `+${s.phone}`)),
+          h('span', { class: 'pills' }, !isOnline(s) && h('span', { class: 'pill warn' }, friendly(s.status)), !s.webPassword && h('span', { class: 'pill warn' }, 'No web password')))));
+      }
+      if (bad.length > 8) ul.append(h('li', { class: 'empty' }, `…and ${bad.length - 8} more in the Numbers tab.`));
+    };
     const refresh = async () => {
       try {
         const o = await api('GET', '/api/admin/overview');
@@ -301,8 +317,13 @@
         for (const id of [...sel]) if (!all.some((s) => s.id === id)) sel.delete(id);
         $('#login').hidden = true; $('#panel').hidden = false; $('#logout').hidden = false;
         const linked = all.filter((s) => s.linked).length;
-        $('#stats').replaceChildren(stat(`${linked}/${o.maxSessions}`, 'Linked numbers', linked), stat(o.connected, 'Online now', o.connected), stat(o.pairingOpen ? 'Open' : 'Paused', 'New links'), stat(o.premiumCount || 0, 'Premium numbers'), stat(`${o.memoryMb} MB`, 'Memory'), stat(uptime(o.uptimeSeconds), 'Uptime'), stat(o.storage, 'Storage'), stat(o.callService ? 'Ready' : 'Off', 'Call service'));
+        const offline = all.filter((s) => s.linked && !isOnline(s)).length;
+        $('#stats').replaceChildren(stat(`${linked}/${o.maxSessions}`, 'Linked numbers', linked), stat(o.connected, 'Online now', o.connected, 'good'), stat(offline, 'Offline', null, offline ? 'warn' : ''), stat(o.premiumCount || 0, '👑 Premium', o.premiumCount || 0));
+        const kv = (label, value) => h('div', {}, h('span', {}, label), h('b', {}, String(value)));
+        $('#serverStats').replaceChildren(kv('New links', o.pairingOpen ? 'Open' : 'Paused'), kv('Memory', `${o.memoryMb} MB`), kv('Uptime', uptime(o.uptimeSeconds)), kv('Storage', o.storage), kv('Call service', o.callService ? 'Ready' : 'Off'), kv('Node', o.node));
+        $('#numBadge').textContent = String(linked);
         first = false;
+        drawAttention();
         $('#pairSwitch').checked = o.pairingOpen;
         drawBoost(o.boost);
         const b = o.bulk;
@@ -319,12 +340,14 @@
     const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('#panel').hidden) refresh(); else schedule(); }, overview?.bulk ? 2500 : 30000); };
 
     /* ----- one number ----- */
-    const closeDetail = () => { current = null; $('#detail').hidden = true; };
+    const lock = () => document.body.classList.toggle('noscroll', !$('#detail').hidden || !$('#bulk').hidden);
+    const closeDetail = () => { current = null; $('#detail').hidden = true; $('#scrim').hidden = true; lock(); drawList(); };
+    const closeBulk = () => { $('#bulk').hidden = true; lock(); };
     const drawDetail = (d) => {
       $('#detailTitle').textContent = d.linked ? `+${d.phone}` : 'Pairing in progress';
       $('#detailPills').replaceChildren(...[
-        h('span', { class: `pill${d.status === 'connected' ? ' on' : ''}` }, d.status.replace(/_/g, ' ')),
-        h('span', { class: `pill${d.webPassword ? '' : ' warn'}` }, d.webPassword ? 'web password set' : 'no web password'),
+        h('span', { class: `pill${d.status === 'connected' ? ' on' : ''}` }, friendly(d.status)),
+        h('span', { class: `pill${d.webPassword ? '' : ' warn'}` }, d.webPassword ? 'Web password set' : 'No web password'),
         d.premium?.active ? h('span', { class: 'pill gold' }, `👑 premium, ${d.premium.daysLeft} day(s) left`) : null,
         d.retries ? h('span', { class: 'pill warn' }, `${d.retries} reconnect(s)`) : null,
         d.error ? h('span', { class: 'pill warn' }, d.error) : null,
@@ -333,10 +356,12 @@
     const open = async (id, scroll = true) => {
       try {
         const d = await api('GET', `/api/admin/session/${id}`);
-        current = id; $('#detail').hidden = false; drawDetail(d);
+        const wasHidden = $('#detail').hidden;
+        current = id; $('#detail').hidden = false; $('#scrim').hidden = false; lock(); drawDetail(d);
+        if (wasHidden) $('#detailClose').focus({ preventScroll: true });
         renderSettings($('#groups'), d.settings, (p) => api('PATCH', `/api/admin/session/${id}/settings`, p).then((r) => { refresh(); return r; }));
         drawList();
-        if (scroll) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (scroll) $('.drawer-body').scrollTop = 0;
       } catch (e) { toast(e.message, true); refresh(); }
     };
     const one = (btn, path, dialog, done, closes) => btn.addEventListener('click', busy(btn, async () => {
@@ -369,6 +394,26 @@
       try { await api('POST', `/api/admin/session/${current}/premium`, { action: 'revoke' }); toast('Premium removed'); await open(current, false); refresh(); } catch (e) { toast(e.message, true); }
     }));
 
+    /* ----- tabs, drawer and the selection bar ----- */
+    function showTab(name) {
+      $('#tabs').querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+      document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
+      try { history.replaceState(null, '', `#${name}`); } catch {}
+    }
+    $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
+    const fromHash = location.hash.slice(1);
+    if (['overview', 'numbers', 'channels', 'activity'].includes(fromHash)) showTab(fromHash);
+    $('#detailClose').addEventListener('click', closeDetail);
+    $('#scrim').addEventListener('click', closeDetail);
+    $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
+    $('#bbClear').addEventListener('click', () => { sel.clear(); drawList(); });
+    $('#bulkClose').addEventListener('click', closeBulk);
+    $('#bulk').addEventListener('click', (e) => { if (e.target === $('#bulk')) closeBulk(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !$('#modal').hidden) return; // the confirm box handles its own Escape
+      if (!$('#bulk').hidden) closeBulk(); else if (!$('#detail').hidden) closeDetail();
+    });
+
     /* ----- many numbers ----- */
     $('#selShown').addEventListener('click', () => { shown().forEach((s) => sel.add(s.id)); drawList(); });
     $('#selOnline').addEventListener('click', () => { sel.clear(); all.filter(isOnline).forEach((s) => sel.add(s.id)); drawList(); });
@@ -385,7 +430,7 @@
       try {
         const r = await api('POST', '/api/admin/bulk', { ids: selIds(), ...body });
         toast(r.queued ? `${done}: working on ${r.queued} number(s)…` : `${done}: ${r.done} number(s)`);
-        refresh(); return true;
+        closeBulk(); refresh(); return true;
       } catch (e) { toast(e.message, true); return false; }
     };
     const bulkBtn = (btn, action, dialog, done) => btn.addEventListener('click', busy(btn, async () => {
