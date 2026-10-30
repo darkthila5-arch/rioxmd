@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/web.css?v=2">
+<link rel="stylesheet" href="/web.css?v=3">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -48,101 +48,170 @@
   </section>
 
   <section id="panel" hidden>
-    <div class="hero compact">
-      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Live • refreshes by itself</p>
-      <h1>Admin <span class="grad">console</span></h1>
+    <div class="adm-head">
+      <div>
+        <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Live • refreshes by itself</p>
+        <h1>Admin <span class="grad">console</span></h1>
+      </div>
     </div>
-    <div class="stats" id="stats"></div>
-    <div class="banner" id="bulkBar" hidden><span id="bulkLabel"></span><span class="meter"><span id="bulkFill" style="width:0"></span></span><b id="bulkCount"></b></div>
 
-    <section class="card">
-      <h2>New links</h2>
-      <label class="row" for="pairSwitch" style="border-top:0">
-        <span class="txt"><b>Let people link new numbers</b><small>Turn this off to pause the pair page. Numbers that are already linked keep working.</small></span>
-        <input type="checkbox" class="sw" id="pairSwitch" role="switch" aria-label="Allow new links">
-      </label>
+    <div class="banner" id="bulkBar" hidden role="status"><span id="bulkLabel"></span><span class="meter"><span id="bulkFill" style="width:0"></span></span><b id="bulkCount"></b></div>
+
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+      <button class="tab" role="tab" type="button" data-tab="overview" aria-selected="true"><span class="ico" aria-hidden="true">📊</span><span>Overview</span></button>
+      <button class="tab" role="tab" type="button" data-tab="numbers" aria-selected="false"><span class="ico" aria-hidden="true">📱</span><span>Numbers</span><em class="badge" id="numBadge">0</em></button>
+      <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true">📣</span><span>Channels</span></button>
+      <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Activity</span></button>
+    </nav>
+
+    <!-- OVERVIEW -->
+    <section class="tabpane" id="pane-overview" role="tabpanel">
+      <div class="stats" id="stats"></div>
+
+      <div class="duo">
+        <section class="card tight">
+          <h2>New links</h2>
+          <label class="row" for="pairSwitch">
+            <span class="txt"><b>Let people link new numbers</b><small>Off = the pair page is paused. Numbers already linked keep working.</small></span>
+            <input type="checkbox" class="sw" id="pairSwitch" role="switch" aria-label="Allow new links">
+          </label>
+        </section>
+        <section class="card tight">
+          <h2>Channel support</h2>
+          <label class="row" for="boostSwitch">
+            <span class="txt"><b>Channel support is running</b><small id="boostInfo">Numbers that opted in follow and react to premium users' channels. Off = everything pauses.</small></span>
+            <input type="checkbox" class="sw" id="boostSwitch" role="switch" aria-label="Channel support running">
+          </label>
+        </section>
+      </div>
+
+      <section class="card" id="attentionCard">
+        <h2>Needs attention</h2>
+        <p class="note" id="attentionNote">Numbers that are offline or have no web password yet.</p>
+        <ul class="slist plain" id="attention"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Server</h2>
+        <div class="kv" id="serverStats"></div>
+      </section>
     </section>
 
-    <section class="card" id="boostAdmin">
-      <h2>📣 Channel support</h2>
-      <label class="row" for="boostSwitch" style="border-top:0">
-        <span class="txt"><b>Channel support is running</b><small id="boostInfo">Premium users add channels; numbers that opted in follow them and react. Turn this off to pause everything (nothing is followed, unfollowed or reacted to).</small></span>
-        <input type="checkbox" class="sw" id="boostSwitch" role="switch" aria-label="Channel support running">
-      </label>
-      <ul class="slist" id="boostList"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Linked numbers</h2>
-      <p class="note">Tick the numbers you want, then use the control box below. Tap a number to manage it on its own.</p>
-      <div class="toolbar">
-        <div class="field sm"><input id="q" type="text" inputmode="search" placeholder="Search by digits" autocomplete="off" aria-label="Search numbers"></div>
-        <div class="chips" id="filters" role="group" aria-label="Filter">
-          <button class="chip" type="button" data-f="all" aria-pressed="true">All</button>
-          <button class="chip" type="button" data-f="on" aria-pressed="false">Online</button>
-          <button class="chip" type="button" data-f="off" aria-pressed="false">Offline</button>
+    <!-- NUMBERS -->
+    <section class="tabpane" id="pane-numbers" role="tabpanel" hidden>
+      <section class="card">
+        <div class="toolbar">
+          <div class="field sm"><input id="q" type="text" inputmode="search" placeholder="Search by digits" autocomplete="off" aria-label="Search numbers"></div>
+          <div class="chips" id="filters" role="group" aria-label="Filter">
+            <button class="chip" type="button" data-f="all" aria-pressed="true">All</button>
+            <button class="chip" type="button" data-f="on" aria-pressed="false">Online</button>
+            <button class="chip" type="button" data-f="off" aria-pressed="false">Offline</button>
+          </div>
         </div>
-      </div>
-      <div class="selbar"><span id="selInfo">Nothing selected</span><span class="links"><button class="link" id="selShown" type="button">Select shown</button><button class="link" id="selOnline" type="button">Select online</button><button class="link" id="selNone" type="button">Clear</button></span></div>
-      <ul class="slist" id="sessions"></ul>
+        <div class="selbar"><span id="selInfo">Nothing selected</span><span class="links"><button class="link" id="selShown" type="button">Select shown</button><button class="link" id="selOnline" type="button">Select online</button><button class="link" id="selNone" type="button">Clear</button></span></div>
+        <ul class="slist" id="sessions"></ul>
+        <p class="note hint">Tip: tick numbers to act on many at once. Tap a number to see and change its own settings.</p>
+      </section>
     </section>
 
-    <section class="card bulkbox" id="bulk">
-      <h2>Control box</h2>
-      <p class="note"><span class="count" id="bulkSel">0 selected</span>. These actions run on every ticked number.</p>
-      <label for="bulkKey">Change an option for all of them</label>
-      <div class="inline">
-        <div class="field sm"><select id="bulkKey" aria-label="Option"></select></div>
-        <div class="field sm" id="bulkValBox"></div>
-        <button class="btn" id="bulkApply" type="button"><span class="label">Apply</span><span class="spin" aria-hidden="true"></span></button>
-      </div>
-      <label for="premDays">👑 Premium for all of them</label>
-      <div class="inline">
-        <div class="field sm"><input id="premDays" type="number" inputmode="numeric" min="1" max="3650" step="1" value="30" aria-label="Premium days"></div>
-        <button class="btn" id="bPremGive" type="button"><span class="label">Give premium days</span><span class="spin" aria-hidden="true"></span></button>
-      </div>
-      <div class="chips" id="premChips" role="group" aria-label="Quick days" style="margin-top:8px">
-        <button class="chip" type="button" data-d="7">7 days</button>
-        <button class="chip" type="button" data-d="30">30 days</button>
-        <button class="chip" type="button" data-d="90">90 days</button>
-        <button class="chip" type="button" data-d="365">1 year</button>
-      </div>
-      <p class="note">Days are added after any days they already have. Each number gets a short message in its own chat.</p>
-      <div class="actions">
-        <button class="btn alt" id="bPremRemove" type="button">Remove premium</button>
-        <button class="btn alt" id="bRestart" type="button">Restart</button>
-        <button class="btn alt" id="bPass" type="button">Send web password</button>
-        <button class="btn alt" id="bNotice" type="button">Send a message</button>
-        <button class="btn alt" id="bReset" type="button">Reset settings</button>
-        <button class="btn danger" id="bDelete" type="button">Unlink and delete</button>
-      </div>
+    <!-- CHANNELS -->
+    <section class="tabpane" id="pane-channels" role="tabpanel" hidden>
+      <section class="card" id="boostAdmin">
+        <h2>Channels being supported</h2>
+        <p class="note">Added by premium users. Numbers that opted in follow them and react to new posts.</p>
+        <ul class="slist plain" id="boostList"></ul>
+      </section>
     </section>
 
-    <section id="detail" hidden>
-      <div class="card">
-        <h3 id="detailTitle"></h3>
-        <div class="pills" id="detailPills" style="margin-top:8px"></div>
-        <div class="actions">
-          <button class="btn alt" id="premGive" type="button">👑 Give premium</button>
-          <button class="btn alt" id="premRemove" type="button">Remove premium</button>
-          <button class="btn alt" id="restart" type="button">Restart bot</button>
-          <button class="btn alt" id="resetPass" type="button">Send new web password</button>
-          <button class="btn alt" id="notice" type="button">Send a message</button>
-          <button class="btn alt" id="resetOne" type="button">Reset settings</button>
-          <button class="btn danger" id="remove" type="button">Unlink and delete</button>
-        </div>
-      </div>
-      <div id="groups"></div>
-    </section>
-
-    <section class="card">
-      <h2>Recent admin activity</h2>
-      <ul class="log" id="audit"></ul>
+    <!-- ACTIVITY -->
+    <section class="tabpane" id="pane-activity" role="tabpanel" hidden>
+      <section class="card">
+        <h2>Recent admin activity</h2>
+        <p class="note">Kept in memory only, cleared when the server restarts.</p>
+        <ul class="log" id="audit"></ul>
+      </section>
     </section>
   </section>
 </div></main>
 
 <footer><div class="wrap wide">RIO X MD • Admin console<br><small>Numbers are partly hidden here on purpose.</small></div></footer>
+
+<!-- selected-numbers bar -->
+<div class="bulkbar" id="bulkbar" hidden role="region" aria-label="Selected numbers">
+  <span class="cnt"><b id="bbCount">0</b> selected</span>
+  <button class="btn sm" id="bbActions" type="button">Actions…</button>
+  <button class="link" id="bbClear" type="button">Clear</button>
+</div>
+
+<!-- actions for the selected numbers -->
+<div class="modal bottom" id="bulk" hidden role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+  <div class="card sheet wide">
+    <div class="sheet-head"><h2 id="bulkTitle">Actions for <span class="count" id="bulkSel">0 selected</span></h2><button class="x" id="bulkClose" type="button" aria-label="Close">✕</button></div>
+
+    <h3 class="sub">Change an option</h3>
+    <div class="inline">
+      <div class="field sm"><select id="bulkKey" aria-label="Option"></select></div>
+      <div class="field sm" id="bulkValBox"></div>
+      <button class="btn" id="bulkApply" type="button"><span class="label">Apply</span><span class="spin" aria-hidden="true"></span></button>
+    </div>
+
+    <h3 class="sub">👑 Premium</h3>
+    <div class="inline">
+      <div class="field sm"><input id="premDays" type="number" inputmode="numeric" min="1" max="3650" step="1" value="30" aria-label="Premium days"></div>
+      <button class="btn" id="bPremGive" type="button"><span class="label">Give days</span><span class="spin" aria-hidden="true"></span></button>
+    </div>
+    <div class="chips" id="premChips" role="group" aria-label="Quick days">
+      <button class="chip" type="button" data-d="7">7 days</button>
+      <button class="chip" type="button" data-d="30">30 days</button>
+      <button class="chip" type="button" data-d="90">90 days</button>
+      <button class="chip" type="button" data-d="365">1 year</button>
+    </div>
+    <p class="note">Days are added after any days they already have. Each number gets a short message in its own chat.</p>
+
+    <h3 class="sub">Maintenance</h3>
+    <div class="actions">
+      <button class="btn alt" id="bNotice" type="button">Send a message</button>
+      <button class="btn alt" id="bPass" type="button">Send web password</button>
+      <button class="btn alt" id="bRestart" type="button">Restart</button>
+      <button class="btn alt" id="bPremRemove" type="button">Remove premium</button>
+    </div>
+
+    <h3 class="sub danger-t">Danger zone</h3>
+    <div class="actions">
+      <button class="btn danger" id="bReset" type="button">Reset settings</button>
+      <button class="btn danger" id="bDelete" type="button">Unlink and delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- one number -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <header class="drawer-head">
+    <div class="who">
+      <h2 id="detailTitle"></h2>
+      <div class="pills" id="detailPills"></div>
+    </div>
+    <button class="x" id="detailClose" type="button" aria-label="Close">✕</button>
+  </header>
+  <div class="drawer-body">
+    <h3 class="sub">Quick actions</h3>
+    <div class="actions">
+      <button class="btn alt" id="premGive" type="button">👑 Give premium</button>
+      <button class="btn alt" id="premRemove" type="button">Remove premium</button>
+      <button class="btn alt" id="notice" type="button">Send a message</button>
+      <button class="btn alt" id="resetPass" type="button">New web password</button>
+      <button class="btn alt" id="restart" type="button">Restart bot</button>
+    </div>
+    <h3 class="sub">Settings</h3>
+    <div id="groups"></div>
+    <h3 class="sub danger-t">Danger zone</h3>
+    <div class="actions">
+      <button class="btn danger" id="resetOne" type="button">Reset settings</button>
+      <button class="btn danger" id="remove" type="button">Unlink and delete</button>
+    </div>
+  </div>
+</aside>
 
 <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="card sheet">
@@ -153,6 +222,6 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=2"></script>
+<script src="/web.js?v=3"></script>
 </body>
 </html>
