@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup } from '@whiskeysockets/baileys';
+import { applyBrand } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { MAX_DL_BYTES, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
@@ -223,13 +224,13 @@ async function sendCarousel(sock, jid, results, query, quoted) {
     return IM.create({
       header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
       body: IM.Body.create({ text: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n') }),
-      footer: IM.Footer.create({ text: BOT_NAME }),
+      footer: IM.Footer.create({ text: applyBrand(sock, BOT_NAME) }),
       nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
     });
   }));
   const interactiveMessage = IM.create({
     body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO` }),
-    footer: IM.Footer.create({ text: BOT_NAME }),
+    footer: IM.Footer.create({ text: applyBrand(sock, BOT_NAME) }),
     carouselMessage: IM.CarouselMessage.create({ cards, messageVersion: 1 })
   });
   const content = {
