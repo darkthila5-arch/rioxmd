@@ -8,7 +8,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { BOT_NAME, PREFIX } from '../lib/config.js';
+import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
+import { copyBtn, qr, sendRich } from '../lib/menu.js';
 import { unwrapMessage } from '../lib/text.js';
 import { MAX_DL_BYTES, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
@@ -187,16 +188,29 @@ export default [
     name: 'chid', aliases: ['cjid', 'channelid', 'channeljid', 'newsletterid'], owner: true, react: '🆔',
     async run({ sock, msg, jid, args, reply }) {
       const raw = args.join(' ').trim();
-      const show = (r) => reply([
-        `${r.kind === 'group' ? '👥' : '📢'} *${r.name || (r.kind === 'group' ? 'Group' : 'Channel')}*${r.extra ? `  (${r.extra})` : ''}`, '',
-        '🆔 *JID* (copy this):', r.id, '',
-        r.kind === 'channel' || r.kind === 'group' ? `Post a song:\n${PREFIX}chsong ${r.id} <song name>` : ''
-      ].join('\n').trim());
+      // The reply has buttons: 📋 Copy JID, 📋 Copy the ready .chsong command, 🧪 Test post. Without buttons it is plain text.
+      const show = (r) => {
+        const title = `${r.kind === 'group' ? '👥' : '📢'} *${r.name || (r.kind === 'group' ? 'Group' : 'Channel')}*${r.extra ? `  (${r.extra})` : ''}`;
+        if (USE_BUTTONS) {
+          return sendRich(sock, jid, {
+            caption: `${title}\n\n🆔 *JID:*\n${r.id}\n\nTap a button below 👇`,
+            buttons: [copyBtn('📋 Copy JID', r.id), copyBtn('🎵 Copy .chsong command', `${PREFIX}chsong ${r.id} `), qr('🧪 Test post', `${PREFIX}chsong ${r.id} test`)],
+            footer: `${BOT_NAME} • Channel ID`, image: null
+          }, msg);
+        }
+        return reply([title, '', '🆔 *JID* (copy this):', r.id, '', `Post a song:\n${PREFIX}chsong ${r.id} <song name>`].join('\n'));
+      };
 
       if (!raw) { // nothing typed: a replied-to forwarded channel post, otherwise this chat's own id
         const ctx = unwrapMessage(msg.message)?.extendedTextMessage?.contextInfo;
         const fwd = ctx?.quotedMessage ? Object.values(ctx.quotedMessage).map((v) => v?.contextInfo?.forwardedNewsletterMessageInfo).find(Boolean) : null;
         if (fwd?.newsletterJid) return show({ id: fwd.newsletterJid, name: fwd.newsletterName || '', kind: 'channel', extra: '' });
+        if (USE_BUTTONS) {
+          return sendRich(sock, jid, {
+            caption: `🆔 *This chat's id:*\n${jid}\n\nFor a channel send:\n${PREFIX}chid <channel link>\n(or reply ${PREFIX}chid to a post forwarded from the channel)`,
+            buttons: [copyBtn('📋 Copy chat ID', jid)], footer: `${BOT_NAME} • Chat ID`, image: null
+          }, msg);
+        }
         return reply(`🆔 *This chat's id:*\n${jid}\n\nFor a channel send:\n${PREFIX}chid <channel link>\n(or reply ${PREFIX}chid to a post forwarded from the channel)`);
       }
       if (!looksLikeTarget(raw.split(/\s+/)[0])) return reply(`❌ Send a channel link, e.g.\n${PREFIX}chid https://whatsapp.com/channel/xxxxxxxx`);
