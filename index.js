@@ -14,7 +14,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(path.join(ROOT_DIR, 'public'), {
   maxAge: '1h', etag: true,
-  setHeaders: (res, file) => { if (file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); }, // pages always fresh, images / css / js cached
+  setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); }, // pages, scripts and styles are re-checked every time (ETag, so unchanged files cost nothing); images stay cached
 }));
 
 
