@@ -48,7 +48,7 @@ export default [
         `${p}group open / close  (${p}mute · ${p}unmute)`,
         `${p}setname <text> · ${p}setdesc <text>`,
         `${p}link · ${p}revoke (reset the invite link)`,
-        `${p}antilink off / on / all`,
+        `${p}antilink on / wa / off`,
         `${p}gsettings — show this group's settings`,
         '',
         '*👋 Welcome / Goodbye*',
@@ -136,13 +136,13 @@ export default [
       const g = await adminGuard(c, { botAdmin: false });
       if (!g) return;
       const sub = (c.args[0] || '').toLowerCase();
-      const map = { on: 'wa', wa: 'wa', all: 'all', off: 'off' };
+      const map = { on: 'all', all: 'all', wa: 'wa', off: 'off' }; // on = every link (only group admins may post links)
       if (!map[sub]) {
         const m = getGroupCfg(c.sessionId, c.jid).antilink;
-        return c.reply(`🔗 Anti-link: *${m === 'wa' ? 'ON (group invite links)' : m === 'all' ? 'ON (all links)' : 'OFF'}*\n\n${PREFIX}antilink on — delete WhatsApp group links\n${PREFIX}antilink all — delete every link\n${PREFIX}antilink off\n\n_Admins are never affected. I must be a group admin to delete messages._`);
+        return c.reply(`🔗 Anti-link: *${m === 'wa' ? 'ON (group invite links)' : m === 'all' ? 'ON (all links)' : 'OFF'}*\n\n${PREFIX}antilink on — only group admins can send links, every other link is deleted\n${PREFIX}antilink wa — delete only WhatsApp group invite links\n${PREFIX}antilink off\n\n_Admins are never affected. I must be a group admin to delete messages._`);
       }
       setGroupCfg(c.sessionId, c.jid, { antilink: map[sub] });
-      return c.reply(`✅ Anti-link: *${map[sub] === 'off' ? 'OFF' : map[sub] === 'all' ? 'ON (all links)' : 'ON (group invite links)'}*${map[sub] !== 'off' && !g.botIsAdmin ? '\n⚠️ I am not an admin yet, so I cannot delete messages.' : ''}`);
+      return c.reply(`✅ Anti-link: *${map[sub] === 'off' ? 'OFF' : map[sub] === 'all' ? 'ON (only admins can send links)' : 'ON (group invite links only)'}*${map[sub] !== 'off' && !g.botIsAdmin ? '\n⚠️ I am not an admin yet, so I cannot delete messages.' : ''}`);
     },
   },
   { name: 'welcome', run: greeting('welcome') },
