@@ -54,6 +54,11 @@
     { title: 'General', items: [
       { k: 'mode', type: 'select', label: 'Who can use the bot', hint: 'Private means only you.', options: [['public', 'Everyone (public)'], ['private', 'Only me (private)']] },
     ] },
+    { title: '👑 Branding', premiumOnly: true, note: 'Your own bot name, footer and logo in every reply. Premium only.', items: [
+      { k: 'brandName', type: 'text', max: 30, label: 'Bot name', hint: 'Replaces the default bot name in menus and replies. Leave empty for the default.', placeholder: 'My Bot' },
+      { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces "Powered by Rio Editz". Leave empty for the default.', placeholder: 'Powered by me' },
+      { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
+    ] },
     { title: 'Statuses', items: [
       { k: 'statusSeen', type: 'switch', label: 'View statuses automatically' },
       { k: 'statusReact', type: 'switch', label: 'React to new statuses', hint: 'Only statuses under 30 minutes old. Too much automatic reacting can look like spam to WhatsApp.' },
@@ -75,11 +80,6 @@
       { k: 'callStream', type: 'switch', label: 'Answer calls and play my saved clip', hint: 'You can turn it off here. To turn it on, send .callstream on in WhatsApp (one-time device link).' },
       { k: 'callLoop', type: 'switch', label: 'Repeat the clip until the caller hangs up' },
       { k: 'callMsg', type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message.' },
-    ] },
-    { title: '👑 Branding', premiumOnly: true, note: 'Your own bot name, footer and logo in every reply. Premium only.', items: [
-      { k: 'brandName', type: 'text', max: 30, label: 'Bot name', hint: 'Replaces the default bot name in menus and replies. Leave empty for the default.', placeholder: 'My Bot' },
-      { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces "Powered by Rio Editz". Leave empty for the default.', placeholder: 'Powered by me' },
-      { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
     ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
