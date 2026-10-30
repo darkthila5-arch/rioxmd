@@ -76,16 +76,25 @@
       { k: 'callLoop', type: 'switch', label: 'Repeat the clip until the caller hangs up' },
       { k: 'callMsg', type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message.' },
     ] },
+    { title: '👑 Branding', premiumOnly: true, note: 'Your own bot name, footer and logo in every reply. Premium only.', items: [
+      { k: 'brandName', type: 'text', max: 30, label: 'Bot name', hint: 'Replaces the default bot name in menus and replies. Leave empty for the default.', placeholder: 'My Bot' },
+      { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces "Powered by Rio Editz". Leave empty for the default.', placeholder: 'Powered by me' },
+      { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
+    ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
+  const BULKABLE = FLAT.filter((i) => !/^brand/.test(i.k)); // name / footer / logo are per number, never bulk
   const SWITCHES = FLAT.filter((i) => i.type === 'switch').map((i) => i.k);
 
-  function renderSettings(root, values, save, onChange) {
+  // premium: true / undefined = branding can be edited (admin sees everything); false = locked for a free number.
+  function renderSettings(root, values, save, onChange, premium) {
     root.replaceChildren();
     const send = async (patch) => { const res = await save(patch); if (res?.settings) Object.assign(values, res.settings); onChange?.(values); return res; };
     SCHEMA.forEach((group, gi) => {
+      const locked = !!group.premiumOnly && premium === false;
       const card = h('section', { class: 'card flat' }, h('h2', {}, group.title));
       card.style.setProperty('--i', gi);
+      if (group.note) card.append(h('p', { class: 'note' }, locked ? '🔒 Premium only. Ask the bot owner to activate premium for your number, then these options unlock.' : group.note));
       for (const it of group.items) {
         const id = `f-${it.k}`;
         const txt = h('span', { class: 'txt' }, h('b', {}, it.label), it.hint && h('small', {}, it.hint));
@@ -113,9 +122,10 @@
           card.append(row);
         } else {
           const area = it.type === 'textarea';
-          const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label }) : h('input', { id, type: 'text', maxlength: 200, placeholder: it.placeholder || '', 'aria-label': it.label });
+          const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label }) : h('input', { id, type: 'text', maxlength: it.max || 200, placeholder: it.placeholder || '', 'aria-label': it.label });
           inp.value = values[it.k] || '';
-          const btn = h('button', { class: 'btn alt', type: 'submit' }, h('span', { class: 'label' }, 'Save'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
+          if (locked) inp.disabled = true;
+          const btn = h('button', { class: 'btn alt', type: 'submit', disabled: locked }, h('span', { class: 'label' }, 'Save'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
           const form = h('form', { class: 'inline' }, h('div', { class: `field sm${area ? ' area' : ''}` }, inp), btn);
           form.addEventListener('submit', busy(btn, async (ev) => {
             ev.preventDefault();
@@ -170,7 +180,7 @@
         $('#status').textContent = up ? 'Your bot is online. Changes apply right away.' : 'Your bot is reconnecting. Changes are saved and apply once it is back.';
         $('#statusDot').className = up ? 'dot' : 'dot warn';
         tiles(me, me.settings); premium(me.premium);
-        renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v));
+        renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active);
       } catch { out(); }
     };
     await login('/api/web/login', ['phone', 'password'], show);
@@ -181,7 +191,7 @@
     }));
     $('#resetAll').addEventListener('click', busy($('#resetAll'), async () => {
       if (!(await ask({ title: 'Reset your settings?', body: 'Every option goes back to its default. Your saved call clips and your password stay as they are.', ok: 'Reset', danger: true }))) return;
-      try { const r = await api('POST', '/api/me/reset', { confirm: true }); Object.assign(me.settings, r.settings); tiles(me, me.settings); renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v)); toast('Settings reset.'); } catch (e) { toast(e.message, true); }
+      try { const r = await api('POST', '/api/me/reset', { confirm: true }); Object.assign(me.settings, r.settings); tiles(me, me.settings); renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active); toast('Settings reset.'); } catch (e) { toast(e.message, true); }
     }));
     $('#unlink').addEventListener('click', busy($('#unlink'), async () => {
       if (!(await ask({ title: 'Unlink your number?', body: 'The bot logs out of your WhatsApp and your saved settings are deleted. You can link again later.', ok: 'Unlink', danger: true }))) return;
@@ -350,10 +360,10 @@
 
     // the "change an option for all of them" row: the value box follows the chosen option
     const keySel = $('#bulkKey');
-    FLAT.forEach((it) => keySel.append(h('option', { value: it.k }, it.label)));
+    BULKABLE.forEach((it) => keySel.append(h('option', { value: it.k }, it.label)));
     let valueField = null;
     const drawValue = () => {
-      const it = FLAT.find((i) => i.k === keySel.value);
+      const it = BULKABLE.find((i) => i.k === keySel.value);
       const box = $('#bulkValBox'); box.replaceChildren();
       if (it.type === 'switch') valueField = h('select', { 'aria-label': 'Value' }, h('option', { value: 'on' }, 'Turn on'), h('option', { value: 'off' }, 'Turn off'));
       else if (it.type === 'select') valueField = h('select', { 'aria-label': 'Value' }, it.options.map(([v, t]) => h('option', { value: v }, t)));
@@ -363,7 +373,7 @@
     keySel.addEventListener('change', drawValue); drawValue();
     $('#bulkApply').addEventListener('click', busy($('#bulkApply'), async () => {
       if (!sel.size) return toast('Tick at least one number first.', true);
-      const it = FLAT.find((i) => i.k === keySel.value);
+      const it = BULKABLE.find((i) => i.k === keySel.value);
       const v = it.type === 'switch' ? valueField.value === 'on' : valueField.value;
       const text = it.type === 'switch' ? (v ? 'on' : 'off') : (String(v) || 'default');
       if (!(await ask({ title: 'Change this option?', body: `${it.label}: ${text}, for ${sel.size} number${sel.size === 1 ? '' : 's'}.`, ok: 'Apply' }))) return;
