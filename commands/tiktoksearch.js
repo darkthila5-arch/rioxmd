@@ -7,7 +7,7 @@ import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup 
 import { applyBrand } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
-import { MAX_DL_BYTES, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
+import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -258,7 +258,7 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
   console.log(`TikTok ${kind} download requested:`, arg);
   const cached = dlCache.get(String(arg || ''));
   const url = cached?.url || (/^\d+$/.test(arg || '') ? `https://www.tiktok.com/@user/video/${arg}` : parseUrl(arg, 'tiktok'));
-  if (!url) return reply(`❌ Send a valid TikTok link.\nExample: ${PREFIX}ttdl <TikTok link>`);
+  if (!url) return reply(`❌ Send a valid TikTok link.\n${NAGS.tiktok}\nExample: ${PREFIX}ttdl <TikTok link>`);
   await reply(kind === 'audio' ? '⏳ Preparing audio...' : '⏳ Downloading...');
   try {
     let buf = null, isAudio = false, title = cached?.title || '';
