@@ -6,7 +6,7 @@
 // The bot checks the news sites every few minutes and posts every NEW headline (picture + text + link) to the chats you added.
 // Facebook pages cannot be read without Facebook's API, so the same stories are taken from the news sites' own feeds.
 // Env: NEWS_LANG = si (default) | en      NEWS_POLL_MIN = minutes between checks (default 3)
-import { BOT_NAME, PREFIX, sessions, sleep } from '../lib/config.js';
+import { BOT_NAME, PREFIX, TIMEZONE, sessions, sleep } from '../lib/config.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -134,12 +134,19 @@ function cleanSummary(title, summary) {
   if (nt && norm(t).startsWith(nt)) t = t.startsWith(title) ? t.slice(title.length).trim() : '';
   return norm(t) === norm(title) ? '' : t;
 }
+// Date and time of sending, in the bot's TIMEZONE (default Asia/Colombo), e.g. "📅 Fri, 30 Oct 2026  •  🕒 04:15 PM"
+function stamp(now = new Date()) {
+  const date = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: TIMEZONE }).format(now);
+  const time = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TIMEZONE }).format(now);
+  return `📅 ${date}  •  🕒 ${time}`;
+}
 const captionOf = (key, it) => [
   `${SOURCES[key].icon} *${SOURCES[key].name}*`, '',
   `*${clip(it.title, 220)}*`,
   cleanSummary(it.title, it.summary) ? `\n${clip(cleanSummary(it.title, it.summary), 380)}` : '',
   `\n🔗 ${it.link}`,
-  `\n> ${BOT_NAME}`
+  `\n${stamp()}`,
+  `> ${BOT_NAME}`
 ].join('\n');
 
 async function post(sock, jid, key, item, img) {
