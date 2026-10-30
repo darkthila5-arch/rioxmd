@@ -87,7 +87,20 @@
         <div class="field sm" id="bulkValBox"></div>
         <button class="btn" id="bulkApply" type="button"><span class="label">Apply</span><span class="spin" aria-hidden="true"></span></button>
       </div>
+      <label for="premDays">👑 Premium for all of them</label>
+      <div class="inline">
+        <div class="field sm"><input id="premDays" type="number" inputmode="numeric" min="1" max="3650" step="1" value="30" aria-label="Premium days"></div>
+        <button class="btn" id="bPremGive" type="button"><span class="label">Give premium days</span><span class="spin" aria-hidden="true"></span></button>
+      </div>
+      <div class="chips" id="premChips" role="group" aria-label="Quick days" style="margin-top:8px">
+        <button class="chip" type="button" data-d="7">7 days</button>
+        <button class="chip" type="button" data-d="30">30 days</button>
+        <button class="chip" type="button" data-d="90">90 days</button>
+        <button class="chip" type="button" data-d="365">1 year</button>
+      </div>
+      <p class="note">Days are added after any days they already have. Each number gets a short message in its own chat.</p>
       <div class="actions">
+        <button class="btn alt" id="bPremRemove" type="button">Remove premium</button>
         <button class="btn alt" id="bRestart" type="button">Restart</button>
         <button class="btn alt" id="bPass" type="button">Send web password</button>
         <button class="btn alt" id="bNotice" type="button">Send a message</button>
@@ -101,6 +114,8 @@
         <h3 id="detailTitle"></h3>
         <div class="pills" id="detailPills" style="margin-top:8px"></div>
         <div class="actions">
+          <button class="btn alt" id="premGive" type="button">👑 Give premium</button>
+          <button class="btn alt" id="premRemove" type="button">Remove premium</button>
           <button class="btn alt" id="restart" type="button">Restart bot</button>
           <button class="btn alt" id="resetPass" type="button">Send new web password</button>
           <button class="btn alt" id="notice" type="button">Send a message</button>
