@@ -278,6 +278,22 @@
       drawSelection();
     };
 
+    const drawBoost = (bo) => {
+      if (!bo) return;
+      $('#boostSwitch').checked = !bo.paused;
+      $('#boostInfo').textContent = `${bo.poolSize} number${bo.poolSize === 1 ? '' : 's'} opted in to support channels. ${bo.paused ? 'Paused right now.' : 'Running.'}`;
+      const ul = $('#boostList'); ul.replaceChildren();
+      const live = bo.jobs.filter((j) => j.status === 'active' || j.followers);
+      if (!live.length) ul.append(h('li', {}, h('span', { class: 'txt' }, h('small', {}, 'No channels added yet.'))));
+      for (const j of live) {
+        const del = h('button', { class: 'btn alt', type: 'button', disabled: j.status !== 'active' }, j.status === 'active' ? 'Remove' : 'Removing…');
+        del.addEventListener('click', busy(del, async () => {
+          if (!(await ask({ title: 'Remove this channel?', body: 'Helper numbers stop reacting and unfollow it, a few at a time.', ok: 'Remove', danger: true }))) return;
+          try { const r = await api('DELETE', `/api/admin/boost/${j.id}`); drawBoost(r.boost); toast('Channel removed.'); } catch (e) { toast(e.message, true); }
+        }));
+        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `Added by +${j.owner || '?'} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), del));
+      }
+    };
     const refresh = async () => {
       try {
         const o = await api('GET', '/api/admin/overview');
@@ -288,6 +304,7 @@
         $('#stats').replaceChildren(stat(`${linked}/${o.maxSessions}`, 'Linked numbers', linked), stat(o.connected, 'Online now', o.connected), stat(o.pairingOpen ? 'Open' : 'Paused', 'New links'), stat(o.premiumCount || 0, 'Premium numbers'), stat(`${o.memoryMb} MB`, 'Memory'), stat(uptime(o.uptimeSeconds), 'Uptime'), stat(o.storage, 'Storage'), stat(o.callService ? 'Ready' : 'Off', 'Call service'));
         first = false;
         $('#pairSwitch').checked = o.pairingOpen;
+        drawBoost(o.boost);
         const b = o.bulk;
         $('#bulkBar').hidden = !b;
         if (b) { $('#bulkLabel').textContent = b.label; $('#bulkCount').textContent = `${b.done}/${b.total}`; $('#bulkFill').style.width = `${Math.round((b.done / Math.max(1, b.total)) * 100)}%`; }
@@ -418,6 +435,13 @@
     $('#pairSwitch').addEventListener('change', async (e) => {
       const box = e.target; box.disabled = true;
       try { await api('POST', '/api/admin/pairing', { open: box.checked }); toast(box.checked ? 'New links are open.' : 'New links are paused.'); refresh(); }
+      catch (err) { box.checked = !box.checked; toast(err.message, true); }
+      finally { box.disabled = false; }
+    });
+
+    $('#boostSwitch').addEventListener('change', async (e) => {
+      const box = e.target; box.disabled = true;
+      try { const r = await api('POST', '/api/admin/boost/pause', { paused: !box.checked }); drawBoost(r.boost); toast(box.checked ? 'Channel support resumed.' : 'Channel support paused.'); }
       catch (err) { box.checked = !box.checked; toast(err.message, true); }
       finally { box.disabled = false; }
     });
