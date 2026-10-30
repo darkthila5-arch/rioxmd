@@ -17,6 +17,7 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Web settings | After linking, the bot sends a password to your own chat. Log in at `/settings` with your number to switch features on or off. |
 | Admin site | `/admin` controls all sessions: search, tick many numbers and change an option, restart, send passwords or messages, reset or unlink them in one go. It can also pause new links. |
 | Premium branding | Numbers with active premium can set their own **bot name, footer text and logo picture** on the `/settings` page (Branding card). It is used in every reply, menu and link card of that number only. Free numbers see the card locked; when premium ends the defaults return (saved values are kept). Logo = direct https link to a JPG/PNG/WEBP (max 3 MB), checked and downloaded server-side. |
+| Channel support (premium) | A premium user adds a WhatsApp channel on `/settings`. Numbers whose owner switched on **Support other channels** (off by default, only the owner can change it, never in bulk or by the admin) follow it and react to new posts. Opting out, removing the channel or the premium ending makes them unfollow. Actions are spaced out and capped (`BOOST_GAP_MS`, `BOOST_MAX_ACTIONS`, `BOOST_POLL_MIN`, `BOOST_MAX_CHANNELS`, `BOOST_DISABLED=true` to switch it off). |
 | Calls | Reject calls, reject + auto reply with a saved audio / video, or **really answer** and stream a saved audio / video into the call. |
 
 ## Run locally
