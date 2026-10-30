@@ -148,6 +148,17 @@
       const on = SWITCHES.filter((k) => values[k]).length;
       $('#tiles').replaceChildren(tile(me.status === 'connected' ? 'Online' : 'Offline', 'Bot'), tile(values.mode === 'private' ? 'Private' : 'Public', 'Mode'), tile(`${on}/${SWITCHES.length}`, 'Features on'));
     };
+    const premium = (p) => {
+      const card = $('#premiumCard'), pills = $('#premPills');
+      card.classList.toggle('on', !!p?.active);
+      pills.replaceChildren(p?.active ? h('span', { class: 'pill gold' }, 'Active') : h('span', { class: 'pill' }, p?.expired ? 'Ended' : 'Free plan'));
+      if (p?.active) {
+        pills.append(h('span', { class: 'pill' }, `${p.daysLeft} day${p.daysLeft === 1 ? '' : 's'} left`));
+        $('#premText').textContent = `Your premium is active until ${new Date(p.until).toLocaleDateString(undefined, { dateStyle: 'medium' })}. Premium commands work for your number.`;
+      } else {
+        $('#premText').textContent = p?.expired ? 'Your premium days are over. Contact the bot owner to renew it.' : 'Premium unlocks extra commands. Contact the bot owner to get it. Send .premium in WhatsApp to check your plan.';
+      }
+    };
     const out = () => { $('#login').hidden = false; $('#panel').hidden = true; $('#who').hidden = true; };
     let me = null;
     const show = async () => {
@@ -158,7 +169,7 @@
         const up = me.status === 'connected';
         $('#status').textContent = up ? 'Your bot is online. Changes apply right away.' : 'Your bot is reconnecting. Changes are saved and apply once it is back.';
         $('#statusDot').className = up ? 'dot' : 'dot warn';
-        tiles(me, me.settings);
+        tiles(me, me.settings); premium(me.premium);
         renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v));
       } catch { out(); }
     };
@@ -217,6 +228,7 @@
           h('span', { class: 'pills' },
             h('span', { class: `pill${isOnline(s) ? ' on' : ''}` }, s.status.replace(/_/g, ' ')),
             h('span', { class: 'pill' }, s.mode),
+            s.premium && h('span', { class: 'pill gold' }, `👑 ${s.premiumDays}d`),
             s.linked && h('span', { class: 'pill' }, `${s.features} on`),
             s.linked && !s.webPassword && h('span', { class: 'pill warn' }, 'no web password')))));
       }
@@ -230,7 +242,7 @@
         for (const id of [...sel]) if (!all.some((s) => s.id === id)) sel.delete(id);
         $('#login').hidden = true; $('#panel').hidden = false; $('#logout').hidden = false;
         const linked = all.filter((s) => s.linked).length;
-        $('#stats').replaceChildren(stat(`${linked}/${o.maxSessions}`, 'Linked numbers', linked), stat(o.connected, 'Online now', o.connected), stat(o.pairingOpen ? 'Open' : 'Paused', 'New links'), stat(`${o.memoryMb} MB`, 'Memory'), stat(uptime(o.uptimeSeconds), 'Uptime'), stat(o.storage, 'Storage'), stat(o.callService ? 'Ready' : 'Off', 'Call service'));
+        $('#stats').replaceChildren(stat(`${linked}/${o.maxSessions}`, 'Linked numbers', linked), stat(o.connected, 'Online now', o.connected), stat(o.pairingOpen ? 'Open' : 'Paused', 'New links'), stat(o.premiumCount || 0, 'Premium numbers'), stat(`${o.memoryMb} MB`, 'Memory'), stat(uptime(o.uptimeSeconds), 'Uptime'), stat(o.storage, 'Storage'), stat(o.callService ? 'Ready' : 'Off', 'Call service'));
         first = false;
         $('#pairSwitch').checked = o.pairingOpen;
         const b = o.bulk;
@@ -253,6 +265,7 @@
       $('#detailPills').replaceChildren(...[
         h('span', { class: `pill${d.status === 'connected' ? ' on' : ''}` }, d.status.replace(/_/g, ' ')),
         h('span', { class: `pill${d.webPassword ? '' : ' warn'}` }, d.webPassword ? 'web password set' : 'no web password'),
+        d.premium?.active ? h('span', { class: 'pill gold' }, `👑 premium, ${d.premium.daysLeft} day(s) left`) : null,
         d.retries ? h('span', { class: 'pill warn' }, `${d.retries} reconnect(s)`) : null,
         d.error ? h('span', { class: 'pill warn' }, d.error) : null,
       ].filter(Boolean));
@@ -282,6 +295,20 @@
     one($('#resetOne'), 'reset', { title: 'Reset this number\'s settings?', body: 'Every option goes back to its default.', ok: 'Reset', danger: true }, 'Settings reset');
     one($('#remove'), 'delete', { title: 'Unlink and delete?', body: 'The bot logs out of this number and its saved settings are deleted. This cannot be undone.', ok: 'Unlink', danger: true }, 'Session deleted', true);
 
+    const parseDaysInput = (v) => { const n = Number(String(v).trim()); return /^\d{1,4}$/.test(String(v).trim()) && n >= 1 && n <= 3650 ? n : null; };
+    $('#premGive').addEventListener('click', busy($('#premGive'), async () => {
+      if (!current) return;
+      const a = await ask({ title: 'Give premium', body: 'How many days? They are added after any days this number already has.', input: true, placeholder: '30', ok: 'Give premium' }); if (!a) return;
+      const days = parseDaysInput(a.value);
+      if (!days) return toast('Enter a whole number of days from 1 to 3650.', true);
+      try { await api('POST', `/api/admin/session/${current}/premium`, { action: 'grant', days }); toast(`Premium: +${days} day(s)`); await open(current, false); refresh(); } catch (e) { toast(e.message, true); }
+    }));
+    $('#premRemove').addEventListener('click', busy($('#premRemove'), async () => {
+      if (!current) return;
+      if (!(await ask({ title: 'Remove premium?', body: 'This number goes back to the free plan right away.', ok: 'Remove', danger: true }))) return;
+      try { await api('POST', `/api/admin/session/${current}/premium`, { action: 'revoke' }); toast('Premium removed'); await open(current, false); refresh(); } catch (e) { toast(e.message, true); }
+    }));
+
     /* ----- many numbers ----- */
     $('#selShown').addEventListener('click', () => { shown().forEach((s) => sel.add(s.id)); drawList(); });
     $('#selOnline').addEventListener('click', () => { sel.clear(); all.filter(isOnline).forEach((s) => sel.add(s.id)); drawList(); });
@@ -306,6 +333,15 @@
       const a = await ask({ ...dialog, body: `${dialog.body} (${sel.size} number${sel.size === 1 ? '' : 's'})` }); if (!a) return;
       await bulkCall({ action, ...(dialog.input ? { text: a.value } : {}) }, done);
     }));
+    $('#premChips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) $('#premDays').value = b.dataset.d; });
+    $('#bPremGive').addEventListener('click', busy($('#bPremGive'), async () => {
+      if (!sel.size) return toast('Tick at least one number first.', true);
+      const days = parseDaysInput($('#premDays').value);
+      if (!days) return toast('Enter a whole number of days from 1 to 3650.', true);
+      if (!(await ask({ title: 'Give premium?', body: `+${days} day${days === 1 ? '' : 's'} for ${sel.size} number${sel.size === 1 ? '' : 's'}.`, ok: 'Give premium' }))) return;
+      await bulkCall({ action: 'premium', days }, 'Premium');
+    }));
+    bulkBtn($('#bPremRemove'), 'unpremium', { title: 'Remove premium?', body: 'They go back to the free plan right away.', ok: 'Remove', danger: true }, 'Premium removed');
     bulkBtn($('#bRestart'), 'restart', { title: 'Restart the selected bots?', body: 'They reconnect by themselves, one after another.', ok: 'Restart' }, 'Restart');
     bulkBtn($('#bPass'), 'password', { title: 'Send new web passwords?', body: 'Each number gets a new password in its own chat. Old passwords stop working.', ok: 'Send' }, 'Passwords');
     bulkBtn($('#bNotice'), 'notice', { title: 'Message the selected numbers', body: 'Sent one by one to each number\'s own chat.', input: true, placeholder: 'Write your message…', ok: 'Send' }, 'Message');

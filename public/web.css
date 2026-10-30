@@ -88,6 +88,9 @@ input.chk:checked::after{content:"✓";position:absolute;inset:0;display:grid;pl
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:99px;border:1px solid var(--line);font-size:.78rem;font-weight:600;background:var(--tab-bg);color:var(--muted);white-space:nowrap}
 .pill.on{border-color:color-mix(in srgb,var(--accent) 60%,var(--line));color:var(--accent-2)}
 .pill.warn{border-color:#6d5a2a;color:#ffcc66}
+.pill.gold{border-color:#8a6d1f;color:#ffd466;background:color-mix(in srgb,#ffd466 10%,var(--tab-bg))}
+.card.premium.on{border-color:#8a6d1f;box-shadow:0 14px 40px -18px #ffd466}
+.card.premium .pills{margin-top:8px}
 .pill.on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .pills{display:flex;flex-wrap:wrap;gap:6px}
 
