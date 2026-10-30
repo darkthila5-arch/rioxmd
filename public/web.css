@@ -152,3 +152,96 @@ input.chk:checked::after{content:"✓";position:absolute;inset:0;display:grid;pl
   .stats>:last-child:nth-child(odd){grid-column:span 2}
   .live.me{max-width:42vw}
 }
+
+/* ================= Admin console (redesign): tabs, drawer, selection bar ================= */
+body[data-page=admin] .adm-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:18px 0 6px}
+body[data-page=admin] .adm-head h1{font-size:clamp(1.7rem,6vw,2.4rem);margin:6px 0 0}
+body[data-page=admin] #panel>.banner{margin-top:10px}
+
+/* tabs: sticky, scroll sideways on small screens */
+.tabs{position:sticky;top:0;z-index:20;display:flex;gap:6px;margin:14px -4px 0;padding:8px 4px;overflow-x:auto;scrollbar-width:none;background:linear-gradient(var(--paper) 70%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:8px 16px;border-radius:14px;border:2px solid var(--line);background:var(--tab-bg);color:var(--muted);font:inherit;font-weight:700;font-size:.93rem;cursor:pointer;white-space:nowrap;transition:border-color .2s,color .2s,background .2s}
+.tab:hover{border-color:var(--accent);color:var(--ink)}
+.tab[aria-selected=true]{background:color-mix(in srgb,var(--accent) 16%,var(--card));border-color:var(--accent);color:var(--ink)}
+.tab:focus-visible,.chip:focus-visible,.x:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+.tab .badge{font-style:normal;font-size:.74rem;font-weight:800;min-width:22px;padding:2px 7px;border-radius:99px;background:var(--accent);color:var(--on-ink)}
+.tabpane{animation:rise .35s var(--ease) both}
+
+/* overview */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0!important}
+.card.tight{padding-bottom:6px}
+body[data-page=admin] .stats{margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.stat.good b{color:var(--accent-2)}
+.stat.warn b{color:#ffcc66}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;margin-top:12px}
+.kv div{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid var(--line)}
+.kv span{font-size:.78rem;color:var(--muted)}
+.kv b{font-weight:700;font-variant-numeric:tabular-nums}
+.slist.plain{max-height:none}
+.good-note{display:flex;align-items:center;gap:10px;padding:14px 0 4px;color:var(--accent-2);font-weight:600}
+
+/* number list: page scrolls, not the list */
+body[data-page=admin] .slist{max-height:none;overflow:visible}
+body[data-page=admin] .slist li{padding:2px 0}
+.slist .go{padding:13px 12px;align-items:center}
+.slist .who{display:flex;align-items:center;gap:12px;min-width:0}
+.sdot{flex:none;width:10px;height:10px;border-radius:50%;background:#6b6b6b}
+.sdot.on{background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.sdot.warn{background:#ffcc66}
+.slist .go::after{content:"›";margin-left:auto;color:var(--muted);font-size:1.4rem;line-height:1}
+.slist .go .pills{order:3;flex-basis:100%}
+@media(min-width:700px){.slist .go .pills{order:0;flex-basis:auto}.slist .go::after{margin-left:6px}}
+.hint{margin-top:14px;text-align:center}
+.selbar .links{margin-left:auto}
+
+/* "x" close buttons */
+.x{flex:none;width:44px;height:44px;border-radius:14px;border:2px solid var(--line);background:var(--tab-bg);color:var(--ink);font-size:1rem;cursor:pointer;transition:border-color .2s}
+.x:hover{border-color:var(--accent)}
+
+/* sub headings inside drawer / sheet */
+.card .sub,.drawer .sub{margin:22px 0 8px;font-size:.78rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.card .sub.danger-t,.drawer .sub.danger-t{color:var(--error)}
+.sheet.wide .sub:first-of-type{margin-top:14px}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sheet-head h2{margin:0}
+.sheet .count{color:var(--accent-2)}
+#premChips{margin-top:10px}
+
+/* drawer (one number) */
+.scrim{position:fixed;inset:0;z-index:40;background:color-mix(in srgb,#000 62%,transparent);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:fade .2s var(--ease) both}
+.drawer{position:fixed;top:0;right:0;bottom:0;z-index:45;width:min(540px,100vw);display:flex;flex-direction:column;background:var(--paper);border-left:2px solid var(--line);box-shadow:-30px 0 60px -20px #000;animation:slidein .32s var(--ease) both}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:max(18px,env(safe-area-inset-top)) 18px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+.drawer-head h2{margin:0 0 8px;font-size:1.35rem;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.drawer-body{flex:1;overflow:auto;padding:4px 18px max(28px,env(safe-area-inset-bottom));overscroll-behavior:contain}
+.drawer-body .card{margin-top:12px}
+.drawer-body .actions .btn{flex:1 1 140px}
+body.noscroll{overflow:hidden}
+
+/* selected-numbers bar */
+.bulkbar{position:fixed;left:0;right:0;margin:0 auto;bottom:max(16px,env(safe-area-inset-bottom));z-index:35;display:flex;align-items:center;gap:12px;width:min(520px,calc(100vw - 24px));padding:10px 12px 10px 18px;border-radius:20px;background:var(--card);border:2px solid var(--accent);box-shadow:0 18px 50px -12px color-mix(in srgb,var(--accent) 50%,#000);animation:rise .3s var(--ease) both}
+.bulkbar .cnt{flex:1;font-weight:600}
+.bulkbar .cnt b{color:var(--accent-2);font-size:1.15rem}
+.bulkbar .btn.sm{margin:0}
+
+/* bottom sheet for actions on the selected numbers */
+.modal.bottom{z-index:55;align-items:end}
+.modal.bottom .sheet{width:min(640px,100%);max-height:calc(100dvh - 36px);overflow:auto;border-radius:24px}
+.sheet .actions .btn{flex:1 1 150px}
+
+@media(max-width:700px){
+  .duo{grid-template-columns:1fr}
+  .drawer{width:100vw;border-left:0}
+  .tabs{gap:4px}
+  .tab{padding:8px 9px;font-size:.84rem;gap:5px;min-height:44px}
+  .tab .ico{display:none}
+  .tab span:not(.ico){display:inline}
+  .modal.bottom{padding:0}
+  .modal.bottom .sheet{border-bottom-left-radius:0;border-bottom-right-radius:0;max-height:92dvh}
+  body[data-page=admin] .stats{grid-template-columns:repeat(2,1fr)}
+}
+@media(prefers-reduced-motion:reduce){.drawer,.scrim,.tabpane,.bulkbar{animation:none}}
+
+body[data-page=admin] #panel{padding-bottom:96px}
