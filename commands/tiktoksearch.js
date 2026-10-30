@@ -277,8 +277,8 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
     return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(title, 200)}\n\n> ${BOT_NAME}` }, { quoted: msg });
   } catch (err) {
     console.error('TikTok direct download error:', err?.message || err);
-    if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`);
-    return reply(`❌ Download failed. Try ${PREFIX}tt <link> instead.`);
+    if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`+'\n\nෆයිල් එක ලොකු වැඩියි බං, පොඩි එකක් බලපන් 😑');
+    return reply(`❌ Download failed. Try ${PREFIX}tt <link> instead.\n\nමොකක්හරි අවුලක් බං, ආයෙ ට්‍රයි කරපන් 😒`);
   }
 }
 
@@ -287,13 +287,13 @@ export default [
     name: 'tts', aliases: ['ttsearch', 'tiktoksearch'], react: '🔎',
     async run({ sock, msg, jid, args, reply }) {
       const query = args.join(' ').trim();
-      if (!query) return reply(`❌ Type something to search.\nExample: ${PREFIX}tts funny cats`);
+      if (!query) return reply(`❌ Type something to search.\n\nකෝ සර්ච් කරන්න ඕන දේ ගහපන් බං 😑\nExample: ${PREFIX}tts funny cats`);
       await reply('🔎 Searching TikTok...');
       let results;
       try { results = await searchTikTok(query); }
       catch (err) {
         console.error('TikTok search error:', err?.message || err);
-        return reply('❌ TikTok search failed. Try again in a few seconds.');
+        return reply('❌ TikTok search failed. Try again in a few seconds.\n\nසර්ච් එක අවුල් බං, ආයෙ ට්‍රයි කරපන් 😒');
       }
       if (!results.length) return reply(`😕 No TikTok videos found for “${clip(query, 60)}”.`);
       if (USE_BUTTONS) {
