@@ -262,3 +262,16 @@ body[data-page=admin] #panel{padding-bottom:96px}
 #cmdList .go .num{font-weight:700}
 #cmdList .go{cursor:default}
 .pill.off{color:#ff8f8f;border-color:#ff8f8f55}
+
+/* ================= Admin: audit, logs, security, broadcast ================= */
+.log li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;line-height:1.4}
+.log li .meta{flex-basis:100%;font-size:.78rem;opacity:.75}
+.log{max-height:520px}
+.logbox{margin:10px 0 0;padding:12px 14px;max-height:56vh;min-height:220px;overflow:auto;border:2px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--card) 70%,#000);font:.78rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
+.logbox .ll.warn{color:#ffcc66}
+.logbox .ll.error{color:#ff7b7b}
+.logbox:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+.actions .note{margin:0 0 0 4px;align-self:center}
+#bcList li .pill{flex:none}
+#bcList li .txt{min-width:0}
+#bcList li .txt b{display:block;overflow-wrap:anywhere}

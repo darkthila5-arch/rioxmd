@@ -332,9 +332,8 @@
         $('#bulkBar').hidden = !b;
         if (b) { $('#bulkLabel').textContent = b.label; $('#bulkCount').textContent = `${b.done}/${b.total}`; $('#bulkFill').style.width = `${Math.round((b.done / Math.max(1, b.total)) * 100)}%`; }
         drawList();
-        const log = $('#audit'); log.replaceChildren();
-        if (!o.audit.length) log.append(h('li', {}, 'Nothing yet.'));
-        for (const a of o.audit) log.append(h('li', {}, `${new Date(a.at).toLocaleString()}  ${a.action}${a.detail ? `: ${a.detail}` : ''}`));
+        if (!$('#pane-broadcast').hidden) loadBroadcast(); // shows sending progress
+        if ($('#pane-logs').hidden) api('GET', '/api/admin/logs?level=error&limit=1').then((r) => drawLogBadge(r.counts)).catch(() => {}); // red badge on the Logs tab
         if (current && !all.some((s) => s.id === current)) closeDetail();
       } catch { $('#login').hidden = false; $('#panel').hidden = true; $('#logout').hidden = true; }
       schedule();
@@ -405,6 +404,10 @@
       if (name === 'insights') drawInsights();
       if (name === 'commands') loadCommands();
       if (name === 'analytics') drawAnalytics();
+      if (name === 'activity') loadAudit(true);
+      if (name === 'broadcast') loadBroadcast();
+      if (name === 'security') loadSecurity();
+      if (name === 'logs') startLogs(); else stopLogs();
     }
     /* ----- commands on/off, maintenance, bans ----- */
     let cmds = [], cmdData = null, cfilter = 'all';
@@ -488,9 +491,164 @@
       const a = h('a', { href: URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), download: `rio-numbers-${new Date().toISOString().slice(0, 10)}.csv` });
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     });
+    /* ================= new tools: audit, broadcast, logs, security, backup ================= */
+    const fmtWait = (sec) => (sec >= 3600 ? `${Math.ceil(sec / 3600)} h` : sec >= 60 ? `${Math.ceil(sec / 60)} min` : `${sec}s`);
+    const when = (iso) => new Date(iso).toLocaleString();
+    const saveBlob = (blob, name) => {
+      const a = h('a', { href: URL.createObjectURL(blob), download: name });
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+    // Like api(), but for a file in and / or a file out.
+    async function fileCall(url, { body, pass, headers = {}, json = false } = {}) {
+      const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': json ? 'application/json' : 'application/octet-stream', 'x-rio': '1', ...(pass != null ? { 'x-rio-pass': encodeURIComponent(pass) } : {}), ...headers }, body });
+      if (!r.ok) { let m = 'Something went wrong. Try again.'; try { m = (await r.json()).error || m; } catch { if (r.status === 413) m = 'The file is too big (80 MB max).'; } const e = new Error(m); e.status = r.status; throw e; }
+      return r;
+    }
+    const emptyLi = (text) => h('li', {}, h('span', { class: 'txt' }, h('small', {}, text)));
+
+    /* ----- audit log ----- */
+    const AUDIT_PAGE = 50; let auditN = 0, auditDebounce;
+    async function loadAudit(reset = true) {
+      try {
+        if (reset) auditN = 0;
+        const r = await api('GET', `/api/admin/audit?q=${encodeURIComponent($('#auditQ').value.trim())}&offset=${auditN}&limit=${AUDIT_PAGE}`);
+        const ul = $('#audit'); if (reset) ul.replaceChildren();
+        if (reset && !r.items.length) ul.append(h('li', {}, $('#auditQ').value.trim() ? 'No matches.' : 'Nothing yet.'));
+        for (const a of r.items) ul.append(h('li', {}, h('b', {}, a.action), a.detail ? `: ${a.detail}` : '', h('small', { class: 'meta' }, `${when(a.at)}${a.ip ? ` · ${a.ip}` : ''}`)));
+        auditN += r.items.length; $('#auditMore').hidden = auditN >= r.total;
+      } catch (e) { toast(e.message, true); }
+    }
+    $('#auditQ').addEventListener('input', () => { clearTimeout(auditDebounce); auditDebounce = setTimeout(() => loadAudit(true), 300); });
+    $('#auditMore').addEventListener('click', () => loadAudit(false));
+    $('#auditCsv').addEventListener('click', async () => {
+      try { const r = await fetch('/api/admin/audit/export', { credentials: 'same-origin' }); if (!r.ok) throw new Error('Could not download.'); saveBlob(await r.blob(), `rio-audit-${new Date().toISOString().slice(0, 10)}.csv`); } catch (e) { toast(e.message, true); }
+    });
+
+    /* ----- broadcast ----- */
+    let bcTarget = 'all';
+    const BC_STATUS = { scheduled: ['Waiting', 'on'], running: ['Sending…', 'warn'], done: ['Sent', 'on'], cancelled: ['Cancelled', ''], missed: ['Missed', 'warn'], failed: ['Failed', 'warn'] };
+    const drawBroadcast = (d) => {
+      const ul = $('#bcList'); ul.replaceChildren();
+      if (!d.jobs.length) ul.append(emptyLi('Nothing scheduled or sent yet.'));
+      for (const j of d.jobs) {
+        const [label, tone] = BC_STATUS[j.status] || [j.status, ''];
+        const meta = [new Date(j.at).toLocaleString(), j.target === 'online' ? 'online numbers' : 'all linked numbers', j.result].filter(Boolean).join(' · ');
+        const li = h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.text.length > 90 ? `${j.text.slice(0, 90)}…` : j.text), h('small', {}, meta)), h('span', { class: `pill ${tone}` }, label));
+        if (j.status === 'scheduled') {
+          const x = h('button', { class: 'btn alt sm', type: 'button' }, 'Cancel');
+          x.addEventListener('click', busy(x, async () => { try { drawBroadcast(await api('DELETE', `/api/admin/broadcast/${j.id}`)); toast('Cancelled.'); } catch (e) { toast(e.message, true); } }));
+          li.append(x);
+        }
+        ul.append(li);
+      }
+    };
+    async function loadBroadcast() { try { drawBroadcast(await api('GET', '/api/admin/broadcast')); } catch (e) { toast(e.message, true); } }
+    const bcRefreshButton = () => { $('#bcSend').querySelector('.label').textContent = $('#bcWhen').value ? 'Schedule' : 'Send now'; };
+    $('#bcText').addEventListener('input', () => { $('#bcCount').textContent = String($('#bcText').value.length); });
+    $('#bcWhen').addEventListener('input', bcRefreshButton);
+    $('#bcTarget').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; bcTarget = b.dataset.t; $('#bcTarget').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b))); });
+    $('#bcSend').addEventListener('click', busy($('#bcSend'), async () => {
+      const text = $('#bcText').value.trim();
+      if (!text) { toast('Write the message first.', true); return; }
+      const raw = $('#bcWhen').value, at = raw ? new Date(raw).getTime() : null;
+      if (raw && (!Number.isFinite(at) || at < Date.now() + 30000)) { toast('Pick a time at least a minute from now, or leave it empty to send now.', true); return; }
+      const n = bcTarget === 'online' ? all.filter(isOnline).length : all.filter((s) => s.linked).length;
+      if (!(await ask({ title: at ? 'Schedule this message?' : 'Send this message now?', body: `${text.length > 160 ? `${text.slice(0, 160)}…` : text}\n\n${n} number${n === 1 ? '' : 's'} (${bcTarget === 'online' ? 'online only' : 'all linked'})${at ? `, on ${new Date(at).toLocaleString()}` : ''}. The numbers are checked again at send time.`, ok: at ? 'Schedule' : 'Send' }))) return;
+      try {
+        const r = await api('POST', '/api/admin/broadcast', { text, target: bcTarget, at });
+        toast(r.instant ? 'Sending started.' : 'Scheduled.');
+        $('#bcText').value = ''; $('#bcCount').textContent = '0'; $('#bcWhen').value = ''; bcRefreshButton();
+        await loadBroadcast(); refresh();
+      } catch (e) { toast(e.message, true); }
+    }));
+
+    /* ----- live logs ----- */
+    let logSince = 0, logLevel = 'all', logPaused = false, logTimer = null, logDebounce, logBusy = false;
+    const LOG_MAX_NODES = 700;
+    async function pollLogs(reset = false) {
+      if (logBusy) return; logBusy = true;
+      try {
+        if (reset) { logSince = 0; $('#logBox').replaceChildren(); }
+        const r = await api('GET', `/api/admin/logs?since=${logSince}&level=${logLevel}&q=${encodeURIComponent($('#logQ').value.trim())}&limit=300`);
+        logSince = r.last;
+        const box = $('#logBox'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+        for (const l of r.lines) box.append(h('span', { class: `ll ${l.level}` }, `${new Date(l.t).toLocaleTimeString()}  ${l.text}\n`));
+        while (box.childElementCount > LOG_MAX_NODES) box.firstElementChild.remove();
+        if (stick) box.scrollTop = box.scrollHeight;
+        $('#logInfo').textContent = `${r.counts.warn} warning${r.counts.warn === 1 ? '' : 's'}, ${r.counts.error} error${r.counts.error === 1 ? '' : 's'} in the last ${r.counts.total} lines`;
+        drawLogBadge(r.counts);
+      } catch (e) { if (e.status === 401) stopLogs(); } finally { logBusy = false; }
+    }
+    const drawLogBadge = (c) => { const b = $('#logBadge'); b.hidden = !c.error; b.textContent = String(c.error); };
+    const startLogs = () => { stopLogs(); pollLogs(true); logTimer = setInterval(() => { if (!logPaused) pollLogs(); }, 3000); };
+    const stopLogs = () => { clearInterval(logTimer); logTimer = null; };
+    $('#logLevel').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; logLevel = b.dataset.l; $('#logLevel').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b))); pollLogs(true); });
+    $('#logQ').addEventListener('input', () => { clearTimeout(logDebounce); logDebounce = setTimeout(() => pollLogs(true), 350); });
+    $('#logPause').addEventListener('click', () => { logPaused = !logPaused; $('#logPause').textContent = logPaused ? 'Resume' : 'Pause'; });
+    $('#logClear').addEventListener('click', () => $('#logBox').replaceChildren());
+    $('#logSave').addEventListener('click', () => saveBlob(new Blob([$('#logBox').textContent], { type: 'text/plain' }), `rio-logs-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.txt`));
+
+    /* ----- security: locked addresses + login history ----- */
+    const RESULT = { ok: ['Logged in', 'on'], failed: ['Wrong password', 'warn'], locked: ['Locked', 'warn'] };
+    async function loadSecurity() {
+      try {
+        const d = await api('GET', '/api/admin/security');
+        $('#secWide').hidden = !d.wideLock;
+        $('#secYou').textContent = `Your address right now: ${d.you || 'unknown'}. Times are in your device's time zone.`;
+        const lk = $('#secLocked'); lk.replaceChildren();
+        if (!d.locked.length) lk.append(emptyLi('No address is locked.'));
+        for (const l of d.locked) {
+          const b = h('button', { class: 'btn alt sm', type: 'button' }, 'Unblock');
+          b.addEventListener('click', busy(b, async () => { try { await api('POST', '/api/admin/security/unblock', { ip: l.ip }); toast('Unblocked.'); loadSecurity(); } catch (e) { toast(e.message, true); } }));
+          lk.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, l.ip), h('small', {}, `Opens in ${fmtWait(l.seconds)} · lock number ${l.strikes}`)), b));
+        }
+        const kn = $('#secKnown'); kn.replaceChildren();
+        if (!d.known.length) kn.append(emptyLi('None yet.'));
+        for (const ip of d.known) {
+          const b = h('button', { class: 'btn alt sm', type: 'button' }, 'Remove');
+          b.addEventListener('click', busy(b, async () => { try { await api('POST', '/api/admin/security/forget', { ip }); loadSecurity(); } catch (e) { toast(e.message, true); } }));
+          kn.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, ip), ip === d.you ? h('small', {}, 'This is you') : null), b));
+        }
+        const lg = $('#secLog'); lg.replaceChildren();
+        if (!d.log.length) lg.append(h('li', {}, 'No logins yet.'));
+        for (const e of d.log) {
+          const [label, tone] = RESULT[e.result] || [e.result, ''];
+          lg.append(h('li', {}, h('span', { class: `pill ${tone}` }, label), ' ', h('b', {}, e.ip), e.extra ? ` · ${e.extra}` : '', h('small', { class: 'meta' }, `${when(e.at)}${e.ua ? ` · ${e.ua}` : ''}`)));
+        }
+      } catch (e) { toast(e.message, true); }
+    }
+
+    /* ----- backup ----- */
+    $('#bkExport').addEventListener('click', busy($('#bkExport'), async () => {
+      const passphrase = $('#bkPass').value;
+      if (passphrase.length < 8) { toast('The passphrase needs at least 8 characters.', true); return; }
+      try {
+        const r = await fileCall('/api/admin/backup', { json: true, body: JSON.stringify({ passphrase }) });
+        saveBlob(await r.blob(), `rio-backup-${new Date().toISOString().slice(0, 10)}.riobak`);
+        toast(`Backup saved (${r.headers.get('x-sessions') || '?'} numbers).`); $('#bkPass').value = '';
+      } catch (e) { toast(e.message, true); }
+    }));
+    $('#bkImport').addEventListener('click', busy($('#bkImport'), async () => {
+      const file = $('#bkFile').files[0], pass = $('#bkPass2').value, out = $('#bkResult');
+      out.textContent = '';
+      if (!file) { toast('Choose a backup file first.', true); return; }
+      if (!pass) { toast('Enter the passphrase of this file.', true); return; }
+      try {
+        const buf = await file.arrayBuffer();
+        const info = await (await fileCall('/api/admin/restore/check', { body: buf, pass })).json();
+        const room = Math.max(0, info.maxSessions - info.linkedNow), canAdd = Math.min(room, Math.max(0, info.total - info.existing));
+        const global = $('#bkGlobal').checked;
+        const go = await ask({ title: 'Import this backup?', body: `Made on ${new Date(info.created).toLocaleString()}. It has ${info.total} number(s); ${info.existing} already linked here (kept as they are). About ${canAdd} will be added${canAdd < info.total - info.existing ? ` (the limit is ${info.maxSessions} numbers)` : ''}${global ? ', and the server-wide settings are restored too' : ''}.\n\nMake sure these numbers are NOT running on another server, or both copies will be logged out.`, ok: 'Import', danger: true });
+        if (!go) return;
+        const r = await (await fileCall('/api/admin/restore', { body: buf, pass, headers: { 'x-rio-global': global ? '1' : '0' } })).json();
+        out.textContent = `Added ${r.imported} number(s). Skipped: ${r.skipped.existing} already linked, ${r.skipped.full} over the limit, ${r.skipped.invalid} unreadable. They come online one by one over the next minute.`;
+        toast('Backup imported.'); $('#bkPass2').value = ''; $('#bkFile').value = ''; refresh();
+      } catch (e) { toast(e.message, true); }
+    }));
+
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity', 'insights', 'commands', 'analytics'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
