@@ -400,6 +400,55 @@
       document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
       try { history.replaceState(null, '', `#${name}`); } catch {}
       if (name === 'insights') drawInsights();
+      if (name === 'commands') loadCommands();
+      if (name === 'analytics') drawAnalytics();
+    }
+    /* ----- commands on/off, maintenance, bans ----- */
+    let cmds = [], cmdData = null, cfilter = 'all';
+    const shownCmds = () => { const q = $('#cq').value.trim().toLowerCase(); return cmds.filter((c) => (cfilter === 'all' || (cfilter === 'off' ? c.disabled : c.errors > 0)) && (!q || c.name.includes(q) || c.aliases.some((a) => a.includes(q)))); };
+    const drawCommands = (d) => {
+      cmdData = d; cmds = d.commands; $('#maintSwitch').checked = d.maintenance.on; if (document.activeElement !== $('#maintText')) $('#maintText').value = d.maintenance.text;
+      const bl = $('#banList'); bl.replaceChildren();
+      if (!d.banned.length) bl.append(h('li', {}, h('span', { class: 'txt' }, h('small', {}, 'Nobody is banned.'))));
+      for (const b of d.banned) { const x = h('button', { class: 'btn alt sm', type: 'button' }, 'Unban'); x.addEventListener('click', busy(x, async () => { try { drawCommands(await api('POST', '/api/admin/ban', { index: b.i })); toast('Unbanned.'); } catch (e) { toast(e.message, true); } })); bl.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, `+${b.m}`)), x)); }
+      const ul = $('#cmdList'); ul.replaceChildren();
+      const list = shownCmds();
+      if (!list.length) ul.append(h('li', { class: 'empty' }, 'No commands match.'));
+      for (const c of list.slice(0, 200)) {
+        const locked = d.protected.includes(c.name);
+        const sw = h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': `${c.name} on` }); sw.checked = !c.disabled; sw.disabled = locked;
+        sw.addEventListener('change', async () => { try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names: [c.name], disabled: !sw.checked })); } catch (e) { sw.checked = !sw.checked; toast(e.message, true); } });
+        ul.append(h('li', {}, h('span', { class: 'go' }, h('span', { class: 'who' }, h('span', { class: 'num' }, `.${c.name}`)),
+          h('span', { class: 'pills' }, c.owner && h('span', { class: 'pill' }, 'Owner'), c.premium && h('span', { class: 'pill gold' }, '👑'), c.disabled && h('span', { class: 'pill off' }, 'Off'), h('span', { class: 'pill' }, `${c.uses} uses`), c.errors > 0 && h('span', { class: 'pill warn' }, `${c.errors} errors`))), sw));
+      }
+    };
+    async function loadCommands() { try { drawCommands(await api('GET', '/api/admin/commands')); } catch (e) { toast(e.message, true); } }
+    $('#cq').addEventListener('input', () => cmdData && drawCommands(cmdData));
+    $('#cfilters').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cfilter = b.dataset.f; $('#cfilters').querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); if (cmdData) drawCommands(cmdData); });
+    const bulkCmds = (off) => async () => {
+      const names = shownCmds().map((c) => c.name);
+      if (!names.length) return;
+      if (!(await ask({ title: `${off ? 'Switch off' : 'Switch on'} ${names.length} command(s)?`, body: names.slice(0, 12).map((n) => `.${n}`).join(' ') + (names.length > 12 ? ' …' : ''), ok: off ? 'Switch off' : 'Switch on', danger: off }))) return;
+      try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names, disabled: off })); toast('Done.'); } catch (e) { toast(e.message, true); }
+    };
+    $('#cmdOffShown').addEventListener('click', bulkCmds(true)); $('#cmdOnShown').addEventListener('click', bulkCmds(false));
+    $('#maintSwitch').addEventListener('change', async (e) => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: e.target.checked, text: $('#maintText').value })); toast(e.target.checked ? 'Maintenance is ON.' : 'Maintenance is off.'); } catch (x) { e.target.checked = !e.target.checked; toast(x.message, true); } });
+    $('#maintSave').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: $('#maintSwitch').checked, text: $('#maintText').value })); toast('Saved.'); } catch (x) { toast(x.message, true); } });
+    $('#banAdd').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/ban', { number: $('#banNum').value, on: true })); $('#banNum').value = ''; toast('Banned.'); } catch (x) { toast(x.message, true); } });
+
+    /* ----- analytics ----- */
+    const cols = (box, vals, labels) => { box.replaceChildren(); const max = Math.max(1, ...vals); vals.forEach((v, i) => box.append(h('div', { class: 'c', title: `${labels[i]}: ${v}` }, h('i', { style: `height:${Math.round((v / max) * 100)}%` }), h('small', {}, labels[i])))); };
+    async function drawAnalytics() {
+      try {
+        const a = await api('GET', '/api/admin/analytics');
+        const rate = a.total ? `${(((a.total - a.errors) / a.total) * 100).toFixed(1)}%` : '—';
+        $('#anStats').replaceChildren(stat(a.total, 'Commands run', null), stat(a.today, 'Today', null, 'good'), stat(a.errors, 'Errors', null, a.errors ? 'warn' : ''), stat(rate, 'Success rate', null));
+        cols($('#anDays'), a.days.map((d) => d.n), a.days.map((d) => d.day.slice(5)));
+        cols($('#anHours'), a.hours, a.hours.map((_, i) => (i % 3 === 0 ? String(i) : '')));
+        const bars = (box, rows, key, label) => { box.replaceChildren(); const m = Math.max(1, ...rows.map((r) => r.n)); if (!rows.length) box.append(h('small', {}, 'No data yet.')); for (const r of rows) box.append(h('div', { class: 'b' }, h('span', {}, label(r)), h('span', { class: 'tr' }, h('i', { style: `width:${Math.round((r.n / m) * 100)}%` })), h('b', {}, String(r.n)))); };
+        bars($('#anTop'), a.top, 'name', (r) => `.${r.name}`);
+        bars($('#anNums'), a.nums, 'phone', (r) => `+${r.phone}`);
+      } catch (e) { toast(e.message, true); }
     }
     const FEAT = { statusSeen: 'Status view', statusReact: 'Status react', statusSave: 'Status save', viewOnce: 'View-once', callReject: 'Call reject', autoAnswer: 'Auto answer', callLoop: 'Call loop', callStream: 'Call stream', autoRead: 'Auto read', autoTyping: 'Auto typing', autoRecording: 'Auto recording', alwaysOnline: 'Always online', boostOptIn: 'Channel support' };
     const svgEl = (t, a) => { const e = document.createElementNS('http://www.w3.org/2000/svg', t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); return e; };
@@ -438,7 +487,7 @@
     });
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity', 'insights'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'activity', 'insights', 'commands', 'analytics'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });

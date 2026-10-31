@@ -253,3 +253,12 @@ body[data-page=admin] #panel{padding-bottom:96px}
 .bars{display:grid;gap:10px}.bars .b{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;font-size:.85rem}
 .bars .tr{height:8px;border-radius:8px;background:var(--line);overflow:hidden}.bars .tr i{display:block;height:100%;background:var(--accent);border-radius:8px;transition:width .6s var(--ease)}
 .bars b{font-variant-numeric:tabular-nums}
+
+/* commands + analytics */
+.colchart{display:flex;align-items:flex-end;gap:4px;height:130px;padding-top:8px}
+.colchart .c{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:4px}
+.colchart .c i{display:block;width:100%;min-height:2px;border-radius:5px 5px 0 0;background:var(--accent);opacity:.85}
+.colchart .c small{font-size:.62rem;color:var(--muted);white-space:nowrap}
+#cmdList .go .num{font-weight:700}
+#cmdList .go{cursor:default}
+.pill.off{color:#ff8f8f;border-color:#ff8f8f55}
