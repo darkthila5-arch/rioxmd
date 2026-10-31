@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/web.css?v=5">
+<link rel="stylesheet" href="/web.css?v=6">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -61,7 +61,11 @@
       <button class="tab" role="tab" type="button" data-tab="overview" aria-selected="true"><span class="ico" aria-hidden="true">📊</span><span>Overview</span></button>
       <button class="tab" role="tab" type="button" data-tab="numbers" aria-selected="false"><span class="ico" aria-hidden="true">📱</span><span>Numbers</span><em class="badge" id="numBadge">0</em></button>
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true">📣</span><span>Channels</span></button>
-      <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Activity</span></button>
+      <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Audit</span></button>
+      <button class="tab" role="tab" type="button" data-tab="broadcast" aria-selected="false"><span class="ico" aria-hidden="true">📢</span><span>Broadcast</span></button>
+      <button class="tab" role="tab" type="button" data-tab="logs" aria-selected="false"><span class="ico" aria-hidden="true">🧾</span><span>Logs</span><em class="badge" id="logBadge" hidden>0</em></button>
+      <button class="tab" role="tab" type="button" data-tab="security" aria-selected="false"><span class="ico" aria-hidden="true">🔐</span><span>Security</span></button>
+      <button class="tab" role="tab" type="button" data-tab="backup" aria-selected="false"><span class="ico" aria-hidden="true">💾</span><span>Backup</span></button>
       <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true">📈</span><span>Insights</span></button>
       <button class="tab" role="tab" type="button" data-tab="commands" aria-selected="false"><span class="ico" aria-hidden="true">⚙️</span><span>Commands</span></button>
       <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true">📊</span><span>Analytics</span></button>
@@ -194,12 +198,108 @@
       </div>
     </section>
 
-    <!-- ACTIVITY -->
+    <!-- AUDIT -->
     <section class="tabpane" id="pane-activity" role="tabpanel" hidden>
       <section class="card">
-        <h2>Recent admin activity</h2>
-        <p class="note">Kept in memory only, cleared when the server restarts.</p>
+        <h2>Audit log</h2>
+        <p class="note">Every admin action with the address it came from. Saved, so it stays after a restart (last 1000 entries).</p>
+        <div class="toolbar">
+          <div class="field sm"><input id="auditQ" type="text" placeholder="Search action, detail or address" autocomplete="off" aria-label="Search the audit log"></div>
+          <button class="btn alt sm" id="auditCsv" type="button">Download CSV</button>
+        </div>
         <ul class="log" id="audit"></ul>
+        <div class="actions"><button class="btn alt sm" id="auditMore" type="button" hidden>Show more</button></div>
+      </section>
+    </section>
+
+    <!-- BROADCAST -->
+    <section class="tabpane" id="pane-broadcast" role="tabpanel" hidden>
+      <section class="card">
+        <h2>Send a message to everyone</h2>
+        <p class="note">The message arrives in each linked number's own chat with the bot, one number at a time (slowly, on purpose, so WhatsApp is never hit with a burst).</p>
+        <div class="field area"><textarea id="bcText" maxlength="1000" placeholder="Write the message…" aria-label="Broadcast message"></textarea></div>
+        <p class="note"><span id="bcCount">0</span>/1000</p>
+        <div class="toolbar">
+          <div class="chips" id="bcTarget" role="group" aria-label="Who gets it">
+            <button class="chip" type="button" data-t="all" aria-pressed="true">All linked numbers</button>
+            <button class="chip" type="button" data-t="online" aria-pressed="false">Only online numbers</button>
+          </div>
+        </div>
+        <div class="inline">
+          <div class="field sm"><input id="bcWhen" type="datetime-local" aria-label="Send at (leave empty to send now)"></div>
+          <button class="btn" id="bcSend" type="button"><span class="label">Send now</span><span class="spin" aria-hidden="true"></span></button>
+        </div>
+        <p class="note" id="bcHint">Leave the time empty to send now. Pick a time to schedule it (your device's time).</p>
+      </section>
+      <section class="card">
+        <h2>Scheduled and sent</h2>
+        <ul class="slist plain" id="bcList"></ul>
+      </section>
+    </section>
+
+    <!-- LOGS -->
+    <section class="tabpane" id="pane-logs" role="tabpanel" hidden>
+      <section class="card">
+        <h2>Live logs</h2>
+        <p class="note">The server's last lines, refreshed every 3 seconds. Numbers and passwords are hidden. Kept in memory only.</p>
+        <div class="toolbar">
+          <div class="field sm"><input id="logQ" type="text" placeholder="Search the logs" autocomplete="off" aria-label="Search the logs"></div>
+          <div class="chips" id="logLevel" role="group" aria-label="Level">
+            <button class="chip" type="button" data-l="all" aria-pressed="true">All</button>
+            <button class="chip" type="button" data-l="warn" aria-pressed="false">Warnings + errors</button>
+            <button class="chip" type="button" data-l="error" aria-pressed="false">Errors</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn alt sm" id="logPause" type="button">Pause</button>
+          <button class="btn alt sm" id="logClear" type="button">Clear screen</button>
+          <button class="btn alt sm" id="logSave" type="button">Download .txt</button>
+          <span class="note" id="logInfo"></span>
+        </div>
+        <pre class="logbox" id="logBox" tabindex="0" aria-label="Server log lines" aria-live="off"></pre>
+      </section>
+    </section>
+
+    <!-- SECURITY -->
+    <section class="tabpane" id="pane-security" role="tabpanel" hidden>
+      <div class="banner" id="secWide" hidden role="status"><span>Many wrong passwords from different addresses. Logins from addresses never used before are slowed down for a few minutes.</span></div>
+      <div class="duo">
+        <section class="card tight">
+          <h2>Locked addresses</h2>
+          <p class="note">5 wrong passwords lock an address: 10 min, then 30 min, 2 h, 6 h, 24 h if it keeps trying.</p>
+          <ul class="slist plain" id="secLocked"></ul>
+        </section>
+        <section class="card tight">
+          <h2>Trusted addresses</h2>
+          <p class="note">Addresses that logged in successfully. They still work while an attack from many addresses is slowed down.</p>
+          <ul class="slist plain" id="secKnown"></ul>
+        </section>
+      </div>
+      <section class="card">
+        <h2>Login history</h2>
+        <p class="note" id="secYou"></p>
+        <ul class="log" id="secLog"></ul>
+      </section>
+    </section>
+
+    <!-- BACKUP -->
+    <section class="tabpane" id="pane-backup" role="tabpanel" hidden>
+      <section class="card">
+        <h2>Export a backup</h2>
+        <p class="note">One encrypted file with every linked number's WhatsApp login data and settings (premium, web passwords, bans, maintenance). Not included: saved call clips, logs, audit history. <b>Keep the file and the passphrase safe: anyone with both can use those WhatsApp accounts.</b></p>
+        <div class="inline">
+          <div class="field sm"><input id="bkPass" type="password" autocomplete="new-password" placeholder="Passphrase (8+ characters)" aria-label="Backup passphrase"></div>
+          <button class="btn" id="bkExport" type="button"><span class="label">Download backup</span><span class="spin" aria-hidden="true"></span></button>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Import a backup</h2>
+        <p class="note">Adds the numbers from a backup file. Numbers already linked here are never touched. <b>Do not restore while the same numbers are still running on another server: two copies of one WhatsApp login knock each other offline.</b></p>
+        <div class="field"><input id="bkFile" type="file" accept=".riobak,application/octet-stream" aria-label="Backup file"></div>
+        <div class="field"><input id="bkPass2" type="password" autocomplete="off" placeholder="Passphrase of this file" aria-label="Passphrase of the backup file"></div>
+        <label class="row" for="bkGlobal"><span class="txt"><b>Also restore bans, maintenance, disabled commands</b><small>Server-wide settings from the backup. Off = only the numbers and their own settings.</small></span><input type="checkbox" class="sw" id="bkGlobal" role="switch" aria-label="Restore server-wide settings"></label>
+        <div class="actions"><button class="btn" id="bkImport" type="button"><span class="label">Check and import</span><span class="spin" aria-hidden="true"></span></button></div>
+        <p class="note" id="bkResult"></p>
       </section>
     </section>
   </section>
@@ -293,6 +393,6 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=6"></script>
+<script src="/web.js?v=7"></script>
 </body>
 </html>
