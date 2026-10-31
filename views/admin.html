@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/web.css?v=3">
+<link rel="stylesheet" href="/web.css?v=4">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -62,6 +62,7 @@
       <button class="tab" role="tab" type="button" data-tab="numbers" aria-selected="false"><span class="ico" aria-hidden="true">📱</span><span>Numbers</span><em class="badge" id="numBadge">0</em></button>
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true">📣</span><span>Channels</span></button>
       <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Activity</span></button>
+      <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true">📈</span><span>Insights</span></button>
     </nav>
 
     <!-- OVERVIEW -->
@@ -120,6 +121,29 @@
         <h2>Channels being supported</h2>
         <p class="note">Added by premium users. Numbers that opted in follow them and react to new posts.</p>
         <ul class="slist plain" id="boostList"></ul>
+      </section>
+    </section>
+
+    <!-- INSIGHTS -->
+    <section class="tabpane" id="pane-insights" role="tabpanel" hidden>
+      <section class="card">
+        <h2>Online numbers</h2>
+        <p class="note">Last 24 hours, one point per minute. Cleared when the server restarts.</p>
+        <div id="spark" class="spark" role="img" aria-label="Online numbers over time"></div>
+      </section>
+      <div class="duo">
+        <section class="card"><h2>Feature usage</h2><div id="featBars" class="bars"></div></section>
+        <section class="card">
+          <h2>Premium ending soon</h2>
+          <p class="note">Premium numbers with 7 days or less left.</p>
+          <ul class="slist plain" id="expiring"></ul>
+          <div class="actions"><button class="btn alt sm" id="selExpiring" type="button">Select these numbers</button></div>
+        </section>
+      </div>
+      <section class="card">
+        <h2>Export</h2>
+        <p class="note">Downloads the numbers list (partly hidden numbers, status, mode, premium days) as a CSV file.</p>
+        <div class="actions"><button class="btn alt" id="exportCsv" type="button">Download CSV</button></div>
       </section>
     </section>
 
@@ -222,6 +246,6 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=3"></script>
+<script src="/web.js?v=4"></script>
 </body>
 </html>
