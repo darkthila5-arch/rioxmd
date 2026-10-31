@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup } from '@whiskeysockets/baileys';
-import { applyBrand } from '../lib/brand.js';
+import { FOOTER_LINE, FOOTER_TEXT, applyBrand } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
@@ -224,13 +224,13 @@ async function sendCarousel(sock, jid, results, query, quoted) {
     return IM.create({
       header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
       body: IM.Body.create({ text: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n') }),
-      footer: IM.Footer.create({ text: applyBrand(sock, BOT_NAME) }),
+      footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
       nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
     });
   }));
   const interactiveMessage = IM.create({
     body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO` }),
-    footer: IM.Footer.create({ text: applyBrand(sock, BOT_NAME) }),
+    footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
     carouselMessage: IM.CarouselMessage.create({ cards, messageVersion: 1 })
   });
   const content = {
@@ -249,7 +249,7 @@ function textList(results, query) {
   return [
     `🔎 *TikTok results for* “${clip(query, 60)}”`, '',
     ...results.map((r, i) => `*${i + 1}.* ${clip(r.title, 90) || 'TikTok video'}\n   👤 ${clip(r.author, 40)}\n   ${PREFIX}tt ${r.url}`),
-    '', `Copy a line and send it to download. > ${BOT_NAME}`
+    '', `Copy a line and send it to download.\n${FOOTER_LINE}`
   ].join('\n');
 }
 
@@ -274,7 +274,7 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
       else buf = await fetchBuffer(info.video, info.headers);
     }
     if (kind === 'audio') return await sock.sendMessage(jid, { audio: buf, mimetype: isAudio ? 'audio/mpeg' : 'audio/mp4', ptt: false }, { quoted: msg });
-    return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(title, 200)}\n\n> ${BOT_NAME}` }, { quoted: msg });
+    return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(title, 200)}\n\n${FOOTER_LINE}` }, { quoted: msg });
   } catch (err) {
     console.error('TikTok direct download error:', err?.message || err);
     if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`+'\n\nෆයිල් එක ලොකු වැඩියි බං, පොඩි එකක් බලපන් 😑');

@@ -1,6 +1,7 @@
 // General commands: menus, alive, ping, runtime, about, owner contact, status.
 // Add a new command by adding one more object to this array (or create a new file in commands/).
 import { aliveButtons, aliveCaption, menuButtons, menuCaption, ownerMenuButtons, ownerMenuCaption, sendRich } from '../lib/menu.js';
+import { FOOTER_TEXT } from '../lib/brand.js';
 import { BOT_NAME, OWNER_NUMBER, PREFIX, jidNum } from '../lib/config.js';
 import { formatUptime, mem } from '../lib/text.js';
 
@@ -14,7 +15,7 @@ export default [
   {
     name: 'momenu', aliases: ['ownermenu', 'omenu'], hidden: true,
     async run({ sock, msg, jid, name, footer }) {
-        return sendRich(sock, jid, { caption: ownerMenuCaption(name), buttons: ownerMenuButtons(), footer: `${BOT_NAME} • Owner only` }, msg);
+        return sendRich(sock, jid, { caption: ownerMenuCaption(name), buttons: ownerMenuButtons(), footer: FOOTER_TEXT }, msg);
     },
   },
   {

@@ -2,6 +2,7 @@
 // Tap ⬇️ DOWNLOAD and the APK arrives in the chat as a file.   (.apkget <id> is what the button runs)
 // Settings (Render environment, all optional):  MAX_APK_MB (default 150)  ·  APK_API_BASE (default https://ws75.aptoide.com)
 import crypto from 'node:crypto';
+import { FOOTER_LINE } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
 import { sendCards } from '../lib/carousel.js';
@@ -88,7 +89,7 @@ export default [
       return reply([
         `📱 *Apps for* “${clip(query, 60)}”`, '',
         ...items.map(({ a, id }, i) => `*${i + 1}.* ${clip(a.name, 50)}  ·  ${a.version || '-'}  ·  ${a.size ? `${mb(a.size)} MB` : '-'}${a.rank === 'CRITICAL' ? '  ⛔' : ''}\n   ${PREFIX}apkget ${id}`),
-        '', `Copy a line and send it to download. > ${BOT_NAME}`
+        '', `Copy a line and send it to download.\n${FOOTER_LINE}`
       ].join('\n'));
     }
   },
@@ -116,7 +117,7 @@ export default [
         const caption = [
           `📱 *${clip(e.name, 80)}*`, `🆚 ${e.version || '-'}${size ? `  ·  💾 ${mb(size)} MB` : ''}`, e.pkg ? `📦 ${e.pkg}` : null,
           RANK[e.rank] || null, e.obb ? '📂 This app also needs OBB data, which is not included.' : null,
-          '', '💡 Install apps from the Play Store when you can.', `> ${BOT_NAME}`
+          '', '💡 Install apps from the Play Store when you can.', `${FOOTER_LINE}`
         ].filter((l) => l !== null).join('\n');
         let lastErr = null;
         for (const url of e.urls) { // the store gives two links; the second is the backup

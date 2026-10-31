@@ -4,6 +4,7 @@
 //   The linked number must be the channel owner / admin (channels) or a member (groups).
 // .chid <channel link>      shows the channel's JID, ready to copy. Also: reply to a forwarded channel post, or send .chid alone to get this chat's id.
 import fs from 'node:fs';
+import { FOOTER_LINE, FOOTER_TEXT } from '../lib/brand.js';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -165,7 +166,7 @@ export default [
           info.views ? `▶️ ${compact(info.views)} views` : null,
           `🎚️ Quality: Opus ${VOICE_KBPS} kbps${STEREO ? ' stereo' : ''}`,
           info.sourceUrl ? `🔗 ${info.sourceUrl}` : null,
-          '', '🎧 Voice note below ⬇️', `> ${BOT_NAME}`
+          '', '🎧 Voice note below ⬇️', `${FOOTER_LINE}`
         ].filter((l) => l !== null).join('\n');
 
         // thumbnail + details first, then the voice note
@@ -195,7 +196,7 @@ export default [
           return sendRich(sock, jid, {
             caption: `${title}\n\n🆔 *JID:*\n${r.id}\n\nTap a button below 👇`,
             buttons: [copyBtn('📋 Copy JID', r.id), copyBtn('🎵 Copy .chsong command', `${PREFIX}chsong ${r.id} `), qr('🧪 Test post', `${PREFIX}chsong ${r.id} test`)],
-            footer: `${BOT_NAME} • Channel ID`, image: null
+            footer: FOOTER_TEXT, image: null
           }, msg);
         }
         return reply([title, '', '🆔 *JID* (copy this):', r.id, '', `Post a song:\n${PREFIX}chsong ${r.id} <song name>`].join('\n'));
@@ -208,7 +209,7 @@ export default [
         if (USE_BUTTONS) {
           return sendRich(sock, jid, {
             caption: `🆔 *This chat's id:*\n${jid}\n\nFor a channel send:\n${PREFIX}chid <channel link>\n(or reply ${PREFIX}chid to a post forwarded from the channel)`,
-            buttons: [copyBtn('📋 Copy chat ID', jid)], footer: `${BOT_NAME} • Chat ID`, image: null
+            buttons: [copyBtn('📋 Copy chat ID', jid)], footer: FOOTER_TEXT, image: null
           }, msg);
         }
         return reply(`🆔 *This chat's id:*\n${jid}\n\nFor a channel send:\n${PREFIX}chid <channel link>\n(or reply ${PREFIX}chid to a post forwarded from the channel)`);

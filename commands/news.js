@@ -7,6 +7,7 @@
 // Facebook pages cannot be read without Facebook's API, so the same stories are taken from the news sites' own feeds.
 // Env: NEWS_LANG = si (default) | en      NEWS_POLL_MIN = minutes between checks (default 3)
 import { BOT_NAME, PREFIX, TIMEZONE, sessions, sleep } from '../lib/config.js';
+import { FOOTER_LINE } from '../lib/brand.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -146,7 +147,7 @@ const captionOf = (key, it) => [
   cleanSummary(it.title, it.summary) ? `\n${clip(cleanSummary(it.title, it.summary), 380)}` : '',
   `\n🔗 ${it.link}`,
   `\n${stamp()}`,
-  `> ${BOT_NAME}`
+  `${FOOTER_LINE}`
 ].join('\n');
 
 async function post(sock, jid, key, item, img) {

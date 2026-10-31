@@ -2,6 +2,7 @@
 //   AUDIO -> .ytdl audio <id>     VIDEO -> .ytdl video <id>     DOC -> .ytdl doc <id>   (sent as a file)
 // .song <YouTube link> still opens the single Audio / Document / Video menu.
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
+import { FOOTER_LINE } from '../lib/brand.js';
 import { qr } from '../lib/menu.js';
 import { sendCards } from '../lib/carousel.js';
 import { rememberSong, startSong, ytDiagnose, ytSearchList } from '../lib/downloader.js';
@@ -17,7 +18,7 @@ function textList(items, query) {
   return [
     `🔎 *YouTube results for* “${clip(query, 60)}”`, '',
     ...items.map(({ r, token }, i) => `*${i + 1}.* ${clip(r.title, 90)}\n   👤 ${clip(r.author, 40)}  ⏱️ ${mmss(r.duration) || '-'}\n   ${PREFIX}ytdl audio ${token}\n   ${PREFIX}ytdl video ${token}`),
-    '', `Copy a line and send it to download. > ${BOT_NAME}`
+    '', `Copy a line and send it to download.\n${FOOTER_LINE}`
   ].join('\n');
 }
 

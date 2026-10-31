@@ -1,6 +1,7 @@
 // Call commands (owner only): reject, auto answer, real call streaming, call clips.
 // Add a new command by adding one more object to this array (or create a new file in commands/).
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { FOOTER_TEXT } from '../lib/brand.js';
 import { DEFAULT_CALL_MSG, MAX_CALL_MEDIA, deleteCallMedia, loadCallMedia, saveCallMedia, sendCallMedia } from '../lib/calls.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 import { BOT_NAME, PREFIX, jidNum, logger, state } from '../lib/config.js';
@@ -102,7 +103,7 @@ export default [
           const phone = jidNum(sock.user?.id);
           const { code } = await callbotApi('POST', `/sessions/${sessionId}/pair`, { json: { phone }, timeout: 60000 });
           watchCallbotLink(sessionId, sock, jid);
-          return sendRich(sock, jid, { caption: `🔗 *Link the call service (one time)*\n\n1. Open WhatsApp on your phone\n2. *Linked devices → Link a device*\n3. Tap *Link with phone number instead*\n4. Tap *Copy Code* below and paste it there\n\n*${code}*\n\nThe code works for 5 minutes. I will message you here when it is linked.`, buttons: [copyBtn('📋 Copy Code', code)], footer: `${BOT_NAME} • Call service`, image: null }, msg);
+          return sendRich(sock, jid, { caption: `🔗 *Link the call service (one time)*\n\n1. Open WhatsApp on your phone\n2. *Linked devices → Link a device*\n3. Tap *Link with phone number instead*\n4. Tap *Copy Code* below and paste it there\n\n*${code}*\n\nThe code works for 5 minutes. I will message you here when it is linked.`, buttons: [copyBtn('📋 Copy Code', code)], footer: FOOTER_TEXT, image: null }, msg);
         } catch (err) { console.error('callbot pair error:', err?.message || err); return reply(`❌ Could not start linking: ${err?.message || err}`); }
     },
   },

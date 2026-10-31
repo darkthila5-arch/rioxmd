@@ -1,5 +1,6 @@
 // Group control: open / close chat, name, description, invite link, anti-link, welcome / goodbye messages.
 import { BOT_NAME, PREFIX } from '../lib/config.js';
+import { FOOTER_LINE } from '../lib/brand.js';
 import { parseToggle } from '../lib/text.js';
 import { DEFAULT_GOODBYE, DEFAULT_WELCOME, adminGuard, getGroupCfg, setGroupCfg } from '../lib/groups.js';
 
@@ -169,7 +170,7 @@ export default [
       const meta = await c.sock.groupMetadata(c.jid);
       const list = meta.participants.filter((p) => p.admin);
       const ids = list.map((p) => p.id);
-      return c.sock.sendMessage(c.jid, { text: `👮 *Admins of ${meta.subject}*\n\n${list.map((p, i) => `${i + 1}. @${String(p.id).split('@')[0].split(':')[0]}${p.admin === 'superadmin' ? ' 👑' : ''}`).join('\n')}\n\n> ${BOT_NAME}`, mentions: ids }, { quoted: c.msg });
+      return c.sock.sendMessage(c.jid, { text: `👮 *Admins of ${meta.subject}*\n\n${list.map((p, i) => `${i + 1}. @${String(p.id).split('@')[0].split(':')[0]}${p.admin === 'superadmin' ? ' 👑' : ''}`).join('\n')}\n\n${FOOTER_LINE}`, mentions: ids }, { quoted: c.msg });
     },
   },
 ];
