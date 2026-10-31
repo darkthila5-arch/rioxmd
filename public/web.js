@@ -309,8 +309,15 @@
         }));
         const auto = j.admin && j.status === 'active' && h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': 'React to every new post' });
         if (auto) { auto.checked = j.autoReact; auto.addEventListener('change', async () => { try { const r = await api('POST', `/api/admin/boost/${j.id}/auto`, { on: auto.checked }); drawBoost(r.boost); toast(auto.checked ? 'Auto react on.' : 'Auto react off (follow only).'); } catch (e) { auto.checked = !auto.checked; toast(e.message, true); } }); }
+        const chk = j.admin && j.status === 'active' && h('button', { class: 'btn alt sm', type: 'button' }, 'Check');
+        if (chk) chk.addEventListener('click', busy(chk, async () => {
+          try { const r = await api('GET', `/api/admin/boost/${j.id}/check`); const d = $('#boostDiag'); d.hidden = false; d.textContent = JSON.stringify(r.report, null, 2); d.scrollIntoView({ block: 'nearest' }); }
+          catch (e) { toast(e.message, true); }
+        }));
+        const dg = j.diag, ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : `${m} min ago`; };
+        const stat = !j.admin ? '' : ` · ${dg?.readAt ? (dg.readOk ? `reads posts ✓ (#${dg.latest})` : 'cannot read posts ✗') : 'not checked yet'}${dg?.liveCount ? ` · live posts: ${dg.liveCount} (${ago(dg.liveAt)})` : ' · no live post yet'}`;
         const by = j.admin ? `Added by admin · ${j.scope === 'all' ? 'all online numbers' : 'opted-in numbers'} · auto react ${j.autoReact ? 'on' : 'off'}` : `Added by +${j.owner || '?'}`;
-        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), auto || '', del));
+        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}${stat}`)), chk || '', auto || '', del));
       }
     };
     const drawAttention = () => {
