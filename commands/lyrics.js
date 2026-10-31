@@ -125,7 +125,12 @@ export default [
 
       try {
         const hit = await search(query);
-        if (!hit) return reply(`😕 "${query}" හොයාගන්න බැරි වුණා.\nගීතයේ නම වෙනස් විදිහකට ලියලා බලන්න, නැත්නම් *${PREFIX}lyrics artist - song name* කියලා try කරන්න.`);
+        if (!hit) {
+          // Not in our sources: point to the Sinhala lyrics sites with one Google search (the sites' own pages are not copied).
+          const sites = ['sinhalalyricspedia.com', 'sinhalasongbook.com', 'lankasongbook.com'].map((d) => `site:${d}`).join(' OR ');
+          const link = `https://www.google.com/search?q=${encodeURIComponent(`${query} lyrics (${sites})`)}`;
+          return reply(`😕 "${query}" bot එකේ database එකේ නෑ.\n\n🔗 මේ sites වල හොයලා බලන්න:\n${link}\n\nනැත්නම් නම වෙනස් විදිහකට ලියලා, *${PREFIX}lyrics artist - song name* කියලා try කරන්න.`);
+        }
 
         let text = hit.lyrics.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
         const max = MAX_CHARS();
