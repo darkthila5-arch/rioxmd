@@ -128,6 +128,18 @@
     <!-- CHANNELS -->
     <section class="tabpane" id="pane-channels" role="tabpanel" hidden>
       <header class="pagehead"><div><h1>Channels</h1><p>Channels that premium users added for support.</p></div></header>
+      <section class="card" id="boostPost">
+        <h2>React to one post</h2>
+        <p class="note">Open the post in WhatsApp, copy its link and paste it here. The numbers react one by one, a few seconds apart.</p>
+        <div class="stack">
+          <div class="field sm"><input id="postLink" type="text" placeholder="https://whatsapp.com/channel/0029Va.../123" autocomplete="off" aria-label="Channel post link"></div>
+          <div class="field sm"><input id="postEmojis" type="text" placeholder="Reaction emojis, e.g. 👍 ❤️ (empty = default)" autocomplete="off" aria-label="Reaction emojis"></div>
+          <div class="field sm"><select id="postScope" aria-label="Which numbers react"><option value="all">All online numbers</option><option value="optin">Only numbers that switched on "Support other channels"</option></select></div>
+          <label class="row" for="postFollow"><span class="txt"><b>Follow the channel first</b><small>Numbers that do not follow it yet follow it before reacting.</small></span><input type="checkbox" class="sw" id="postFollow" role="switch" aria-label="Follow first" checked></label>
+          <div class="actions"><button class="btn" id="postGo" type="button">React now</button></div>
+          <p class="note" id="postStatus" aria-live="polite"></p>
+        </div>
+      </section>
       <section class="card" id="boostAdmin">
         <h2>Channels being supported</h2>
         <p class="note">Added by premium users or by you. The numbers follow the channel and react to every new post (a few at a time, spaced out).</p>
@@ -135,6 +147,7 @@
         <div class="stack">
           <div class="field sm"><input id="boostLink" type="text" placeholder="https://whatsapp.com/channel/0029Va..." autocomplete="off" aria-label="WhatsApp channel link"></div>
           <div class="field sm"><input id="boostEmojis" type="text" placeholder="Reaction emojis, e.g. 👍 ❤️ 😂 (empty = default)" autocomplete="off" aria-label="Reaction emojis"></div>
+          <label class="row" for="boostAuto"><span class="txt"><b>React to every new post automatically</b><small>Off = the numbers only follow the channel. You can still react to single posts below.</small></span><input type="checkbox" class="sw" id="boostAuto" role="switch" aria-label="React to every new post" checked></label>
           <div class="field sm"><select id="boostScope" aria-label="Which numbers follow"><option value="all">All online numbers</option><option value="optin">Only numbers that switched on "Support other channels"</option></select></div>
           <div class="actions"><button class="btn" id="boostAdd" type="button">Add channel</button></div>
         </div>
