@@ -9,7 +9,10 @@ import { startCallbot } from './lib/callbot.js';
 import { isPairingOpen, mountWeb } from './lib/web.js';
 
 const app = express();
-app.set('trust proxy', 1); // Render sits behind a proxy; needed for correct client IPs
+// How many proxies sit in front of the app (default 1 = Render). Every login lockout and rate limit uses the client IP, so this must be right:
+// too high and X-Forwarded-For can be faked to dodge the lockouts. Running without any proxy (VPS, local)? Set TRUST_PROXY=0.
+const TRUST = String(process.env.TRUST_PROXY ?? '1').trim().toLowerCase();
+app.set('trust proxy', /^\d+$/.test(TRUST) ? Number(TRUST) : TRUST === 'true' ? true : TRUST === 'false' ? false : TRUST);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(path.join(ROOT_DIR, 'public'), {
