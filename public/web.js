@@ -106,7 +106,8 @@
       if (group.note) card.append(h('p', { class: 'note' }, locked ? '🔒 Premium only. Ask the bot owner to activate premium for your number, then these options unlock.' : group.note));
       for (const it of group.items) {
         const id = `f-${it.k}`;
-        const hostLocked = !!it.hostOnly && host === false;
+        if (it.hostOnly && host === false) continue; // host-only call options are hidden for normal numbers (call reject stays)
+        const hostLocked = false;
         const txt = h('span', { class: 'txt' }, h('b', {}, it.label), (hostLocked || it.hint) && h('small', {}, hostLocked ? '🔒 Only the bot host owner can use this. Call reject is available for you.' : it.hint));
         if (it.type === 'switch') {
           const box = h('input', { type: 'checkbox', role: 'switch', class: 'sw', id, 'aria-label': it.label });
