@@ -98,20 +98,21 @@ export default [
   }),
   converter({
     name: 'toimg', aliases: ['toimage'], react: '🖼️', accept: 'sticker',
-    usage: `🖼️ *Sticker → Photo*\nReply to a sticker with ${PREFIX}toimg.\nFor an animated sticker use ${PREFIX}tovideo.`,
+    usage: `🖼️ *Sticker → Photo*\nReply to a sticker with ${PREFIX}toimg.\nAn animated sticker gives its first picture; use ${PREFIX}tovideo for the whole animation.`,
     wrong: {
       image: `That is already a photo. Use ${PREFIX}tosticker to make a sticker.`,
       video: `🎞️ That is a video. Use ${PREFIX}toasticker to make an animated sticker.`,
     },
     work: {
       precheck(input) {
-        try { if (webpInfo(input).animated) return `🎞️ That sticker is animated. Use ${PREFIX}tovideo to get a video (${PREFIX}toimg is for still stickers).`; }
-        catch { return '❌ That does not look like a sticker file.'; }
+        try { webpInfo(input); } catch { return '❌ That does not look like a sticker file.'; }
         return null;
       },
       async send({ sock, jid, msg, input }) {
+        const animated = webpInfo(input).animated;
         const png = await stickerToPng(input);
-        return sock.sendMessage(jid, { image: png, caption: `🖼️ Sticker → Photo\n*${BOT_NAME}*` }, { quoted: msg });
+        const note = animated ? `\n🎞️ First picture of an animated sticker. Use ${PREFIX}tovideo for the whole animation.` : '';
+        return sock.sendMessage(jid, { image: png, caption: `🖼️ Sticker → Photo${note}\n*${BOT_NAME}*` }, { quoted: msg });
       },
     },
   }),
