@@ -52,7 +52,7 @@ export default [
     },
   },
   {
-    name: 'callstream', aliases: ['realcall'], owner: true,
+    name: 'callstream', aliases: ['realcall'], owner: true, adminOnly: true, // real call answering: host admin (OWNER_NUMBER) only
     async run({ sock, msg, jid, sessionId, args, reply }) {
         if (!state.callbotAvailable) return reply('❌ Real call answering is not installed on this server.\nIt needs the Docker deploy with the Go "callbot" service (see README → Real call answering). Until then use ' + PREFIX + 'autoanswer (reject + send the clip as a message).');
         const sub = (args[0] || '').toLowerCase();
