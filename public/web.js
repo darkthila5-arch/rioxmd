@@ -399,10 +399,46 @@
       $('#tabs').querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
       document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
       try { history.replaceState(null, '', `#${name}`); } catch {}
+      if (name === 'insights') drawInsights();
     }
+    const FEAT = { statusSeen: 'Status view', statusReact: 'Status react', statusSave: 'Status save', viewOnce: 'View-once', callReject: 'Call reject', autoAnswer: 'Auto answer', callLoop: 'Call loop', callStream: 'Call stream', autoRead: 'Auto read', autoTyping: 'Auto typing', autoRecording: 'Auto recording', alwaysOnline: 'Always online', boostOptIn: 'Channel support' };
+    const svgEl = (t, a) => { const e = document.createElementNS('http://www.w3.org/2000/svg', t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); return e; };
+    async function drawInsights() {
+      try {
+        const d = await api('GET', '/api/admin/insights');
+        const bars = $('#featBars'); bars.replaceChildren();
+        const rows = Object.entries(d.features).sort((a, b) => b[1] - a[1]);
+        for (const [k, n] of rows) bars.append(h('div', { class: 'b' }, h('span', {}, FEAT[k] || k), h('span', { class: 'tr' }, h('i', { style: `width:${d.total ? Math.round((n / d.total) * 100) : 0}%` })), h('b', {}, `${n}/${d.total}`)));
+        const box = $('#spark'); box.replaceChildren();
+        const hs = d.history;
+        if (hs.length < 2) { box.append(h('p', { class: 'note' }, 'Collecting data… check again in a minute.')); return; }
+        const max = Math.max(1, ...hs.map((x) => x.linked));
+        const pts = hs.map((x, i) => [(i / (hs.length - 1)) * 100, 38 - (x.on / max) * 36]);
+        const line = pts.map((p) => p.map((n) => n.toFixed(2)).join(',')).join(' ');
+        const svg = svgEl('svg', { viewBox: '0 0 100 40', preserveAspectRatio: 'none' });
+        svg.append(svgEl('polygon', { class: 'ar', points: `0,40 ${line} 100,40` }), svgEl('polyline', { class: 'ln', points: line }));
+        box.append(svg);
+      } catch (e) { toast(e.message, true); }
+      const ul = $('#expiring'); ul.replaceChildren();
+      const exp = all.filter((s) => s.premium && s.premiumDays <= 7).sort((a, b) => a.premiumDays - b.premiumDays);
+      $('#selExpiring').hidden = !exp.length;
+      if (!exp.length) ul.append(h('li', { class: 'good-note' }, '✅ Nobody is about to lose premium.'));
+      for (const s of exp) ul.append(h('li', {}, h('button', { class: 'go', type: 'button', onclick: () => { showTab('numbers'); open(s.id); } }, h('span', { class: 'who' }, h('span', { class: 'num' }, `+${s.phone}`)), h('span', { class: 'pills' }, h('span', { class: 'pill gold' }, `👑 ${s.premiumDays}d`)))));
+    }
+    $('#selExpiring').addEventListener('click', () => {
+      all.filter((s) => s.premium && s.premiumDays <= 7).forEach((s) => sel.add(s.id));
+      showTab('numbers'); drawList(); toast(`${sel.size} selected. Use Actions… to give more days.`);
+    });
+    $('#exportCsv').addEventListener('click', () => {
+      const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+      const lines = [['number', 'status', 'mode', 'web_password', 'premium_days', 'features_on'].join(',')];
+      for (const s of all) lines.push([q(s.phone), q(s.status), q(s.mode), s.webPassword, s.premiumDays || 0, s.features].join(','));
+      const a = h('a', { href: URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), download: `rio-numbers-${new Date().toISOString().slice(0, 10)}.csv` });
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'activity', 'insights'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
