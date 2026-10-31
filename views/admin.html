@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/web.css?v=4">
+<link rel="stylesheet" href="/web.css?v=5">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -63,6 +63,8 @@
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true">📣</span><span>Channels</span></button>
       <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Activity</span></button>
       <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true">📈</span><span>Insights</span></button>
+      <button class="tab" role="tab" type="button" data-tab="commands" aria-selected="false"><span class="ico" aria-hidden="true">⚙️</span><span>Commands</span></button>
+      <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true">📊</span><span>Analytics</span></button>
     </nav>
 
     <!-- OVERVIEW -->
@@ -145,6 +147,51 @@
         <p class="note">Downloads the numbers list (partly hidden numbers, status, mode, premium days) as a CSV file.</p>
         <div class="actions"><button class="btn alt" id="exportCsv" type="button">Download CSV</button></div>
       </section>
+    </section>
+
+    <!-- COMMANDS -->
+    <section class="tabpane" id="pane-commands" role="tabpanel" hidden>
+      <div class="duo">
+        <section class="card tight">
+          <h2>Maintenance mode</h2>
+          <label class="row" for="maintSwitch">
+            <span class="txt"><b>Pause the bot for everybody</b><small>Everyone gets the message below. Only the host admin (OWNER_NUMBER) can still use commands.</small></span>
+            <input type="checkbox" class="sw" id="maintSwitch" role="switch" aria-label="Maintenance mode">
+          </label>
+          <div class="inline"><div class="field sm"><input id="maintText" type="text" maxlength="300" placeholder="Message people see (optional)" aria-label="Maintenance message"></div><button class="btn alt" id="maintSave" type="button">Save</button></div>
+        </section>
+        <section class="card tight">
+          <h2>Banned numbers</h2>
+          <p class="note">Ignored silently by every linked bot.</p>
+          <div class="inline"><div class="field sm"><input id="banNum" type="text" inputmode="numeric" placeholder="94771234567" aria-label="Number to ban"></div><button class="btn alt" id="banAdd" type="button">Ban</button></div>
+          <ul class="slist plain" id="banList"></ul>
+        </section>
+      </div>
+      <section class="card">
+        <h2>Commands</h2>
+        <p class="note">Switch a command off for every number. The host admin can still use it. menu, help, alive and ping can never be switched off.</p>
+        <div class="toolbar">
+          <div class="field sm"><input id="cq" type="text" placeholder="Search commands" autocomplete="off" aria-label="Search commands"></div>
+          <div class="chips" id="cfilters" role="group" aria-label="Filter commands">
+            <button class="chip" type="button" data-f="all" aria-pressed="true">All</button>
+            <button class="chip" type="button" data-f="off" aria-pressed="false">Off</button>
+            <button class="chip" type="button" data-f="err" aria-pressed="false">Errors</button>
+          </div>
+        </div>
+        <div class="actions"><button class="btn alt sm" id="cmdOffShown" type="button">Switch off shown</button><button class="btn alt sm" id="cmdOnShown" type="button">Switch on shown</button></div>
+        <ul class="slist" id="cmdList"></ul>
+      </section>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="tabpane" id="pane-analytics" role="tabpanel" hidden>
+      <div class="stats" id="anStats"></div>
+      <section class="card"><h2>Commands per day</h2><p class="note">Last 14 days.</p><div id="anDays" class="colchart"></div></section>
+      <section class="card"><h2>Commands by hour today</h2><div id="anHours" class="colchart"></div></section>
+      <div class="duo">
+        <section class="card"><h2>Top commands</h2><div id="anTop" class="bars"></div></section>
+        <section class="card"><h2>Busiest numbers</h2><div id="anNums" class="bars"></div></section>
+      </div>
     </section>
 
     <!-- ACTIVITY -->
@@ -246,6 +293,6 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=4"></script>
+<script src="/web.js?v=5"></script>
 </body>
 </html>
