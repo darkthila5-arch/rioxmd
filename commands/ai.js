@@ -4,6 +4,7 @@
 //   AI_API_KEY   key of any OpenAI-compatible provider. Free option: Google AI Studio (aistudio.google.com/apikey).
 //   AI_API_URL   default: Gemini's OpenAI-compatible endpoint. Groq / OpenRouter / OpenAI also work, just change URL + model.
 //   AI_MODEL     default: gemini-3.8-flash
+//   AI_REASONING thinking level sent to the model: low (default for gemini-3*), medium, high, or off (send nothing)
 //   AI_NAME      persona name (default: Rio)
 //   AI_LANG      default reply language hint (default: Sinhala, Singlish if the user writes Singlish)
 //
@@ -14,13 +15,20 @@ import { PREFIX } from '../lib/config.js';
 const API_KEY = () => (process.env.AI_API_KEY || '').trim();
 const API_URL = () => (process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions').trim();
 const MODEL = () => (process.env.AI_MODEL || 'gemini-3.8-flash').trim();
+// Gemini 3.x models "think" before answering, which is slow for chat. Ask for low thinking unless told otherwise.
+const REASONING = () => {
+  const v = (process.env.AI_REASONING || '').trim().toLowerCase();
+  if (v === 'off') return null;
+  if (v) return v;
+  return /gemini-3/i.test(MODEL()) ? 'low' : null;
+};
 const NAME = () => (process.env.AI_NAME || 'Rio').trim();
 
 const MAX_TURNS = 10;            // messages kept per chat+user (user + assistant)
 const MEMORY_TTL = 30 * 60e3;    // forget after 30 min of silence
 const COOLDOWN_MS = 4000;        // per user
 const MAX_INPUT = 800;           // characters
-const TIMEOUT_MS = 25000;
+const TIMEOUT_MS = 45000;
 
 const memory = new Map();        // key -> { at, msgs: [{role, content}] }
 const lastUse = new Map();       // key -> timestamp
@@ -68,7 +76,8 @@ async function askModel(history) {
         model: MODEL(),
         messages: [{ role: 'system', content: persona() }, ...history],
         temperature: 0.9,
-        max_tokens: 300,
+        max_tokens: 800, // thinking tokens count too, so leave room
+        ...(REASONING() ? { reasoning_effort: REASONING() } : {}),
       }),
     });
     if (!res.ok) throw new Error(`AI API ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
