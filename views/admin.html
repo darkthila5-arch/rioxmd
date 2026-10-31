@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/web.css?v=6">
+<link rel="stylesheet" href="/admin.css?v=1">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -48,64 +49,67 @@
   </section>
 
   <section id="panel" hidden>
-    <div class="adm-head">
-      <div>
-        <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Live • refreshes by itself</p>
-        <h1>Admin <span class="grad">console</span></h1>
-      </div>
-    </div>
-
-    <div class="banner" id="bulkBar" hidden role="status"><span id="bulkLabel"></span><span class="meter"><span id="bulkFill" style="width:0"></span></span><b id="bulkCount"></b></div>
-
-    <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
-      <button class="tab" role="tab" type="button" data-tab="overview" aria-selected="true"><span class="ico" aria-hidden="true">📊</span><span>Overview</span></button>
-      <button class="tab" role="tab" type="button" data-tab="numbers" aria-selected="false"><span class="ico" aria-hidden="true">📱</span><span>Numbers</span><em class="badge" id="numBadge">0</em></button>
-      <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true">📣</span><span>Channels</span></button>
-      <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true">🕘</span><span>Audit</span></button>
-      <button class="tab" role="tab" type="button" data-tab="broadcast" aria-selected="false"><span class="ico" aria-hidden="true">📢</span><span>Broadcast</span></button>
-      <button class="tab" role="tab" type="button" data-tab="logs" aria-selected="false"><span class="ico" aria-hidden="true">🧾</span><span>Logs</span><em class="badge" id="logBadge" hidden>0</em></button>
-      <button class="tab" role="tab" type="button" data-tab="security" aria-selected="false"><span class="ico" aria-hidden="true">🔐</span><span>Security</span></button>
-      <button class="tab" role="tab" type="button" data-tab="backup" aria-selected="false"><span class="ico" aria-hidden="true">💾</span><span>Backup</span></button>
-      <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true">📈</span><span>Insights</span></button>
-      <button class="tab" role="tab" type="button" data-tab="commands" aria-selected="false"><span class="ico" aria-hidden="true">⚙️</span><span>Commands</span></button>
-      <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true">📉</span><span>Analytics</span></button>
+  <div class="shell">
+    <nav class="side" id="tabs" role="tablist" aria-label="Admin sections">
+      <p class="navgroup">Dashboard</p>
+      <button class="tab" role="tab" type="button" data-tab="overview" aria-selected="true"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span><span>Overview</span></button>
+      <p class="navgroup">Manage</p>
+      <button class="tab" role="tab" type="button" data-tab="numbers" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></span><span>Numbers</span><em class="badge" id="numBadge">0</em></button>
+      <button class="tab" role="tab" type="button" data-tab="commands" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></svg></span><span>Commands</span></button>
+      <button class="tab" role="tab" type="button" data-tab="broadcast" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></span><span>Broadcast</span></button>
+      <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.2"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg></span><span>Channels</span></button>
+      <p class="navgroup">Monitor</p>
+      <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span>Insights</span></button>
+      <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg></span><span>Analytics</span></button>
+      <button class="tab" role="tab" type="button" data-tab="logs" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><span>Logs</span><em class="badge" id="logBadge" hidden>0</em></button>
+      <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>Audit</span></button>
+      <p class="navgroup">System</p>
+      <button class="tab" role="tab" type="button" data-tab="security" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></span><span>Security</span></button>
+      <button class="tab" role="tab" type="button" data-tab="backup" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span>Backup</span></button>
+      <p class="side-foot"><span class="dot" aria-hidden="true"></span>Live, refreshes by itself</p>
     </nav>
+    <div class="content">
+    <div class="banner" id="bulkBar" hidden role="status"><span id="bulkLabel"></span><span class="meter"><span id="bulkFill" style="width:0"></span></span><b id="bulkCount"></b></div>
 
     <!-- OVERVIEW -->
     <section class="tabpane" id="pane-overview" role="tabpanel">
+      <header class="pagehead"><div><h1>Overview</h1><p>How the bot is doing right now.</p></div></header>
       <div class="stats" id="stats"></div>
 
-      <div class="duo">
-        <section class="card tight">
-          <h2>New links</h2>
-          <label class="row" for="pairSwitch">
-            <span class="txt"><b>Let people link new numbers</b><small>Off = the pair page is paused. Numbers already linked keep working.</small></span>
-            <input type="checkbox" class="sw" id="pairSwitch" role="switch" aria-label="Allow new links">
-          </label>
-        </section>
-        <section class="card tight">
-          <h2>Channel support</h2>
-          <label class="row" for="boostSwitch">
-            <span class="txt"><b>Channel support is running</b><small id="boostInfo">Numbers that opted in follow and react to premium users' channels. Off = everything pauses.</small></span>
-            <input type="checkbox" class="sw" id="boostSwitch" role="switch" aria-label="Channel support running">
-          </label>
-        </section>
+      <div class="ov">
+        <div class="col">
+          <section class="card" id="attentionCard">
+            <h2>Needs attention</h2>
+            <p class="note" id="attentionNote">Numbers that are offline or have no web password yet.</p>
+            <ul class="slist plain" id="attention"></ul>
+          </section>
+        </div>
+        <div class="col">
+          <section class="card tight">
+            <h2>New links</h2>
+            <label class="row" for="pairSwitch">
+              <span class="txt"><b>Let people link new numbers</b><small>Off = the pair page is paused. Numbers already linked keep working.</small></span>
+              <input type="checkbox" class="sw" id="pairSwitch" role="switch" aria-label="Allow new links">
+            </label>
+          </section>
+          <section class="card tight">
+            <h2>Channel support</h2>
+            <label class="row" for="boostSwitch">
+              <span class="txt"><b>Channel support is running</b><small id="boostInfo">Numbers that opted in follow and react to premium users' channels. Off = everything pauses.</small></span>
+              <input type="checkbox" class="sw" id="boostSwitch" role="switch" aria-label="Channel support running">
+            </label>
+          </section>
+          <section class="card">
+            <h2>Server</h2>
+            <div class="kv" id="serverStats"></div>
+          </section>
+        </div>
       </div>
-
-      <section class="card" id="attentionCard">
-        <h2>Needs attention</h2>
-        <p class="note" id="attentionNote">Numbers that are offline or have no web password yet.</p>
-        <ul class="slist plain" id="attention"></ul>
-      </section>
-
-      <section class="card">
-        <h2>Server</h2>
-        <div class="kv" id="serverStats"></div>
-      </section>
     </section>
 
     <!-- NUMBERS -->
     <section class="tabpane" id="pane-numbers" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Numbers</h1><p>Every linked number. Tick several to act on them together, or tap one to open its settings.</p></div></header>
       <section class="card">
         <div class="toolbar">
           <div class="field sm"><input id="q" type="text" inputmode="search" placeholder="Search by digits (4 or more)" autocomplete="off" aria-label="Search numbers"></div>
@@ -123,6 +127,7 @@
 
     <!-- CHANNELS -->
     <section class="tabpane" id="pane-channels" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Channels</h1><p>Channels that premium users added for support.</p></div></header>
       <section class="card" id="boostAdmin">
         <h2>Channels being supported</h2>
         <p class="note">Added by premium users. Numbers that opted in follow them and react to new posts.</p>
@@ -132,6 +137,7 @@
 
     <!-- INSIGHTS -->
     <section class="tabpane" id="pane-insights" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Insights</h1><p>Online history and which features are used.</p></div></header>
       <section class="card">
         <h2>Online numbers</h2>
         <p class="note">Last 24 hours, one point per minute. Cleared when the server restarts.</p>
@@ -155,6 +161,7 @@
 
     <!-- COMMANDS -->
     <section class="tabpane" id="pane-commands" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Commands</h1><p>Switch commands on or off, pause the bot, and ban numbers.</p></div></header>
       <div class="duo">
         <section class="card tight">
           <h2>Maintenance mode</h2>
@@ -189,6 +196,7 @@
 
     <!-- ANALYTICS -->
     <section class="tabpane" id="pane-analytics" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Analytics</h1><p>How often commands run and which ones fail.</p></div></header>
       <div class="stats" id="anStats"></div>
       <section class="card"><h2>Commands per day</h2><p class="note">Last 14 days.</p><div id="anDays" class="colchart"></div></section>
       <section class="card"><h2>Commands by hour today</h2><div id="anHours" class="colchart"></div></section>
@@ -200,6 +208,7 @@
 
     <!-- AUDIT -->
     <section class="tabpane" id="pane-activity" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Audit</h1><p>Everything done in this console.</p></div></header>
       <section class="card">
         <h2>Audit log</h2>
         <p class="note">Every admin action with the address it came from. Saved, so it stays after a restart (last 1000 entries).</p>
@@ -214,6 +223,7 @@
 
     <!-- BROADCAST -->
     <section class="tabpane" id="pane-broadcast" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Broadcast</h1><p>Send one message to many numbers, now or later.</p></div></header>
       <section class="card">
         <h2>Send a message to everyone</h2>
         <p class="note">The message arrives in each linked number's own chat with the bot, one number at a time (slowly, on purpose, so WhatsApp is never hit with a burst).</p>
@@ -239,6 +249,7 @@
 
     <!-- LOGS -->
     <section class="tabpane" id="pane-logs" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Logs</h1><p>What the server is printing, live.</p></div></header>
       <section class="card">
         <h2>Live logs</h2>
         <p class="note">The server's last lines, refreshed every 3 seconds. Numbers and passwords are hidden. Kept in memory only.</p>
@@ -262,6 +273,7 @@
 
     <!-- SECURITY -->
     <section class="tabpane" id="pane-security" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Security</h1><p>Admin login protection and addresses.</p></div></header>
       <div class="banner" id="secWide" hidden role="status"><span>Many wrong passwords from different addresses. Logins from addresses never used before are slowed down for a few minutes.</span></div>
       <div class="duo">
         <section class="card tight">
@@ -284,6 +296,7 @@
 
     <!-- BACKUP -->
     <section class="tabpane" id="pane-backup" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Backup</h1><p>Export or import all linked numbers as one encrypted file.</p></div></header>
       <section class="card">
         <h2>Export a backup</h2>
         <p class="note">One encrypted file with every linked number's WhatsApp login data and settings (premium, web passwords, bans, maintenance). Not included: saved call clips, logs, audit history. <b>Keep the file and the passphrase safe: anyone with both can use those WhatsApp accounts.</b></p>
@@ -302,10 +315,10 @@
         <p class="note" id="bkResult"></p>
       </section>
     </section>
+    </div>
+  </div>
   </section>
 </div></main>
-
-<footer><div class="wrap wide">RIO X MD • Admin console<br><small>Numbers are partly hidden here on purpose.</small></div></footer>
 
 <!-- selected-numbers bar -->
 <div class="bulkbar" id="bulkbar" hidden role="region" aria-label="Selected numbers">
