@@ -34,3 +34,13 @@ download URL checks reject look-alike hosts (`evil-instagram.com`, `instagram.co
 
 ## New env var
 `MAX_DL_JOBS` (default 3): how many downloads / yt-dlp runs may happen at the same time.
+
+## Admin additions (broadcast, logs, audit, security, backup)
+Tested in a sandbox with stubbed Baileys / MongoDB / express (no network). `tests/adminx.test.js` (new, needs `npm install` for express) covers
+the log masking, audit storage, scheduled jobs, backup encrypt / decrypt / restore (including a path-traversal file name), login lockout
+(with a mocked clock) and the HTTP routes. Not tested: a real browser, a real restore of live WhatsApp sessions, MongoDB backups.
+
+| # | Problem | Fix |
+|---|---------|-----|
+| 5 | A route that threw an error **before its first await** (for example a wrong admin password, many `/api/admin/*` validations) skipped the JSON error handler and reached Express as a plain error, so the page only showed "Something went wrong" | `wrap()` now runs the handler inside `.then()`, so every thrown `HttpError` is answered as JSON with its own message |
+| 6 | Admin audit list was memory only (100 entries, no IP) | Stored (1000 entries) with IP |
