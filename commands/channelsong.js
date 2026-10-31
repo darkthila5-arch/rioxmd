@@ -12,7 +12,7 @@ import { execFile } from 'node:child_process';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { copyBtn, qr, sendRich } from '../lib/menu.js';
 import { unwrapMessage } from '../lib/text.js';
-import { MAX_DL_BYTES, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
+import { MAX_DL_BYTES, tooBigText, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
 const VOICE_KBPS = Math.min(256, Math.max(32, Number(process.env.CHSONG_KBPS || 128))); // voice note quality (Opus bitrate)
@@ -177,7 +177,7 @@ export default [
       } catch (err) {
         console.error('chsong error:', err?.stderr || err?.message || err);
         const m = String(err?.stderr || err?.message || err);
-        if (err?.message === 'TOO_BIG') return reply(`❌ The file is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB.`);
+        if (err?.message === 'TOO_BIG') return reply(tooBigText());
         if (/confirm you.?re not a bot|sign in|cookies|netscape|format is not available/i.test(m)) return reply(youtubeProblem(err) + `\n🔧 Owner: send ${PREFIX}ytcheck to see why.`);
         if (/ffmpeg/i.test(m)) return reply('❌ Could not convert the audio to a voice note (ffmpeg problem). Check the logs.');
         if (/forbidden|not-authorized|401|403|admin|owner/i.test(m)) return reply('❌ WhatsApp refused the post. For a channel, the linked number must be its owner or an admin; for a group it must be a member.');
