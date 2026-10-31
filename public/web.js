@@ -295,6 +295,9 @@
       if (!bo) return;
       $('#boostSwitch').checked = !bo.paused;
       $('#boostInfo').textContent = `${bo.poolSize} number${bo.poolSize === 1 ? '' : 's'} opted in to support channels. ${bo.paused ? 'Paused right now.' : 'Running.'}`;
+      const rr = bo.reactRun, ps = $('#postStatus');
+      if (ps) ps.textContent = rr ? `${rr.running ? '⏳ Reacting' : '✅ Done'}: ${rr.post}, ${rr.ok}/${rr.total} reacted${rr.failed ? `, ${rr.failed} failed` : ''}.` : '';
+      if (rr?.running && !drawBoost.poll) drawBoost.poll = setInterval(async () => { try { const r = await api('GET', '/api/admin/boost'); drawBoost(r.boost); if (!r.boost.reactRun?.running) { clearInterval(drawBoost.poll); drawBoost.poll = null; } } catch { clearInterval(drawBoost.poll); drawBoost.poll = null; } }, 3000);
       const ul = $('#boostList'); ul.replaceChildren();
       const live = bo.jobs.filter((j) => j.status === 'active' || j.followers);
       if (!live.length) ul.append(h('li', {}, h('span', { class: 'txt' }, h('small', {}, 'No channels added yet.'))));
@@ -304,8 +307,10 @@
           if (!(await ask({ title: 'Remove this channel?', body: 'Helper numbers stop reacting and unfollow it, a few at a time.', ok: 'Remove', danger: true }))) return;
           try { const r = await api('DELETE', `/api/admin/boost/${j.id}`); drawBoost(r.boost); toast('Channel removed.'); } catch (e) { toast(e.message, true); }
         }));
-        const by = j.admin ? `Added by admin · ${j.scope === 'all' ? 'all online numbers' : 'opted-in numbers'}` : `Added by +${j.owner || '?'}`;
-        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), del));
+        const auto = j.admin && j.status === 'active' && h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': 'React to every new post' });
+        if (auto) { auto.checked = j.autoReact; auto.addEventListener('change', async () => { try { const r = await api('POST', `/api/admin/boost/${j.id}/auto`, { on: auto.checked }); drawBoost(r.boost); toast(auto.checked ? 'Auto react on.' : 'Auto react off (follow only).'); } catch (e) { auto.checked = !auto.checked; toast(e.message, true); } }); }
+        const by = j.admin ? `Added by admin · ${j.scope === 'all' ? 'all online numbers' : 'opted-in numbers'} · auto react ${j.autoReact ? 'on' : 'off'}` : `Added by +${j.owner || '?'}`;
+        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), auto || '', del));
       }
     };
     const drawAttention = () => {
@@ -768,8 +773,17 @@
       const link = $('#boostLink').value.trim();
       if (!link) return toast('Paste the channel link first.', true);
       try {
-        const r = await api('POST', '/api/admin/boost', { link, emojis: $('#boostEmojis').value, scope: $('#boostScope').value });
+        const r = await api('POST', '/api/admin/boost', { link, emojis: $('#boostEmojis').value, scope: $('#boostScope').value, autoReact: $('#boostAuto').checked });
         drawBoost(r.boost); $('#boostLink').value = ''; toast('Channel added. The numbers will follow it in the next minutes.');
+      } catch (e) { toast(e.message, true); }
+    }));
+
+    $('#postGo').addEventListener('click', busy($('#postGo'), async () => {
+      const link = $('#postLink').value.trim();
+      if (!link) return toast('Paste the post link first.', true);
+      try {
+        const r = await api('POST', '/api/admin/boost/react', { link, emojis: $('#postEmojis').value, scope: $('#postScope').value, follow: $('#postFollow').checked });
+        drawBoost(r.boost); $('#postLink').value = ''; toast('Started. The numbers react one by one.');
       } catch (e) { toast(e.message, true); }
     }));
 
