@@ -434,7 +434,16 @@
       const ul = $('#cmdList'); ul.replaceChildren();
       const list = shownCmds();
       if (!list.length) ul.append(h('li', { class: 'empty' }, 'No commands match.'));
+      let lastCat = null;
+      const order = (d.cats || []);
+      list.sort((a, b) => (order.indexOf(a.cat) - order.indexOf(b.cat)) || a.name.localeCompare(b.name)); // menu order, then A-Z
       for (const c of list) {
+        if (c.cat !== lastCat) { // category header with its own on/off buttons (applies to the commands shown in that category)
+          lastCat = c.cat;
+          const inCat = list.filter((x) => x.cat === c.cat), names = inCat.map((x) => x.name);
+          const mk = (label, off) => { const b = h('button', { class: 'btn alt sm', type: 'button' }, label); b.addEventListener('click', busy(b, async () => { try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names, disabled: off })); toast('Done.'); } catch (e) { toast(e.message, true); } })); return b; };
+          ul.append(h('li', { class: 'cathead' }, h('span', { class: 'txt' }, h('b', {}, c.cat), h('small', {}, `${inCat.length} command${inCat.length === 1 ? '' : 's'} · ${inCat.filter((x) => !x.disabled).length} on`)), h('span', { class: 'pills' }, mk('All on', false), mk('All off', true))));
+        }
         const locked = d.protected.includes(c.name);
         const sw = h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': `${c.name} on` }); sw.checked = !c.disabled; sw.disabled = locked;
         sw.addEventListener('change', async () => { try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names: [c.name], disabled: !sw.checked })); } catch (e) { sw.checked = !sw.checked; toast(e.message, true); } });
