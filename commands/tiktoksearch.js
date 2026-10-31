@@ -7,7 +7,7 @@ import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup 
 import { FOOTER_LINE, FOOTER_TEXT, applyBrand } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
-import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm } from '../lib/downloader.js';
+import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm, tooBigText } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -277,7 +277,7 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
     return await sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: `🎬 ${clip(title, 200)}\n\n${FOOTER_LINE}` }, { quoted: msg });
   } catch (err) {
     console.error('TikTok direct download error:', err?.message || err);
-    if (err?.message === 'TOO_BIG') return reply(`❌ File is larger than ${Math.round(MAX_DL_BYTES / 1048576)} MB, so I can't send it.`+'\n\nෆයිල් එක ලොකු වැඩියි බං, පොඩි එකක් බලපන් 😑');
+    if (err?.message === 'TOO_BIG') return reply(tooBigText());
     return reply(`❌ Download failed. Try ${PREFIX}tt <link> instead.\n\nමොකක්හරි අවුලක් බං, ආයෙ ට්‍රයි කරපන් 😒`);
   }
 }
