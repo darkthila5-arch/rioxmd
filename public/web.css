@@ -279,3 +279,4 @@ body[data-page=admin] #panel{padding-bottom:96px}
 #bcList li .pill{flex:none}
 #bcList li .txt{min-width:0}
 #bcList li .txt b{display:block;overflow-wrap:anywhere}
+.subh{margin:16px 0 8px;font-size:.95rem}
