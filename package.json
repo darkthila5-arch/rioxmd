@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "test": "node --test",
-    "check": "node --check index.js && node --check public/script.js && node --check public/web.js && node --check lib/web.js && node --check lib/session.js"
+    "check": "node --check index.js && node --check public/script.js && node --check public/web.js && node --check lib/web.js && node --check lib/session.js && node --check lib/stickers.js && node --check commands/stickertools.js"
   },
   "engines": {
     "node": ">=20"
@@ -16,8 +16,9 @@
     "@whiskeysockets/baileys": "^6.7.9",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mongodb": "^6.10.0",
     "pino": "^9.6.0",
     "qrcode": "^1.5.4",
-    "mongodb": "^6.10.0"
+    "sharp": "^0.33.5"
   }
 }

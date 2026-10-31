@@ -14,7 +14,7 @@ RUN (echo "=== DIAL BUILD v3 ==="; go build -tags dial -trimpath -ldflags="-s -w
 # Stage 2: the bot itself.
 FROM node:20-bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates git \
+ && apt-get install -y --no-install-recommends ffmpeg webp ca-certificates git \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./
