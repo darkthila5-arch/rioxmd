@@ -79,18 +79,19 @@
     ] },
     { title: 'Calls', items: [
       { k: 'callReject', type: 'switch', label: 'Reject incoming calls and send a message' },
-      { k: 'autoAnswer', type: 'switch', label: 'Reject calls and reply with my saved audio or video' },
-      { k: 'callStream', type: 'switch', label: 'Answer calls and play my saved clip', hint: 'You can turn it off here. To turn it on, send .callstream on in WhatsApp (one-time device link).' },
-      { k: 'callLoop', type: 'switch', label: 'Repeat the clip until the caller hangs up' },
-      { k: 'callMsg', type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message.' },
+      { k: 'autoAnswer', hostOnly: true, type: 'switch', label: 'Reject calls and reply with my saved audio or video' },
+      { k: 'callStream', hostOnly: true, type: 'switch', label: 'Answer calls and play my saved clip', hint: 'You can turn it off here. To turn it on, send .callstream on in WhatsApp (one-time device link).' },
+      { k: 'callLoop', hostOnly: true, type: 'switch', label: 'Repeat the clip until the caller hangs up' },
+      { k: 'callMsg', hostOnly: true, type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message.' },
     ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
-  const BULKABLE = FLAT.filter((i) => !/^(brand|boostOptIn)/.test(i.k)); // name / footer / logo / consent switch are per number, never bulk
+  const BULKABLE = FLAT.filter((i) => !i.hostOnly && !/^(brand|boostOptIn)/.test(i.k)); // name / footer / logo / consent switch are per number, never bulk
   const SWITCHES = FLAT.filter((i) => i.type === 'switch').map((i) => i.k);
 
   // premium: true / undefined = branding can be edited (admin sees everything); false = locked for a free number.
-  function renderSettings(root, values, save, onChange, premium) {
+  // host: false = this number is not the bot host owner, so the call-answering options are locked (host-only); true / undefined = editable.
+  function renderSettings(root, values, save, onChange, premium, host) {
     root.replaceChildren();
     const send = async (patch) => { const res = await save(patch); if (res?.settings) Object.assign(values, res.settings); onChange?.(values); return res; };
     SCHEMA.forEach((group, gi) => {
@@ -101,10 +102,11 @@
       if (group.note) card.append(h('p', { class: 'note' }, locked ? '🔒 Premium only. Ask the bot owner to activate premium for your number, then these options unlock.' : group.note));
       for (const it of group.items) {
         const id = `f-${it.k}`;
-        const txt = h('span', { class: 'txt' }, h('b', {}, it.label), it.hint && h('small', {}, it.hint));
+        const hostLocked = !!it.hostOnly && host === false;
+        const txt = h('span', { class: 'txt' }, h('b', {}, it.label), (hostLocked || it.hint) && h('small', {}, hostLocked ? '🔒 Only the bot host owner can use this. Call reject is available for you.' : it.hint));
         if (it.type === 'switch') {
           const box = h('input', { type: 'checkbox', role: 'switch', class: 'sw', id, 'aria-label': it.label });
-          box.checked = !!values[it.k];
+          box.checked = !hostLocked && !!values[it.k]; box.disabled = hostLocked;
           box.addEventListener('change', async () => {
             box.disabled = true;
             try { await send({ [it.k]: box.checked }); toast('Saved'); flash(row); }
@@ -128,8 +130,8 @@
           const area = it.type === 'textarea';
           const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label }) : h('input', { id, type: 'text', maxlength: it.max || 200, placeholder: it.placeholder || '', 'aria-label': it.label });
           inp.value = values[it.k] || '';
-          if (locked) inp.disabled = true;
-          const btn = h('button', { class: 'btn alt', type: 'submit', disabled: locked }, h('span', { class: 'label' }, 'Save'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
+          if (locked || hostLocked) inp.disabled = true;
+          const btn = h('button', { class: 'btn alt', type: 'submit', disabled: locked || hostLocked }, h('span', { class: 'label' }, 'Save'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
           const form = h('form', { class: 'inline' }, h('div', { class: `field sm${area ? ' area' : ''}` }, inp), btn);
           form.addEventListener('submit', busy(btn, async (ev) => {
             ev.preventDefault();
@@ -213,7 +215,7 @@
         $('#status').textContent = up ? 'Your bot is online. Changes apply right away.' : 'Your bot is reconnecting. Changes are saved and apply once it is back.';
         $('#statusDot').className = up ? 'dot' : 'dot warn';
         tiles(me, me.settings); premium(me.premium); boostCard($('#boostCard'), !!me.premium?.active);
-        renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active);
+        renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active, me.host);
       } catch { out(); }
     };
     await login('/api/web/login', ['phone', 'password'], show);
@@ -224,7 +226,7 @@
     }));
     $('#resetAll').addEventListener('click', busy($('#resetAll'), async () => {
       if (!(await ask({ title: 'Reset your settings?', body: 'Every option goes back to its default. Your saved call clips and your password stay as they are.', ok: 'Reset', danger: true }))) return;
-      try { const r = await api('POST', '/api/me/reset', { confirm: true }); Object.assign(me.settings, r.settings); tiles(me, me.settings); renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active); toast('Settings reset.'); } catch (e) { toast(e.message, true); }
+      try { const r = await api('POST', '/api/me/reset', { confirm: true }); Object.assign(me.settings, r.settings); tiles(me, me.settings); renderSettings($('#groups'), me.settings, (p) => api('PATCH', '/api/me/settings', p), (v) => tiles(me, v), !!me.premium?.active, me.host); toast('Settings reset.'); } catch (e) { toast(e.message, true); }
     }));
     $('#unlink').addEventListener('click', busy($('#unlink'), async () => {
       if (!(await ask({ title: 'Unlink your number?', body: 'The bot logs out of your WhatsApp and your saved settings are deleted. You can link again later.', ok: 'Unlink', danger: true }))) return;
@@ -349,6 +351,7 @@
         h('span', { class: `pill${d.status === 'connected' ? ' on' : ''}` }, friendly(d.status)),
         h('span', { class: `pill${d.webPassword ? '' : ' warn'}` }, d.webPassword ? 'Web password set' : 'No web password'),
         d.premium?.active ? h('span', { class: 'pill gold' }, `👑 premium, ${d.premium.daysLeft} day(s) left`) : null,
+        d.host ? h('span', { class: 'pill gold' }, '👑 host number') : null,
         d.retries ? h('span', { class: 'pill warn' }, `${d.retries} reconnect(s)`) : null,
         d.error ? h('span', { class: 'pill warn' }, d.error) : null,
       ].filter(Boolean));
@@ -359,7 +362,7 @@
         const wasHidden = $('#detail').hidden;
         current = id; $('#detail').hidden = false; $('#scrim').hidden = false; lock(); drawDetail(d);
         if (wasHidden) $('#detailClose').focus({ preventScroll: true });
-        renderSettings($('#groups'), d.settings, (p) => api('PATCH', `/api/admin/session/${id}/settings`, p).then((r) => { refresh(); return r; }));
+        renderSettings($('#groups'), d.settings, (p) => api('PATCH', `/api/admin/session/${id}/settings`, p).then((r) => { refresh(); return r; }), undefined, undefined, d.host);
         drawList();
         if (scroll) $('.drawer-body').scrollTop = 0;
       } catch (e) { toast(e.message, true); refresh(); }
