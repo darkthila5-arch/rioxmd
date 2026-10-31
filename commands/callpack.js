@@ -16,7 +16,7 @@ const line = (name, info) => `• *${name}*  🎙️ ${info.audio ? '✅' : '—
 
 export default [
   {
-    name: 'ohelp', aliases: ['callhelp', 'packhelp'], owner: true,
+    name: 'ohelp', adminOnly: true, aliases: ['callhelp', 'packhelp'], owner: true,
     async run({ reply }) {
       return reply([
         '╭━━━〔 📞 *CALL PACK HELP* 〕━━━⬣',
@@ -49,7 +49,7 @@ export default [
     },
   },
   {
-    name: 'addpack', aliases: ['setpack'], owner: true,
+    name: 'addpack', adminOnly: true, aliases: ['setpack'], owner: true,
     async run({ sock, msg, jid, sessionId, args, reply }) {
       const name = (args[0] || '').toLowerCase();
       if (!PACK_RE.test(name)) return reply(`Usage: reply to an audio or video with ${PREFIX}addpack <name>\nName: a-z, 0-9, _ or - (max 20).\nRun it once on an audio and once on a video to complete the pack.`);
@@ -76,7 +76,7 @@ export default [
     },
   },
   {
-    name: 'packs', aliases: ['callpacks', 'listpacks'], owner: true,
+    name: 'packs', adminOnly: true, aliases: ['callpacks', 'listpacks'], owner: true,
     async run({ sessionId, reply }) {
       const names = listPackNames(sessionId);
       if (!names.length) return reply(`No packs yet. Reply to an audio / video with ${PREFIX}addpack <name>.`);
@@ -84,7 +84,7 @@ export default [
     },
   },
   {
-    name: 'delpack', aliases: ['removepack'], owner: true,
+    name: 'delpack', adminOnly: true, aliases: ['removepack'], owner: true,
     async run({ sessionId, args, reply }) {
       const name = (args[0] || '').toLowerCase();
       if (!packExists(sessionId, name)) return reply(`Pack not found. Use ${PREFIX}packs to see your packs.`);
@@ -93,7 +93,7 @@ export default [
     },
   },
   {
-    name: 'callto', aliases: ['callpack', 'streamcall'], owner: true,
+    name: 'callto', adminOnly: true, aliases: ['callpack', 'streamcall'], owner: true,
     async run({ sock, sessionId, args, reply }) {
       if (!state.callbotAvailable) return reply('❌ The call service is not installed on this server (needs the Docker deploy, see README).');
       const number = (args[0] || '').replace(/\D/g, '');

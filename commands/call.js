@@ -4,14 +4,14 @@ import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { FOOTER_TEXT } from '../lib/brand.js';
 import { DEFAULT_CALL_MSG, MAX_CALL_MEDIA, deleteCallMedia, loadCallMedia, saveCallMedia, sendCallMedia } from '../lib/calls.js';
 import { getSetting, setSetting } from '../lib/storage.js';
-import { BOT_NAME, PREFIX, jidNum, logger, state } from '../lib/config.js';
+import { BOT_NAME, OWNER_NUMBER, PREFIX, jidNum, logger, state } from '../lib/config.js';
 import { parseToggle, unwrapMessage } from '../lib/text.js';
 import { callbotApi, syncCallbot, watchCallbotLink } from '../lib/callbot.js';
 import { copyBtn, sendRich } from '../lib/menu.js';
 
 export default [
   {
-    name: 'call', aliases: ['callsettings'], owner: true,
+    name: 'call', adminOnly: true, aliases: ['callsettings'], owner: true,
     async run({ sessionId, reply }) {
         const onoff = (v) => (v ? '✅ ON' : '❌ OFF');
         const [a, v] = await Promise.all([loadCallMedia(sessionId, 'audio'), loadCallMedia(sessionId, 'video')]);
@@ -37,7 +37,8 @@ export default [
   },
   {
     name: 'callreject', aliases: ['anticall', 'autoanswer', 'callanswer'], owner: true,
-    async run({ sessionId, args, command, reply }) {
+    async run({ sessionId, args, command, reply, isAdmin }) {
+        if ((command === 'autoanswer' || command === 'callanswer') && OWNER_NUMBER && !isAdmin) return reply(`🚫 *${PREFIX}${command}* is only for the bot host owner. ${PREFIX}callreject is available for you.`);
         const key = command === 'callreject' || command === 'anticall' ? 'callReject' : 'autoAnswer';
         const label = key === 'callReject' ? 'Call reject' : 'Auto call answer';
         const v = parseToggle(args[0]);
@@ -108,7 +109,7 @@ export default [
     },
   },
   {
-    name: 'setcallmsg', owner: true,
+    name: 'setcallmsg', adminOnly: true, owner: true,
     async run({ sessionId, args, reply }) {
         const t = args.join(' ').trim();
         if (!t) return reply(`Current call message:\n${getSetting(sessionId, 'callMsg', DEFAULT_CALL_MSG)}\n\nChange it: ${PREFIX}setcallmsg <text>  (or ${PREFIX}setcallmsg reset)`);
@@ -117,7 +118,7 @@ export default [
     },
   },
   {
-    name: 'setcallaudio', aliases: ['setcallvideo'], owner: true,
+    name: 'setcallaudio', adminOnly: true, aliases: ['setcallvideo'], owner: true,
     async run({ sock, msg, jid, sessionId, command, reply }) {
         const kind = command === 'setcallaudio' ? 'audio' : 'video';
         const ctx = unwrapMessage(msg.message).extendedTextMessage?.contextInfo;
@@ -140,7 +141,7 @@ export default [
     },
   },
   {
-    name: 'callpreview', owner: true,
+    name: 'callpreview', adminOnly: true, owner: true,
     async run({ sock, msg, jid, sessionId, reply }) {
         let sent = 0;
         for (const kind of ['audio', 'video']) {
@@ -151,7 +152,7 @@ export default [
     },
   },
   {
-    name: 'delcallmedia', owner: true,
+    name: 'delcallmedia', adminOnly: true, owner: true,
     async run({ sessionId, args, reply }) {
         const kind = (args[0] || '').toLowerCase();
         if (kind !== 'audio' && kind !== 'video') return reply(`Usage: ${PREFIX}delcallmedia audio  or  ${PREFIX}delcallmedia video`);

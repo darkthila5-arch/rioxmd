@@ -43,7 +43,7 @@ export default [
     },
   },
   {
-    name: 'dlcheck',
+    name: 'dlcheck', adminOnly: true,
     async run({ reply }) {
         const lines = ['🔍 *Downloader check*'];
         await ytdlpReady;

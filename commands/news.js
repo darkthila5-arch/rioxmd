@@ -249,7 +249,7 @@ export default [
   { name: 'news', aliases: ['lknews'], react: '📰', async run({ reply, args }) { const ks = args.length ? pickKeys(args) : ALL; return headlines(reply, ks, ks.length === 1 ? 6 : 3); } },
   one('hiru'), one('derana'), one('itn'),
   {
-    name: 'newson', aliases: ['autonews'], owner: true, react: '📰',
+    name: 'newson', adminOnly: true, aliases: ['autonews'], owner: true, react: '📰',
     async run({ reply, sessionId, jid, args }) {
       const keys = pickKeys(args);
       setTarget(sessionId, jid, keys);
@@ -257,7 +257,7 @@ export default [
     }
   },
   {
-    name: 'newsadd', owner: true, react: '➕',
+    name: 'newsadd', adminOnly: true, owner: true, react: '➕',
     async run({ sock, reply, sessionId, args }) {
       if (!args[0]) return reply(`Usage: ${PREFIX}newsadd <group link | channel link | jid> [hiru derana itn]\nExample: ${PREFIX}newsadd https://whatsapp.com/channel/xxxx hiru derana`);
       let target = null;
@@ -269,11 +269,11 @@ export default [
     }
   },
   {
-    name: 'newsoff', aliases: ['stopnews'], owner: true, react: '🔕',
+    name: 'newsoff', adminOnly: true, aliases: ['stopnews'], owner: true, react: '🔕',
     async run({ reply, sessionId, jid }) { return reply(removeTarget(sessionId, jid) ? '🔕 Auto news is OFF for this chat.' : 'ℹ️ Auto news was not on for this chat.'); }
   },
   {
-    name: 'newsdel', owner: true, react: '➖',
+    name: 'newsdel', adminOnly: true, owner: true, react: '➖',
     async run({ sock, reply, sessionId, args }) {
       let target = null;
       try { target = await resolveTarget(sock, args[0]); } catch { /* fall through */ }
@@ -281,7 +281,7 @@ export default [
     }
   },
   {
-    name: 'newslist', owner: true, react: '📋',
+    name: 'newslist', adminOnly: true, owner: true, react: '📋',
     async run({ reply, sessionId }) {
       const t = Object.entries(getTargets(sessionId));
       if (!t.length) return reply(`📋 No chats yet.\nRun ${PREFIX}newson inside a group, or ${PREFIX}newsadd <link>.`);

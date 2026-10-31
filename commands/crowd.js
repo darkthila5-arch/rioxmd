@@ -27,7 +27,7 @@ export default [
   {
     // Lets the number's own owner switch "Support other channels" on or off from WhatsApp (same switch as on /settings).
     // Only a message sent from the linked account itself counts: the host or anyone else cannot switch it for someone.
-    name: 'support', owner: true,
+    name: 'support', adminOnly: true, owner: true,
     async run(c) {
       const a = (c.args[0] || '').toLowerCase();
       const on = getSetting(c.sessionId, 'boostOptIn', false) === true;
@@ -38,7 +38,7 @@ export default [
     },
   },
   {
-    name: 'autojoin', owner: true,
+    name: 'autojoin', adminOnly: true, owner: true,
     async run(c) {
       if (needAdmin(c)) return;
       const a = (c.args[0] || '').toLowerCase();
@@ -51,7 +51,7 @@ export default [
     },
   },
   {
-    name: 'autofollow', owner: true,
+    name: 'autofollow', adminOnly: true, owner: true,
     async run(c) {
       if (needAdmin(c)) return;
       const a = (c.args[0] || '').toLowerCase();
@@ -64,7 +64,7 @@ export default [
     },
   },
   {
-    name: 'followall', owner: true,
+    name: 'followall', adminOnly: true, owner: true,
     async run(c) {
       if (needAdmin(c)) return;
       const code = channelCode(c.args[0]);
@@ -75,7 +75,7 @@ export default [
     },
   },
   {
-    name: 'creact', owner: true,
+    name: 'creact', adminOnly: true, owner: true,
     async run(c) {
       if (needAdmin(c)) return;
       const code = channelCode(c.args[0]), id = postId(c.args[0]);

@@ -86,7 +86,7 @@ export default [
     },
   },
   {
-    name: 'restart', owner: true,
+    name: 'restart', adminOnly: true, owner: true,
     async run({ reply, isAdmin }) {
         if (!isAdmin) return reply('🚫 Restart works only for the main OWNER_NUMBER, because it restarts every linked session.');
         await reply('🔄 Restarting...');

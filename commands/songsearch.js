@@ -58,7 +58,7 @@ export default [
     },
   },
   {
-    name: 'ytcheck', owner: true, react: '🩺',
+    name: 'ytcheck', adminOnly: true, owner: true, react: '🩺',
     async run({ reply }) {
       await reply('🩺 Checking YouTube downloads (about 10 to 30 seconds)...');
       try { return await reply(await ytDiagnose()); }
