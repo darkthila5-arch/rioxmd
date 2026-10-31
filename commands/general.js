@@ -13,7 +13,7 @@ export default [
     },
   },
   {
-    name: 'momenu', aliases: ['ownermenu', 'omenu'], hidden: true,
+    name: 'momenu', aliases: ['ownermenu', 'omenu'], hidden: true, adminOnly: true, // adminOnly = only the host admin (OWNER_NUMBER), not every number that linked the bot
     async run({ sock, msg, jid, name, footer }) {
         return sendRich(sock, jid, { caption: ownerMenuCaption(name), buttons: ownerMenuButtons(), footer: FOOTER_TEXT }, msg);
     },
