@@ -3,7 +3,7 @@
 // Setup (Render -> Environment), only AI_API_KEY is required:
 //   AI_API_KEY   key of any OpenAI-compatible provider. Free option: Google AI Studio (aistudio.google.com/apikey).
 //   AI_API_URL   default: Gemini's OpenAI-compatible endpoint. Groq / OpenRouter / OpenAI also work, just change URL + model.
-//   AI_MODEL     default: gemini-2.0-flash
+//   AI_MODEL     default: gemini-3.8-flash
 //   AI_NAME      persona name (default: Rio)
 //   AI_LANG      default reply language hint (default: Sinhala, Singlish if the user writes Singlish)
 //
@@ -13,7 +13,7 @@ import { PREFIX } from '../lib/config.js';
 
 const API_KEY = () => (process.env.AI_API_KEY || '').trim();
 const API_URL = () => (process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions').trim();
-const MODEL = () => (process.env.AI_MODEL || 'gemini-2.0-flash').trim();
+const MODEL = () => (process.env.AI_MODEL || 'gemini-3.8-flash').trim();
 const NAME = () => (process.env.AI_NAME || 'Rio').trim();
 
 const MAX_TURNS = 10;            // messages kept per chat+user (user + assistant)
