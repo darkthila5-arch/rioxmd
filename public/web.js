@@ -20,7 +20,11 @@
   async function api(method, url, body) {
     const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-rio': '1' }, body: body === undefined ? undefined : JSON.stringify(body) });
     let j = {}; try { j = await r.json(); } catch {}
-    if (!r.ok) { const e = new Error(j.error || 'Something went wrong. Try again.'); e.status = r.status; throw e; }
+    if (!r.ok) {
+      const e = new Error(j.error || 'Something went wrong. Try again.'); e.status = r.status;
+      if (r.status === 401 && url.startsWith('/api/admin/') && url !== '/api/admin/login') document.dispatchEvent(new Event('rio:admin-auth-lost')); // the admin cookie ended: show the login again
+      throw e;
+    }
     return j;
   }
   const flash = (el) => { el.classList.remove('saved'); void el.offsetWidth; el.classList.add('saved'); setTimeout(() => el.classList.remove('saved'), 1200); };
@@ -254,7 +258,8 @@
     const FRIENDLY = { connected: 'Online', starting: 'Starting…', waiting_for_scan: 'Waiting to pair', waiting_for_pair: 'Waiting to pair', pair_error: 'Pairing failed', disconnected: 'Reconnecting', replaced: 'Used elsewhere', logged_out: 'Logged out', error: 'Error' };
     const friendly = (st) => FRIENDLY[st] || String(st).replace(/_/g, ' ');
     const dotClass = (s) => (isOnline(s) ? 'on' : /pair|scan|starting/.test(s.status) ? 'warn' : '');
-    const shown = () => all.filter((s) => (filter === 'all' || (filter === 'on' ? isOnline(s) : !isOnline(s))) && (!$('#q').value.trim() || s.phone.includes($('#q').value.replace(/\D/g, ''))));
+    let found = null; // ids matching the typed digits (found on the server, because the numbers in the list are masked); null = no search
+    const shown = () => all.filter((s) => (filter === 'all' || (filter === 'on' ? isOnline(s) : !isOnline(s))) && (!found || found.has(s.id)));
     const selIds = () => [...sel];
 
     const drawSelection = () => {
@@ -312,6 +317,12 @@
       }
       if (bad.length > 8) ul.append(h('li', { class: 'empty' }, `…and ${bad.length - 8} more in the Numbers tab.`));
     };
+    const showLogin = (msg) => {
+      stopLogs(); sel.clear(); closeDetail(); closeBulk();
+      $('#login').hidden = false; $('#panel').hidden = true; $('#logout').hidden = true;
+      $('#loginError').textContent = msg || '';
+    };
+    document.addEventListener('rio:admin-auth-lost', () => { if (!$('#panel').hidden) showLogin('Your session ended. Please log in again.'); });
     const refresh = async () => {
       try {
         const o = await api('GET', '/api/admin/overview');
@@ -335,7 +346,10 @@
         if (!$('#pane-broadcast').hidden) loadBroadcast(); // shows sending progress
         if ($('#pane-logs').hidden) api('GET', '/api/admin/logs?level=error&limit=1').then((r) => drawLogBadge(r.counts)).catch(() => {}); // red badge on the Logs tab
         if (current && !all.some((s) => s.id === current)) closeDetail();
-      } catch { $('#login').hidden = false; $('#panel').hidden = true; $('#logout').hidden = true; }
+      } catch (e) {
+        if (e.status === 401) showLogin(); // a short network or server problem must NOT throw the admin out: keep the panel and try again later
+        else toast(e.message || 'Could not refresh. Trying again soon.', true);
+      }
       schedule();
     };
     const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('#panel').hidden) refresh(); else schedule(); }, overview?.bulk ? 2500 : 30000); };
@@ -664,7 +678,16 @@
     $('#selShown').addEventListener('click', () => { shown().forEach((s) => sel.add(s.id)); drawList(); });
     $('#selOnline').addEventListener('click', () => { sel.clear(); all.filter(isOnline).forEach((s) => sel.add(s.id)); drawList(); });
     $('#selNone').addEventListener('click', () => { sel.clear(); drawList(); });
-    $('#q').addEventListener('input', drawList);
+    let findTimer = null, findSeq = 0;
+    $('#q').addEventListener('input', () => {
+      clearTimeout(findTimer);
+      findTimer = setTimeout(async () => {
+        const digits = $('#q').value.replace(/\D/g, ''), mine = ++findSeq;
+        if (digits.length < 4) { found = null; drawList(); return; }
+        try { const r = await api('GET', `/api/admin/find?q=${digits}`); if (mine === findSeq) { found = new Set(r.ids); drawList(); } }
+        catch (e) { if (e.status !== 401) toast(e.message, true); }
+      }, 250);
+    });
     $('#filters').addEventListener('click', (e) => {
       const b = e.target.closest('.chip'); if (!b) return;
       filter = b.dataset.f;
@@ -738,7 +761,7 @@
     });
 
     await login('/api/admin/login', ['user', 'password'], refresh);
-    $('#logout').addEventListener('click', async () => { await api('POST', '/api/admin/logout').catch(() => {}); sel.clear(); closeDetail(); refresh(); });
+    $('#logout').addEventListener('click', async () => { await api('POST', '/api/admin/logout').catch(() => {}); showLogin(); });
     refresh();
   }
 
