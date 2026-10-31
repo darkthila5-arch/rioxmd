@@ -261,6 +261,10 @@ body[data-page=admin] #panel{padding-bottom:96px}
 .colchart .c small{font-size:.62rem;color:var(--muted);white-space:nowrap}
 #cmdList .go .num{font-weight:700}
 #cmdList .go{cursor:default}
+#cmdList .cathead{background:transparent;border:0;border-bottom:1px solid var(--line,#ffffff22);padding:14px 4px 6px;margin-top:6px}
+#cmdList .cathead .txt{display:flex;flex-direction:column;gap:2px}
+#cmdList .cathead:first-child{margin-top:0;padding-top:4px}
+#cmdList .cathead .pills{margin-left:auto;display:flex;gap:6px}
 .pill.off{color:#ff8f8f;border-color:#ff8f8f55}
 
 /* ================= Admin: audit, logs, security, broadcast ================= */
