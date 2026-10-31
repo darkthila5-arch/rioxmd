@@ -414,7 +414,7 @@
       const ul = $('#cmdList'); ul.replaceChildren();
       const list = shownCmds();
       if (!list.length) ul.append(h('li', { class: 'empty' }, 'No commands match.'));
-      for (const c of list.slice(0, 200)) {
+      for (const c of list) {
         const locked = d.protected.includes(c.name);
         const sw = h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': `${c.name} on` }); sw.checked = !c.disabled; sw.disabled = locked;
         sw.addEventListener('change', async () => { try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names: [c.name], disabled: !sw.checked })); } catch (e) { sw.checked = !sw.checked; toast(e.message, true); } });
