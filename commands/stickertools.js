@@ -33,7 +33,6 @@ const stickerMeta = (sock) => ({ name: applyBrand(sock, BOT_NAME), author: apply
 function failText(err) {
   const m = String(err?.message || err);
   if (err?.missing === 'ffmpeg' || /ffmpeg is not installed/.test(m)) return '❌ ffmpeg is not installed on the server, so this command cannot work.';
-  if (err?.missing === 'anim_dump') return '❌ The server is missing the *webp* package (anim_dump), needed to turn animated stickers into video.';
   if (err?.tooBig) return `❌ The animated sticker came out bigger than WhatsApp allows (1 MB). Try a shorter or simpler video (up to ${MAX_ANIM_SECONDS} seconds is used).`;
   if (err?.tooLong) return '❌ That animated sticker has too many frames to convert.';
   return '❌ Could not convert that file. Try another one.';
