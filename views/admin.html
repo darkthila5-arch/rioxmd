@@ -130,7 +130,14 @@
       <header class="pagehead"><div><h1>Channels</h1><p>Channels that premium users added for support.</p></div></header>
       <section class="card" id="boostAdmin">
         <h2>Channels being supported</h2>
-        <p class="note">Added by premium users. Numbers that opted in follow them and react to new posts.</p>
+        <p class="note">Added by premium users or by you. The numbers follow the channel and react to every new post (a few at a time, spaced out).</p>
+        <h3 class="subh">Add a channel</h3>
+        <div class="stack">
+          <div class="field sm"><input id="boostLink" type="text" placeholder="https://whatsapp.com/channel/0029Va..." autocomplete="off" aria-label="WhatsApp channel link"></div>
+          <div class="field sm"><input id="boostEmojis" type="text" placeholder="Reaction emojis, e.g. 👍 ❤️ 😂 (empty = default)" autocomplete="off" aria-label="Reaction emojis"></div>
+          <div class="field sm"><select id="boostScope" aria-label="Which numbers follow"><option value="all">All online numbers</option><option value="optin">Only numbers that switched on "Support other channels"</option></select></div>
+          <div class="actions"><button class="btn" id="boostAdd" type="button">Add channel</button></div>
+        </div>
         <ul class="slist plain" id="boostList"></ul>
       </section>
     </section>
