@@ -56,7 +56,7 @@
     ] },
     { title: '👑 Branding', premiumOnly: true, note: 'Your own bot name, footer and logo in every reply. Premium only.', items: [
       { k: 'brandName', type: 'text', max: 30, label: 'Bot name', hint: 'Replaces the default bot name in menus and replies. Leave empty for the default.', placeholder: 'My Bot' },
-      { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces "Powered by Rio Editz". Leave empty for the default.', placeholder: 'Powered by me' },
+      { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces the default footer text. Leave empty for the default.', placeholder: 'Powered by me' },
       { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
     ] },
     { title: '📣 Support other channels', userOnly: true, items: [
