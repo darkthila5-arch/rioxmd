@@ -304,7 +304,8 @@
           if (!(await ask({ title: 'Remove this channel?', body: 'Helper numbers stop reacting and unfollow it, a few at a time.', ok: 'Remove', danger: true }))) return;
           try { const r = await api('DELETE', `/api/admin/boost/${j.id}`); drawBoost(r.boost); toast('Channel removed.'); } catch (e) { toast(e.message, true); }
         }));
-        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `Added by +${j.owner || '?'} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), del));
+        const by = j.admin ? `Added by admin · ${j.scope === 'all' ? 'all online numbers' : 'opted-in numbers'}` : `Added by +${j.owner || '?'}`;
+        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}`)), del));
       }
     };
     const drawAttention = () => {
@@ -762,6 +763,15 @@
       catch (err) { box.checked = !box.checked; toast(err.message, true); }
       finally { box.disabled = false; }
     });
+
+    $('#boostAdd').addEventListener('click', busy($('#boostAdd'), async () => {
+      const link = $('#boostLink').value.trim();
+      if (!link) return toast('Paste the channel link first.', true);
+      try {
+        const r = await api('POST', '/api/admin/boost', { link, emojis: $('#boostEmojis').value, scope: $('#boostScope').value });
+        drawBoost(r.boost); $('#boostLink').value = ''; toast('Channel added. The numbers will follow it in the next minutes.');
+      } catch (e) { toast(e.message, true); }
+    }));
 
     $('#boostSwitch').addEventListener('change', async (e) => {
       const box = e.target; box.disabled = true;
