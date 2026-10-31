@@ -80,6 +80,11 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `NEWS_LANG` | `si` (default, Sinhala) or `en`: language of the news feeds. |
 | `NEWS_POLL_MIN` | Minutes between news checks (default 3). |
 
+## Who can use what
+- **Host owner** = `OWNER_NUMBER` / `OWNER_LID`. Only the host owner can use `.momenu` and the commands in it: `.restart`, all AUTO NEWS commands, DOWNLOAD TOOLS (`.ytcheck`, `.dlcheck`) and all CALL commands except `.callreject` (`.call`, `.callstream`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`, packs, `.callto`). Real call answering and auto answer only run on the host owner's own number. The same options are locked on the `/settings` page for every other number.
+- **Session owner** = whoever linked a number. Their commands are listed in `.menu` under **OWNER COMMANDS** (`.mode`, `.callreject`, `.broadcast`, `.forward`, `.block`, `.join`, `.leave`, `.setbio`, `.setpp`, `.webpass`, `.premium`, channel songs). They work only on the linked number itself.
+- Everybody else gets an "owner only" reply.
+
 ## Commands
 Send `menu` or `help` without the prefix and it works too.
 
