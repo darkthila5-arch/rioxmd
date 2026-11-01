@@ -497,7 +497,7 @@
     let cmds = [], cmdData = null, cfilter = 'all';
     const shownCmds = () => { const q = $('#cq').value.trim().toLowerCase(); return cmds.filter((c) => (cfilter === 'all' || (cfilter === 'off' ? c.disabled : c.errors > 0)) && (!q || c.name.includes(q) || c.aliases.some((a) => a.includes(q)))); };
     const drawCommands = (d) => {
-      cmdData = d; cmds = d.commands; $('#maintSwitch').checked = d.maintenance.on; if (document.activeElement !== $('#maintText')) $('#maintText').value = d.maintenance.text;
+      cmdData = d; cmds = d.commands; if (d.menuStyle) $('#menuStyle').value = d.menuStyle; $('#maintSwitch').checked = d.maintenance.on; if (document.activeElement !== $('#maintText')) $('#maintText').value = d.maintenance.text;
       const bl = $('#banList'); bl.replaceChildren();
       if (!d.banned.length) bl.append(h('li', {}, h('span', { class: 'txt' }, h('small', {}, 'Nobody is banned.'))));
       for (const b of d.banned) { const x = h('button', { class: 'btn alt sm', type: 'button' }, 'Unban'); x.addEventListener('click', busy(x, async () => { try { drawCommands(await api('POST', '/api/admin/ban', { index: b.i })); toast('Unbanned.'); } catch (e) { toast(e.message, true); } })); bl.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, `+${b.m}`)), x)); }
@@ -541,6 +541,7 @@
     $('#cmdOffShown').addEventListener('click', bulkCmds(true)); $('#cmdOnShown').addEventListener('click', bulkCmds(false));
     $('#maintSwitch').addEventListener('change', async (e) => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: e.target.checked, text: $('#maintText').value })); toast(e.target.checked ? 'Maintenance is ON.' : 'Maintenance is off.'); } catch (x) { e.target.checked = !e.target.checked; toast(x.message, true); } });
     $('#maintSave').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: $('#maintSwitch').checked, text: $('#maintText').value })); toast('Saved.'); } catch (x) { toast(x.message, true); } });
+    $('#menuStyle').addEventListener('change', async (e) => { const prev = cmdData?.menuStyle || 'classic'; try { drawCommands(await api('POST', '/api/admin/menustyle', { style: e.target.value })); toast('Menu style saved.'); } catch (x) { e.target.value = prev; toast(x.message, true); } });
     $('#banAdd').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/ban', { number: $('#banNum').value, on: true })); $('#banNum').value = ''; toast('Banned.'); } catch (x) { toast(x.message, true); } });
 
     /* ----- analytics ----- */
