@@ -461,8 +461,16 @@
         const locked = d.protected.includes(c.name);
         const sw = h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': `${c.name} on` }); sw.checked = !c.disabled; sw.disabled = locked;
         sw.addEventListener('change', async () => { try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names: [c.name], disabled: !sw.checked })); } catch (e) { sw.checked = !sw.checked; toast(e.message, true); } });
+        // access: who can use it + premium. Options looser than the built-in level are disabled (they are refused by the server too).
+        const RANK = { all: 0, owner: 1, host: 2 }, post = async (body) => { const r = await api('POST', '/api/admin/commands/access', { names: [c.name], ...body }); drawCommands(r); };
+        const whoSel = h('select', { 'aria-label': `Who can use .${c.name}`, title: 'Who can use this command' }, [['all', 'Everyone'], ['owner', 'Number owner'], ['host', 'Host admin']].map(([v, t]) => h('option', { value: v, disabled: RANK[v] < RANK[c.defWho] }, t)));
+        whoSel.value = c.who;
+        whoSel.addEventListener('change', async () => { try { await post({ who: whoSel.value }); toast('Saved'); } catch (e) { whoSel.value = c.who; toast(e.message, true); } });
+        const premBtn = h('button', { class: `btn ${c.premium ? '' : 'alt'} sm`, type: 'button', title: 'Only numbers with premium can use this command' }, c.premium ? '👑 Premium: on' : '👑 Premium: off');
+        premBtn.addEventListener('click', busy(premBtn, async () => { try { await post({ premium: !c.premium }); toast('Saved'); } catch (e) { toast(e.message, true); } }));
         ul.append(h('li', {}, h('span', { class: 'go' }, h('span', { class: 'who' }, h('span', { class: 'num' }, `.${c.name}`)),
-          h('span', { class: 'pills' }, c.owner && h('span', { class: 'pill' }, 'Owner'), c.premium && h('span', { class: 'pill gold' }, '👑'), c.disabled && h('span', { class: 'pill off' }, 'Off'), h('span', { class: 'pill' }, `${c.uses} uses`), c.errors > 0 && h('span', { class: 'pill warn' }, `${c.errors} errors`))), sw));
+          h('span', { class: 'pills' }, h('span', { class: 'field sm' }, whoSel), premBtn),
+          h('span', { class: 'pills' }, c.custom && h('span', { class: 'pill' }, 'Custom'), c.disabled && h('span', { class: 'pill off' }, 'Off'), h('span', { class: 'pill' }, `${c.uses} uses`), c.errors > 0 && h('span', { class: 'pill warn' }, `${c.errors} errors`))), sw));
       }
     };
     async function loadCommands() { try { drawCommands(await api('GET', '/api/admin/commands')); } catch (e) { toast(e.message, true); } }
