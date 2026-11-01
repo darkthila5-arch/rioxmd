@@ -22,6 +22,7 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Admin: Audit | Every admin action with the IP it came from, saved for restarts (last 1000), searchable, CSV download. |
 | Admin: Security | Admin login lockout per IP (5 wrong passwords: 10 min, then 30 min, 2 h, 6 h, 24 h), login history (IP, browser, result), list of locked IPs with **Unblock**, trusted IPs. If an attack comes from many IPs, unknown IPs are slowed down while IPs that logged in before keep working. |
 | Admin: Backup | Export every linked number (WhatsApp login data + settings) as **one encrypted `.riobak` file** (AES-256-GCM, passphrase 8+ chars). Import adds numbers that are not linked yet; running numbers are never overwritten. Same storage type needed (files or MongoDB). |
+| Admin: Notices | `/admin` → **Notices**. Write news, updates and warnings that show as glass cards, popups or banner strips on the **pair site** and / or the **settings site**, with a picture, up to 3 buttons, big title sizes, a countdown and a schedule. Shows how many people **saw / read / clicked** each one. See *Notices*. |
 | Premium branding | Numbers with active premium can set their own **bot name, footer text and logo picture** on the `/settings` page (Branding card). It is used in every reply, menu and link card of that number only. Free numbers see the card locked; when premium ends the defaults return (saved values are kept). Logo = direct https link to a JPG/PNG/WEBP (max 3 MB), checked and downloaded server-side. |
 | Admin channels (auto react) | `/admin` → **Channels**. The host adds a WhatsApp channel and the numbers follow it and **react to every new post automatically** (live, a few seconds after the post, each number after its own random pause; a backup check runs every minute). Choose **all online numbers** or only the numbers that opted in, set the emojis, and switch auto react on or off per channel. **React to one post**: paste a post link (`https://whatsapp.com/channel/0029Va.../123`) and the numbers react to it one by one. A **Check** button shows exactly what WhatsApp answers for a channel (can it read posts, live updates, errors). |
 | Channel support (premium) | A premium user adds a WhatsApp channel on `/settings`. Numbers whose owner switched on **Support other channels** (off by default, only the owner can change it, never in bulk or by the admin) follow it and react to new posts. Opting out, removing the channel or the premium ending makes them unfollow. Actions are spaced out and capped (`BOOST_GAP_MS`, `BOOST_MAX_ACTIONS`, `BOOST_POLL_MIN`, `BOOST_MAX_CHANNELS`, `BOOST_DISABLED=true` to switch it off). |
@@ -49,7 +50,8 @@ Without a disk, files are wiped on every redeploy. With `MONGO_URL` the WhatsApp
 ```
 index.js            pairing website + API, startup / shutdown
 views/              /settings and /admin pages (script and styles in public/web.js, public/web.css)
-lib/                shared code (config, storage, session, router, menu, downloader, calls, status ...)
+public/notices.*    glass notice cards for the pair site, settings site and the admin Notices tab (notices.js + notices.css)
+lib/                shared code (config, storage, session, router, menu, downloader, calls, status, notices ...)
 commands/           one file per group of commands, loaded automatically
 ```
 To add a command, open a file in `commands/` (or create a new `.js` file there) and add an object:
@@ -187,6 +189,31 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 - Click one number to manage it alone: status, settings, restart, web password, message, reset, unlink.
 - A log of recent admin actions (kept in memory, cleared on restart). Numbers are shown partly hidden.
 - WhatsApp auth keys and session files are never shown.
+
+## Notices (news and alerts on the sites)
+The host writes a notice in `/admin` → **Notices** and it appears on the **pair site** (`/`), the **settings site** (`/settings`, only for logged-in users) or both. No restart or deploy is needed: visitors get it within a minute.
+
+**What a notice can have**
+- **Type**: News, Update, Important (warning), Good news or Offer. Each has its own colour and icon. You can also set your own colour and any emoji icon.
+- **Look**: a glass **Card**, a **Popup** (the page behind it is dimmed and blurred) or a slim **Banner strip**.
+- **Text size**: title size M / L / XL / XXL (very big), message size small / normal / large, left or centred.
+- **Picture**: upload a JPG, PNG, WEBP or GIF (max 8 MB). It is shrunk to a small WEBP on the server (max 1280 px, about 350 KB). Place it on top, beside the text or as the card background.
+- **Buttons**: up to 3. Each has a name, a link (`https://...` or `/settings` for a page on this site) and a style (solid or glass).
+- **Extras**: live preview while you edit, a live **countdown** to a date, **start and end time**, **pin to the top**, "visitors can close it", a visible / draft switch, **duplicate**, quick-start templates (News, New feature, Maintenance, Offer) and **Also send on WhatsApp** (sends the text to every linked number, one by one, with the same slow pace as Broadcast).
+
+**Who saw it** (shown under every notice in the admin)
+- **Seen**: how many different visitors had at least half of it on screen. One device counts once.
+- **Read**: the visitor kept it on screen for 4 seconds, pressed a button or closed it.
+- **Button clicks** (per button), **closed**, read percentage and when it was last seen.
+- For the settings site the list also shows **which numbers** (partly hidden) saw or read it, and "X of Y linked numbers".
+- **Reset counts** sets them back to zero. The pair site has no login, so a random id stored in the visitor's browser is used; nothing else about the visitor is saved.
+
+**Good to know**
+- A visitor who closes a notice does not see it again on that device until you change its title, message, picture or buttons. Popups are shown once until closed.
+- Up to 40 notices and 24 pictures are kept. Pictures that no notice uses are removed automatically.
+- Notices and pictures are saved with the other settings (`SESSION_DIR` or MongoDB). They are **not** part of the `.riobak` backup.
+- Everything is written with plain text (no HTML), links must start with `https://`, `http://` or `/`, and uploaded pictures are re-encoded with `sharp`, so a notice cannot inject code.
+- Public endpoints: `GET /api/notices?site=pair|settings`, `POST /api/notices/event` and `GET /notice-img/:id`. They are rate limited per IP. Admin endpoints are under `/api/admin/notices` and need the admin login.
 
 ## Admin channels (auto react) and `.pair`
 **Admin channels** (`/admin` → Channels)
