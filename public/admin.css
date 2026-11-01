@@ -163,3 +163,117 @@ body[data-page=admin] .top .btn::after{display:none}
 #stats .stat:nth-child(4)::after{content:"💎"}
 .note+.toolbar,.note+.inline,.note+.chips,.note+.field{margin-top:14px}
 .toolbar+.actions{margin-top:0}
+
+/* =====================================================================
+   Responsive hardening (phone / tablet / desktop). Appended last on purpose.
+   ===================================================================== */
+
+/* ---------- 1. nothing may push the page sideways ---------- */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body[data-page=admin]{overflow-x:clip}
+body[data-page=admin] :is(.content,.card,.duo>*,.ov>*,.col,.drawer-body,.sheet,li,.row,.go,.who,.txt){min-width:0}
+/* long numbers, links, command text and log lines wrap instead of stretching the layout */
+body[data-page=admin] :is(.content,.drawer,.sheet) :is(p,small,.note,.num,.txt,b,h2,h1,li,.msg){overflow-wrap:anywhere}
+body[data-page=admin] .slist .who>*{min-width:0}
+body[data-page=admin] .slist .who .num{overflow-wrap:anywhere}
+body[data-page=admin] .slist .go .pills{flex-wrap:wrap}
+/* wide code / log / chart content scrolls inside its own box */
+body[data-page=admin] :is(.logbox,pre,.log){max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+body[data-page=admin] .colchart{overflow-x:auto;scrollbar-width:thin}
+body[data-page=admin] table{display:block;max-width:100%;overflow-x:auto}
+body[data-page=admin] :is(img,svg,canvas,video){max-width:100%}
+.pagehead{flex-wrap:wrap}
+.pagehead>*{min-width:0}
+
+/* ---------- 2. tab bar (phones + tablets): scrolls, snaps, fades at the edge ---------- */
+@media(max-width:979px){
+  .side{scroll-snap-type:x proximity;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
+    mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 28px),transparent 100%);
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 28px),transparent 100%)}
+  .side .tab{flex:none;scroll-snap-align:center}
+  /* tablets: more room for the cards */
+  body[data-page=admin] .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .duo{grid-template-columns:1fr 1fr}
+  .drawer{width:min(520px,100vw)}
+}
+/* narrow tablets and big phones */
+@media(max-width:760px){
+  body[data-page=admin] .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .duo{grid-template-columns:1fr}
+  .drawer{width:100vw;border-left:0}
+}
+
+/* ---------- 3. phones ---------- */
+@media(max-width:560px){
+  body[data-page=admin]{--topbar:56px}
+  body[data-page=admin] .top .wrap.wide{padding-inline:max(14px,env(safe-area-inset-left)) max(14px,env(safe-area-inset-right))}
+  body[data-page=admin] main .wrap.wide{padding-inline:max(14px,env(safe-area-inset-left)) max(14px,env(safe-area-inset-right))}
+  .side{margin-inline:calc(-1 * max(14px,env(safe-area-inset-left)));padding-inline:max(14px,env(safe-area-inset-left))}
+  .pagehead h1{font-size:1.3rem}
+  .content .card{padding:14px;margin-top:12px}
+  .content .duo,.ov,.ov .col{gap:12px}
+  .ov .kv,.kv{grid-template-columns:1fr 1fr;gap:0 12px}
+  .row{gap:12px}
+  .actions .btn,body[data-page=admin] .actions .btn{flex:1 1 calc(50% - 8px)}
+  .selbar{flex-wrap:wrap;gap:8px}
+  .selbar .links{margin-left:0}
+  .toolbar{gap:8px}
+  .toolbar>*{flex:1 1 100%}
+  .toolbar .chips{flex:1 1 100%}
+  .bulkbar{flex-wrap:wrap;justify-content:center;padding:10px 12px;row-gap:8px}
+  .bulkbar .cnt{flex:1 1 100%;text-align:center}
+  .bulkbar .btn{flex:1 1 calc(50% - 6px)}
+  .modal{padding:12px}
+  .sheet{padding:18px}
+  #toast{max-width:calc(100vw - 24px)}
+  .logbox{font-size:.74rem;min-height:180px}
+}
+/* very small phones (iPhone SE / 320px) */
+@media(max-width:360px){
+  body[data-page=admin] .stats{gap:8px}
+  body[data-page=admin] .stat{padding:12px}
+  body[data-page=admin] .stat b{font-size:1.3rem}
+  body[data-page=admin] .stat::after{display:none}
+  .ov .kv,.kv{grid-template-columns:1fr}
+  .actions .btn,body[data-page=admin] .actions .btn{flex:1 1 100%}
+  .bulkbar .btn{flex:1 1 100%}
+  body[data-page=admin] .brand .w-bot{display:none}
+}
+
+/* ---------- 4. touch screens: bigger targets, and no iOS zoom when a field is tapped ---------- */
+@media(pointer:coarse){
+  body[data-page=admin] :is(input,select,textarea){font-size:16px}
+  body[data-page=admin] :is(.content,.drawer,.modal) .field input,
+  body[data-page=admin] :is(.content,.drawer,.modal) .field select,
+  body[data-page=admin] :is(.content,.drawer,.modal) .field textarea{font-size:16px}
+  body[data-page=admin] :is(.content,.drawer,.modal,.bulkbar) .btn,
+  body[data-page=admin] :is(.content,.drawer,.modal,.bulkbar) .btn.sm{min-height:44px}
+  body[data-page=admin] :is(.content,.drawer,.modal) .field,
+  body[data-page=admin] :is(.content,.drawer,.modal) .field.sm{min-height:46px}
+  .side .tab{min-height:44px}
+  .chip{min-height:40px}
+  .x{width:44px;height:44px}
+  .slist .go{min-height:48px}
+  input[type=checkbox]:not(.sw){width:22px;height:22px;flex:none}
+  .row{min-height:48px}
+}
+
+/* ---------- 5. short screens (phone held sideways) ---------- */
+@media(max-height:500px) and (orientation:landscape){
+  body[data-page=admin]{--topbar:48px}
+  .side{position:static}
+  .modal.bottom .sheet,.sheet{max-height:calc(100dvh - 16px);overflow:auto}
+  .drawer-head{padding-block:10px}
+  .logbox{max-height:60dvh;min-height:120px}
+}
+
+/* ---------- 6. large desktop: keep lines readable ---------- */
+@media(min-width:1700px){
+  body[data-page=admin] .top .wrap.wide,body[data-page=admin] main .wrap.wide{max-width:1640px}
+  .shell{grid-template-columns:260px minmax(0,1fr);gap:44px}
+}
+
+/* ---------- 7. user settings ---------- */
+@media(prefers-reduced-motion:reduce){
+  body[data-page=admin] *{scroll-behavior:auto!important}
+}
