@@ -1,9 +1,12 @@
 /* Falling leaves behind the pairing page.
    Leaves tumble (flip + sway), glide sideways in the direction they tilt, fall slower when they face the air,
    and a slow wind with now-and-then gusts pushes them along. Far leaves are small, soft and slow, near ones big and quick.
-   Canvas only, no libraries. Pauses when the tab is hidden; does nothing when the visitor prefers reduced motion. */
+   Canvas only, no libraries. Pauses when the tab is hidden. The snow drops live in snow.js (remove its <script> line to switch them off).
+   Windows with "Show animations" switched off (or battery saver) report "reduce motion": the effect then runs in a calm
+   mode (half as many, half as fast, no gusts) instead of being hidden completely. */
 (() => {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SPEED = CALM ? 0.5 : 1;
 
   const canvas = document.getElementById('leaves');
   const ctx = canvas && canvas.getContext('2d');
@@ -83,7 +86,7 @@
   function wind(t, y) {
     if (t > nextGust) { gust = { t0: t, dur: rand(2.4, 4), amp: rand(55, 120) }; nextGust = t + rand(8, 16); }
     const k = clamp((t - gust.t0) / gust.dur, 0, 1);
-    const g = gust.amp * Math.sin(Math.PI * k) ** 2;
+    const g = CALM ? 0 : gust.amp * Math.sin(Math.PI * k) ** 2;
     const base = 16 + 12 * Math.sin(t * 0.31) + 7 * Math.sin(t * 0.83 + 1.3);
     return { x: base + g + 6 * Math.sin(y * 0.011 + t * 0.55), lift: g * 0.22 };
   }
@@ -101,12 +104,12 @@
     const l = {
       z, color: pickColor(), soft: z < 0.55,
       size: lerp(15, 46, z) * rand(0.85, 1.2),
-      fall: lerp(34, 92, z) * rand(0.85, 1.15),
+      fall: lerp(34, 92, z) * rand(0.85, 1.15) * SPEED,
       alpha: lerp(0.38, 0.95, z),
       flutterPhase: rand(0, 6.28), flutterFreq: rand(0.9, 2.1), flutterAmp: rand(0.35, 0.95),
       rot: rand(0, 6.28), spin: rand(-0.5, 0.5),
-      flip: rand(0, 6.28), flipSpeed: rand(0.8, 2.6) * (Math.random() < 0.5 ? -1 : 1),
-      glide: rand(26, 70)
+      flip: rand(0, 6.28), flipSpeed: rand(0.8, 2.6) * SPEED * (Math.random() < 0.5 ? -1 : 1),
+      glide: rand(26, 70) * SPEED
     };
     spawn(l, true);
     return l;
@@ -116,7 +119,7 @@
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth; H = window.innerHeight;
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-    const want = clamp(Math.round(W / 62), 12, W < 640 ? 16 : 30);
+    const want = Math.round(clamp(Math.round(W / 62), 12, W < 640 ? 16 : 30) * (CALM ? 0.5 : 1));
     while (leaves.length < want) leaves.push(makeLeaf());
     leaves.length = want;
     leaves.sort((a, b) => a.z - b.z); // far ones are drawn first
@@ -124,6 +127,7 @@
 
   /* ---------- frame ---------- */
   let last = 0, t = 0, raf = 0;
+  window.rioWind = (y = 0) => wind(t, y).x; // snow.js reads the same wind, so a gust moves the snow too
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05); last = now; t += dt;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
