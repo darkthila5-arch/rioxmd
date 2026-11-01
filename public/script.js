@@ -45,7 +45,11 @@ function countTo(target) {
   })(t0);
 }
 async function loadOnline() {
-  try { const d = await (await fetch('/health')).json(); countTo(Number(d.activeSessions) || 0); } catch { /* keep last value */ }
+  try {
+    const d = await (await fetch('/health')).json(); countTo(Number(d.activeSessions) || 0);
+    const name = String(d.bot || '').trim().slice(0, 40); // the bot name set on the server (BOT_NAME) replaces the one written in the page
+    if (name && name.toUpperCase() !== 'RIO X MD') { for (const el of document.querySelectorAll('#botName, .w-top')) el.textContent = name.toUpperCase(); }
+  } catch { /* keep last value */ }
 }
 loadOnline(); setInterval(loadOnline, 30000);
 
