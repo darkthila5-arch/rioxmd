@@ -466,6 +466,12 @@
       sbox('cpu', `${d.cpu.toFixed(1)}%`, `Bot uses ${d.proc.toFixed(1)}% · ${d.cores} core${d.cores === 1 ? '' : 's'} · load ${d.load.join(' / ')}`, d.cpu);
       sbox('mem', `${d.mem.pct.toFixed(1)}%`, `${gb(d.mem.used)} of ${gb(d.mem.total)}${d.mem.limited ? '' : ' (whole machine)'} · bot ${gb(d.mem.rss)}`, d.mem.pct);
       sbox('loop', `${d.loop.p99.toFixed(1)} ms`, `Average ${d.loop.mean.toFixed(1)} ms in the last 2 seconds`, Math.min(100, d.loop.p99 / 2));
+      const c = d.cmds, big = (n) => Number(n).toLocaleString();
+      const cbox = (k, v, sub, l) => { const e = document.querySelector(`.sysbox[data-k="${k}"]`); if (!e) return; const was = e.querySelector('.v').textContent, now = big(v); e.querySelector('.v').textContent = now; e.querySelector('.s').textContent = sub; e.dataset.l = l || ''; if (was !== '–' && was !== now) { e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); } };
+      cbox('cmdTotal', c.total, `Counted since ${new Date(c.since).toLocaleDateString()}`);
+      cbox('cmdToday', c.today, 'Resets at midnight');
+      cbox('cmdMin', c.perMin, c.perMin ? 'Busy right now' : 'Quiet right now');
+      cbox('cmdErr', c.errors, c.total ? `${((c.errors / c.total) * 100).toFixed(1)}% of all commands` : 'No commands yet', c.errors ? 'warm' : '');
       if (d.disk) sbox('disk', `${d.disk.pct.toFixed(1)}%`, `${gb(d.disk.used)} of ${gb(d.disk.total)} used`, d.disk.pct); else sbox('disk', '–', 'Not available here', 0);
       const cpuVals = sysHist.map((x) => x.cpu), memVals = sysHist.map((x) => x.mem);
       drawChart($('#chCpu'), cpuVals, 100, sysCpuProc.length > 1 ? sysCpuProc : null);
