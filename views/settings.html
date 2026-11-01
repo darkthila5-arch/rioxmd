@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/web.css?v=2">
+<link rel="stylesheet" href="/notices.css?v=1">
 </head>
 <body data-page="settings">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -60,6 +61,7 @@
       <h1>Your bot <span class="grad">settings</span></h1>
       <p class="lede">Every change saves the moment you make it.</p>
     </div>
+    <div id="noticeHost" class="nt-host" aria-live="polite"></div>
     <section class="perks three free" id="tiles" aria-label="Summary"></section>
     <section class="card premium" id="premiumCard" aria-label="Premium plan">
       <h2>👑 Premium</h2>
@@ -92,7 +94,8 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=6"></script>
+<script src="/web.js?v=7"></script>
+<script src="/notices.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>
