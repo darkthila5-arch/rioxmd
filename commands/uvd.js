@@ -1,4 +1,5 @@
-// .uvd <ukussa.net link>: download the video of a ukussa.net page and send it as a DOCUMENT (premium numbers, owner only).
+// .uvd <ukussa.net link | video name>: download the video of a ukussa.net page and send it as a DOCUMENT (premium numbers, owner only).
+// A name instead of a link: the site's search is used, the best matches are listed, and  .uvd 1  (or 2, 3 ...) picks one.
 // Steps: read the page -> look for the video file (og:video, <video>/<source>, a .mp4 / .m3u8 / .webm link in the page or in an embedded player)
 // -> download it with the page as Referer. If nothing is found, yt-dlp gets the page itself as a last try.
 import dns from 'node:dns/promises';
@@ -63,14 +64,56 @@ function fileName(pageUrl, ext) {
   return `${slug}.${ext || 'mp4'}`;
 }
 
+/* ---------- search by name ---------- */
+const SEARCH_URLS = [(q) => `https://ukussa.net/?s=${encodeURIComponent(q)}`, (q) => `https://ukussa.net/search?q=${encodeURIComponent(q)}`];
+const SKIP_PATH = /^\/(category|tag|tags|page|author|wp-|feed|search|login|register|contact|about|privacy|dmca|terms|cdn-cgi)(\/|$)/i;
+const stripTags = (t) => decode(String(t || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+function findResults(html, base) {
+  const out = [], seen = new Set();
+  for (const m of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const href = m[1].match(/\bhref=["']([^"']+)["']/i)?.[1];
+    if (!href) continue;
+    let u; try { u = new URL(decode(href), base); } catch { continue; }
+    if (!SITE.test(u.hostname) || u.search.includes('s=') || SKIP_PATH.test(u.pathname) || u.pathname.replace(/\//g, '').length < 4) continue;
+    u.hash = '';
+    const title = stripTags(m[2]) || stripTags(m[1].match(/\btitle=["']([^"']+)["']/i)?.[1]) || stripTags(m[2].match(/\balt=["']([^"']+)["']/i)?.[1]);
+    if (title.length < 3 || /^(read more|more|next|previous|home|watch|download)$/i.test(title) || seen.has(u.href)) continue;
+    seen.add(u.href);
+    out.push({ url: u.href, title: title.slice(0, 80) });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+async function searchSite(q) {
+  for (const make of SEARCH_URLS) {
+    try { const { html, finalUrl } = await getHtml(make(q)); const r = findResults(html, finalUrl); if (r.length) return r; } catch (e) { console.error('uvd search error:', e?.message || e); }
+  }
+  return [];
+}
+const picks = new Map(); // chat + sender -> { list, at }  (the last search, for  .uvd 1 )
+const pickKey = (jid, msg) => `${jid}|${msg.key?.participant || ''}`;
+
 export default [
   {
     name: 'uvd', aliases: ['ukussa'], owner: true, premium: true, react: '📥',
     async run({ sock, msg, jid, args, reply }) {
-      let page;
-      try { page = new URL(String(args[0] || '').trim()); } catch { page = null; }
-      if (!page || !/^https?:$/.test(page.protocol) || !SITE.test(page.hostname)) {
-        return reply(`📥 Use: *${PREFIX}uvd <ukussa.net video link>*\nThe video comes back as a document.`);
+      const input = args.join(' ').trim();
+      let page = null;
+      try { const u = new URL(args[0] || ''); if (/^https?:$/.test(u.protocol) && SITE.test(u.hostname)) page = u; } catch { /* not a link */ }
+      if (!page && /^[1-8]$/.test(input)) { // pick from the last search
+        const last = picks.get(pickKey(jid, msg));
+        const item = last && Date.now() - last.at < 15 * 60 * 1000 ? last.list[Number(input) - 1] : null;
+        if (!item) return reply(`❌ No search to pick from. Search first: *${PREFIX}uvd <video name>*`);
+        page = new URL(item.url);
+      }
+      if (!page) {
+        if (!input || /^https?:\/\//i.test(input)) return reply(`📥 Use:\n*${PREFIX}uvd <video name>* (search, then ${PREFIX}uvd 1 to pick)\n*${PREFIX}uvd <ukussa.net link>*\nThe video comes back as a document.`);
+        await reply(`🔎 Searching *${input}*...`);
+        const list = await searchSite(input);
+        if (!list.length) return reply('❌ Nothing found for that name. Try other words, or send the video link.');
+        picks.set(pickKey(jid, msg), { list, at: Date.now() });
+        if (picks.size > 200) picks.delete(picks.keys().next().value);
+        return reply(['╭━━━〔 🔎 *RESULTS* 〕━━━⬣', ...list.map((r, i) => `┃ ${i + 1}. ${r.title}`), '╰━━━━━━━━━━━━━━━━━━━━⬣', '', `▸ Send *${PREFIX}uvd <number>* (example: ${PREFIX}uvd 1) to download.`].join('\n'));
       }
       await reply('⏳ Getting the video...');
       let buf = null, ext = 'mp4', lastErr = null;
