@@ -13,7 +13,7 @@ async function fetchUrl(sock, jid) {
 
 export default [
   {
-    name: 'getdp', aliases: ['getpp', 'dpget', 'stealdp'], premium: true, react: '🖼️',
+    name: 'getdp', aliases: ['getpp', 'dpget', 'stealdp'], owner: true, premium: true, react: '🖼️',
     async run({ sock, msg, jid, args, targetJid, reply }) {
       const target = targetJid();
       if (!target) return reply('🖼️ Use *.getdp 94771234567*, or reply to / @mention a person with *.getdp*.');
