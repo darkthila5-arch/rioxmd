@@ -299,7 +299,11 @@ export default [
       }
       if (!results.length) return reply(`😕 No TikTok videos found for “${clip(query, 60)}”.`);
       if (USE_BUTTONS) {
-        try { return await sendCarousel(sock, jid, results, query, msg); }
+        try {
+          await sendCarousel(sock, jid, results, query, msg);
+          if (msg.key.fromMe) await reply(textList(results, query)); // the owner cannot tap the cards of their own number: same results as text
+          return;
+        }
         catch (err) { console.error('Carousel send failed, using text list:', err?.message || err); }
       }
       return reply(textList(results, query));
