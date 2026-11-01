@@ -750,7 +750,7 @@
 
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics', 'server'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics', 'server', 'notices'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
