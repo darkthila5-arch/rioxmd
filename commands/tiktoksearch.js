@@ -220,17 +220,22 @@ const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n
 
 async function sendCarousel(sock, jid, results, query, quoted) {
   const IM = proto.Message.InteractiveMessage;
-  const cards = await Promise.all(results.map(async (r) => {
-    const media = await prepareWAMessageMedia({ image: await coverBuffer(r.cover) }, { upload: sock.waUploadToServer });
+  const defs = ownerCards(sock, jid, quoted, results.map((r) => ({
+    r,
+    body: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n'),
+    buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)],
+  })));
+  const cards = await Promise.all(defs.map(async (d) => {
+    const media = await prepareWAMessageMedia({ image: await coverBuffer(d.r.cover) }, { upload: sock.waUploadToServer });
     return IM.create({
       header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
-      body: IM.Body.create({ text: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n') }),
+      body: IM.Body.create({ text: d.body }),
       footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
-      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)], messageParamsJson: '' })
+      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: d.buttons, messageParamsJson: '' })
     });
   }));
   const interactiveMessage = IM.create({
-    body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO` }),
+    body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO${quoted?.key?.fromMe ? '\n\n👑 Your own number cannot tap buttons: send the number, example *1.2*' : ''}` }),
     footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
     carouselMessage: IM.CarouselMessage.create({ cards, messageVersion: 1 })
   });
@@ -300,9 +305,7 @@ export default [
       if (!results.length) return reply(`😕 No TikTok videos found for “${clip(query, 60)}”.`);
       if (USE_BUTTONS) {
         try {
-          await sendCarousel(sock, jid, results, query, msg);
-          if (msg.key.fromMe) await reply(textList(results, query)); // the owner cannot tap the cards of their own number: same results as text
-          return;
+          return await sendCarousel(sock, jid, results, query, msg);
         }
         catch (err) { console.error('Carousel send failed, using text list:', err?.message || err); }
       }
