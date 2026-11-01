@@ -8,6 +8,7 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Area | What it does |
 |---|---|
 | Pairing site | Link your own number with a pair code or QR. Live "online" counter. |
+| `.pair` command | Anyone can send `.pair 94771234567` (or just `.pair` in a private chat) and the bot answers with a pair code and a **Copy Code** button, so they can link their own number as a bot. Rate limited, respects "new links paused" and `MAX_SESSIONS`. Can be switched off in `/admin` → Commands. |
 | Menu | `.menu` image + buttons, `.alive`, emoji reaction on every command, bot DP link-preview card on every reply. |
 | Downloaders | TikTok, Facebook, Pinterest, YouTube song / video. |
 | TikTok search | `.tts <words>` shows results as swipeable cards with **VIDEO / AUDIO / MORE** buttons. |
@@ -22,6 +23,7 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Admin: Security | Admin login lockout per IP (5 wrong passwords: 10 min, then 30 min, 2 h, 6 h, 24 h), login history (IP, browser, result), list of locked IPs with **Unblock**, trusted IPs. If an attack comes from many IPs, unknown IPs are slowed down while IPs that logged in before keep working. |
 | Admin: Backup | Export every linked number (WhatsApp login data + settings) as **one encrypted `.riobak` file** (AES-256-GCM, passphrase 8+ chars). Import adds numbers that are not linked yet; running numbers are never overwritten. Same storage type needed (files or MongoDB). |
 | Premium branding | Numbers with active premium can set their own **bot name, footer text and logo picture** on the `/settings` page (Branding card). It is used in every reply, menu and link card of that number only. Free numbers see the card locked; when premium ends the defaults return (saved values are kept). Logo = direct https link to a JPG/PNG/WEBP (max 3 MB), checked and downloaded server-side. |
+| Admin channels (auto react) | `/admin` → **Channels**. The host adds a WhatsApp channel and the numbers follow it and **react to every new post automatically** (live, a few seconds after the post, each number after its own random pause; a backup check runs every minute). Choose **all online numbers** or only the numbers that opted in, set the emojis, and switch auto react on or off per channel. **React to one post**: paste a post link (`https://whatsapp.com/channel/0029Va.../123`) and the numbers react to it one by one. A **Check** button shows exactly what WhatsApp answers for a channel (can it read posts, live updates, errors). |
 | Channel support (premium) | A premium user adds a WhatsApp channel on `/settings`. Numbers whose owner switched on **Support other channels** (off by default, only the owner can change it, never in bulk or by the admin) follow it and react to new posts. Opting out, removing the channel or the premium ending makes them unfollow. Actions are spaced out and capped (`BOOST_GAP_MS`, `BOOST_MAX_ACTIONS`, `BOOST_POLL_MIN`, `BOOST_MAX_CHANNELS`, `BOOST_DISABLED=true` to switch it off). |
 | Calls | Reject calls, reject + auto reply with a saved audio / video, or **really answer** and stream a saved audio / video into the call. |
 
@@ -84,6 +86,10 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `TIKTOK_RAPIDAPI_PATH` | Optional: path of a `tiktok-scraper20` search endpoint, only if its automatic path guess fails. |
 | `NEWS_LANG` | `si` (default, Sinhala) or `en`: language of the news feeds. |
 | `NEWS_POLL_MIN` | Minutes between news checks (default 3). |
+| `DEFAULT_COUNTRY_CODE` | Used by `.pair` for numbers typed like `0771234567` (default `94`). |
+| `BOOST_POLL_MIN` | Minutes between the backup check for new channel posts (default 1). |
+| `BOOST_LIVE_MIN_S`, `BOOST_LIVE_MAX_S` | Random pause (seconds) before each number reacts to a live post (default 3 and 20). Raise the max (for example 60) when many numbers are linked. |
+| `BOOST_GAP_MS`, `BOOST_MAX_ACTIONS`, `BOOST_DISABLED` | Pause between follow / react actions, actions per check, and `true` to switch the whole channel feature off. |
 
 ## Who can use what
 - **Host owner** = `OWNER_NUMBER` / `OWNER_LID`. Only the host owner can use `.momenu` and the commands in it: `.restart`, all AUTO NEWS commands, DOWNLOAD TOOLS (`.ytcheck`, `.dlcheck`) and all CALL commands except `.callreject` (`.call`, `.callstream`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`, packs, `.callto`). Real call answering and auto answer only run on the host owner's own number. The same options are locked on the `/settings` page for every other number.
@@ -94,7 +100,7 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 Send `menu` or `help` without the prefix and it works too.
 
 **Public (`.menu`)**
-- General: `.alive`, `.ping`, `.runtime`, `.about`, `.owner`, `.status`
+- General: `.alive`, `.ping`, `.runtime`, `.about`, `.owner`, `.status`, `.pair <your number>`
 - Download: `.tt <link>`, `.fb <link>`, `.pin <link>`, `.song <name or link>`, `.tts <search words>` (TikTok search), `.ttdl <link>` / `.ttmp3 <link>` (TikTok video / sound straight away)
 - News: `.news [hiru|derana|itn]`, `.hiru`, `.derana`, `.itn`
 - Channel songs (owner): `.csong <channel link | jid> <song name>` posts the thumbnail + details and then the song as a **voice note** to a WhatsApp channel (or group). Without a channel it posts in the current chat. Needs ffmpeg (included in the Docker image) and, if YouTube shows a bot check, YouTube cookies (`YTDLP_COOKIES`).
@@ -162,7 +168,7 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 ## Web settings page (`/settings`) and admin site (`/admin`)
 **For every linked user**
 - When a number is linked, the bot sends a 12 character password to that number's own chat, with the link to `/settings`.
-- Log in with the number and password. You can switch on or off: public / private mode, status view / react / save, the reaction emojis, view-once copies, **auto read, "typing…" and "recording…" indicators, always online**, call reject, auto answer, call loop and the reject message. Real call answering can be turned off here, but turning it on needs `.callstream on` in WhatsApp (one-time device link).
+- Log in with the number and password. You can switch on or off: public / private mode, status view / react / save, the reaction emojis, view-once copies, **auto read, "typing…" and "recording…" indicators, always online**, call reject. The call-answering options (auto answer, answer calls, repeat clip, reject message) are **hidden for normal numbers** and shown only on the host owner's own number (`OWNER_NUMBER`). Real call answering needs `.callstream on` in WhatsApp (one-time device link).
 - **Account** section: send yourself a new password (ends this login), reset all your options to the defaults, or unlink your number.
 - `.webpass` (owner) sends a new password to your own chat. Numbers linked before this update have no password yet: send `.webpass` once.
 - Only a salted hash of the password is stored. 5 wrong attempts block a number or an IP for 10 minutes. Logins are signed, `HttpOnly`, `SameSite=Strict` cookies that last 12 hours.
@@ -171,10 +177,23 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 - Set `ADMIN_PASSWORD` (10+ characters), optionally `ADMIN_USER`, and `WEB_SECRET`. Admin logins last 4 hours.
 - Overview tiles: linked numbers, online now, new links open/paused, memory, uptime, storage, call service.
 - **Control every session**: search and filter the list (all / online / offline), tick the numbers you want (or *Select online*), then use the **Control box**: change one option for all of them (any option from the settings page), restart, send new web passwords, send a message to each number's own chat, reset settings, or unlink and delete. Restart, passwords, messages and unlinking run in the background one number at a time (slow on purpose, so WhatsApp never sees a burst) with a live progress bar.
+- **Commands tab**: every command can be switched on or off for all numbers. Commands are **grouped in the same categories as the menu** (General, Download, News, Media, Group, Fun, Status, Owner, Download tools, Auto news, Call, Host owner), each group has **All on / All off**. New commands appear automatically (listed under *Other* until you add them to `CMD_CATS` in `lib/web.js`).
+- **Channels tab**: add a channel for auto react, react to one post by link, per-channel auto react switch, **Check** diagnostics, remove a channel. See *Admin channels* below.
 - **New links switch**: pause or reopen the pair page for everyone. Linked numbers keep working. The choice is saved with the other settings.
 - Click one number to manage it alone: status, settings, restart, web password, message, reset, unlink.
 - A log of recent admin actions (kept in memory, cleared on restart). Numbers are shown partly hidden.
 - WhatsApp auth keys and session files are never shown.
+
+## Admin channels (auto react) and `.pair`
+**Admin channels** (`/admin` → Channels)
+1. Paste the channel link, optionally the emojis, choose who joins (*All online numbers* or *Only numbers that switched on "Support other channels"*) and keep **React to every new post automatically** on. The numbers follow the channel within a minute.
+2. Every new post is reacted to live: WhatsApp pushes the post to each following number and that number reacts after a random 3 to 20 seconds. A backup check every minute catches posts the live push missed. A post is reacted to once per number. Posts that existed before the channel was added are not reacted to.
+3. **React to one post**: paste a post link, pick the numbers, press *React now*. Numbers react one by one with a pause between them; progress is shown under the button. *Follow the channel first* makes numbers that do not follow it yet follow it.
+4. The switch on each channel turns auto react off (the numbers only follow) and on again (starts from the newest post). **Check** shows what the server sees: whether posts can be read, live updates, number of followers, last error. If auto react does not work, press Check and read the output, the Render logs also show `Boost: reading posts ... works`, `Boost: live post ... received` or `Boost: could not read posts ...`.
+5. The Overview *Channel support* switch pauses everything (follow, unfollow, react).
+Using *All online numbers* acts on accounts without their owners switching anything on, and following / reacting a lot can get accounts limited by WhatsApp. Keep the number of numbers and channels small.
+
+**`.pair`**: `.pair 94771234567` sends a pair code with a Copy Code button; in a private chat `.pair` alone uses the chat partner's number. Limits: one request per minute and 5 per hour per chat, the same number at most once per 2 minutes. After linking, the new bot greets the user and sends the web password as usual. Switch it off in `/admin` → Commands if you do not want public pairing through WhatsApp.
 
 ## Troubleshooting
 - **`MENU_IMAGE could not be downloaded ... timeout`**: some image hosts (catbox.moe) are unreachable from Render. The bot caches the picture, tries an image proxy as well, and falls back to the bundled picture. For a fix that needs no network, save your picture as `public/menu.jpg`.
