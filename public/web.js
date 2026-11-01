@@ -427,6 +427,7 @@
     /* ----- tabs, drawer and the selection bar ----- */
     function showTab(name) {
       $('#tabs').querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+      try { $('#tabs').querySelector('.tab[aria-selected=true]')?.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch {} // phones: keep the chosen tab visible in the scrolling tab bar
       document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
       try { history.replaceState(null, '', `#${name}`); } catch {}
       if (name === 'insights') drawInsights();
