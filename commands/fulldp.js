@@ -44,20 +44,40 @@ export default [
       if (buf.length > MAX_BYTES) return reply('❌ That picture is too big (over 20 MB).');
       const { width, height } = found.part;
       const dims = width && height ? `${width}x${height}` : 'original size';
-      try {
-        await setRawPicture(sock, buf);
-      } catch (err) {
-        // WhatsApp may refuse a format other than JPEG. Re-encode to JPEG at top quality WITHOUT changing the size, then try once more.
-        const jpeg = buf[0] === 0xff && buf[1] === 0xd8;
-        console.error('fulldp upload error:', err?.message || err);
-        if (jpeg) return reply(`❌ WhatsApp did not accept the picture (${(buf.length / 1048576).toFixed(1)} MB). Try a smaller file.`);
-        try {
+      // Try in order, stop at the first one WhatsApp accepts:
+      // 1) original bytes  2) clean JPEG, same size (fixes progressive / CMYK / odd JPEGs)  3) square canvas, whole picture kept (no crop)  4) Baileys' normal 720x720 DP
+      let mode = 'exact';
+      const attempts = [
+        ['exact', async () => setRawPicture(sock, buf)],
+        ['jpeg', async () => {
           const sharp = (await import('sharp')).default;
-          await setRawPicture(sock, await sharp(buf).rotate().jpeg({ quality: 100, chromaSubsampling: '4:4:4' }).toBuffer()); // only the format changes, never the size
-        } catch (err2) { console.error('fulldp retry error:', err2?.message || err2); return reply('❌ WhatsApp did not accept the picture. Try a JPEG picture.'); }
+          await setRawPicture(sock, await sharp(buf).rotate().toColorspace('srgb').jpeg({ quality: 95, chromaSubsampling: '4:4:4', progressive: false }).toBuffer());
+        }],
+        ['square', async () => {
+          const sharp = (await import('sharp')).default;
+          const img = sharp(buf).rotate();
+          const m = await img.metadata();
+          const side = Math.max(m.width || 0, m.height || 0);
+          if (!side) throw new Error('unknown size');
+          const bg = await sharp(buf).rotate().resize(side, side, { fit: 'cover' }).blur(40).toBuffer();
+          const out = await sharp(bg).composite([{ input: await img.toBuffer(), gravity: 'centre' }]).toColorspace('srgb').jpeg({ quality: 95 }).toBuffer();
+          await setRawPicture(sock, out);
+        }],
+        ['standard', async () => {
+          const sharp = (await import('sharp')).default;
+          const out = await sharp(buf).rotate().resize(720, 720, { fit: 'cover' }).jpeg({ quality: 95 }).toBuffer();
+          await sock.updateProfilePicture(sock.user.id, out);
+        }],
+      ];
+      let ok = false, lastErr;
+      for (const [name, fn] of attempts) {
+        try { await fn(); ok = true; mode = name; break; }
+        catch (err) { lastErr = err; console.error(`fulldp ${name} failed:`, err?.message || err); }
       }
+      if (!ok) return reply(`❌ WhatsApp did not accept the picture (${(buf.length / 1048576).toFixed(1)} MB, ${dims}).\nReason: ${String(lastErr?.message || lastErr).slice(0, 80)}`);
       resetBotDp(sock); // the reply cards pick up the new DP
-      return reply(`✅ Full DP set (${dims}, nothing resized or cropped).\nOpen your profile picture to check it.`);
+      const note = { exact: 'nothing resized or cropped', jpeg: 'same size, re-saved as clean JPEG', square: 'whole picture kept on a square background', standard: 'WhatsApp would not take the full size, so a normal 720x720 DP was set' }[mode];
+      return reply(`✅ DP set (${dims}: ${note}).\nOpen your profile picture to check it.`);
     },
   },
 ];
