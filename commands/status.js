@@ -2,7 +2,7 @@
 // Add a new command by adding one more object to this array (or create a new file in commands/).
 import { jidNormalizedUser } from '@whiskeysockets/baileys';
 import { getSetting, setSetting } from '../lib/storage.js';
-import { DEFAULT_STATUS_EMOJIS, STATUS_TOGGLES, downloadPart, extractEmojis, findMedia, sendMedia, statusDebug } from '../lib/status.js';
+import { DEFAULT_STATUS_EMOJIS, DEFAULT_VV_EMOJIS, STATUS_TOGGLES, downloadPart, extractEmojis, findMedia, sendMedia, statusDebug, vvEmojis } from '../lib/status.js';
 import { PREFIX } from '../lib/config.js';
 import { parseToggle, unwrapMessage } from '../lib/text.js';
 
@@ -32,7 +32,7 @@ export default [
           `${PREFIX}statusemoji 😍 🔥 ❤️ — set your emojis (${PREFIX}statusemoji reset = default)`,
           `${PREFIX}statussave on/off — send every status to your own chat`,
           `${PREFIX}viewonce on/off — send a copy of every view-once photo / video / voice note to your own chat`,
-          `${PREFIX}vv — reply to a view-once message to open it here`,
+          `vv (or ${PREFIX}vv, or a vv emoji ${PREFIX}vvemoji) — reply to a view-once photo / video / voice note: it is saved to your own chat, silently`,
           `${PREFIX}save — reply to any photo / video / voice note to send it to your own chat`
         ].join('\n'));
     },
@@ -58,6 +58,16 @@ export default [
         }
         setSetting(sessionId, 'statusEmojis', list);
         return reply(`✅ Status react emojis: ${list.join(' ')}`);
+    },
+  },
+  {
+    name: 'vvemoji', owner: true,
+    async run({ sessionId, args, reply }) {
+        if (/^reset$/i.test(args[0] || '')) { setSetting(sessionId, 'vvEmojis', null); return reply(`✅ vv emojis reset: ${DEFAULT_VV_EMOJIS.join(' ')}`); }
+        const list = extractEmojis(args.join(' ')).slice(0, 6);
+        if (!list.length) return reply(`👁️ vv emojis: ${vvEmojis(sessionId).join(' ')}\nReply to a view-once photo / video / voice note with *vv* or one of these emojis and it is saved to your own chat, silently.\nChange them: ${PREFIX}vvemoji 😂 👀  (${PREFIX}vvemoji reset = default)`);
+        setSetting(sessionId, 'vvEmojis', list);
+        return reply(`✅ vv emojis: ${list.join(' ')}`);
     },
   },
   {
