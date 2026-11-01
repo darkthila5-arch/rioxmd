@@ -86,6 +86,7 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `TIKTOK_RAPIDAPI_PATH` | Optional: path of a `tiktok-scraper20` search endpoint, only if its automatic path guess fails. |
 | `NEWS_LANG` | `si` (default, Sinhala) or `en`: language of the news feeds. |
 | `NEWS_POLL_MIN` | Minutes between news checks (default 3). |
+| `LOG_DECRYPT` | `true` shows the encryption messages (`Bad MAC`, `Failed to decrypt`, `Closing session`) that are hidden by default. Use it when contacts see "Waiting for this message". |
 | `DEFAULT_COUNTRY_CODE` | Used by `.pair` for numbers typed like `0771234567` (default `94`). |
 | `BOOST_POLL_MIN` | Minutes between the backup check for new channel posts (default 1). |
 | `BOOST_LIVE_MIN_S`, `BOOST_LIVE_MAX_S` | Random pause (seconds) before each number reacts to a live post (default 3 and 20). Raise the max (for example 60) when many numbers are linked. |
@@ -198,6 +199,7 @@ Using *All online numbers* acts on accounts without their owners switching anyth
 **`.pair`**: `.pair 94771234567` sends a pair code with a Copy Code button; in a private chat `.pair` alone uses the chat partner's number. Limits: one request per minute and 5 per hour per chat, the same number at most once per 2 minutes. After linking, the new bot greets the user and sends the web password as usual. Switch it off in `/admin` → Commands if you do not want public pairing through WhatsApp.
 
 ## Troubleshooting
+- **"Waiting for this message" on the bot's replies or in your own chat**: the bot answers WhatsApp's re-send requests (it keeps what it sent for 2 hours) and, for messages to the owner's own chat, refreshes the encryption sessions with the owner's phone / PC after every connect and at most every 20 minutes (`Self sessions refreshed` in the logs). Reply cards use a small 300x300 thumbnail. Make sure the same number is never running in two places at once (two Render services, or a copy on your PC), that breaks the encryption. Set `LOG_DECRYPT=true` to see decrypt errors.
 - **`MENU_IMAGE could not be downloaded ... timeout`**: some image hosts (catbox.moe) are unreachable from Render. The bot caches the picture, tries an image proxy as well, and falls back to the bundled picture. For a fix that needs no network, save your picture as `public/menu.jpg`.
 - **Buttons not showing**: WhatsApp sometimes accepts button messages and never displays them. Check the Render logs for `Button send failed` and `Button tap:` lines.
 - **`.tts` says "search failed"**: see the `TikTok search error:` line in the logs; it lists every provider and why it failed.
