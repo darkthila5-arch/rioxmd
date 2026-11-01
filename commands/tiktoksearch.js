@@ -292,7 +292,7 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
 export default [
   {
     name: 'tts', aliases: ['ttsearch', 'tiktoksearch'], react: '🔎',
-    async run({ sock, msg, jid, args, reply }) {
+    async run({ sock, msg, jid, args, reply, isOwner }) {
       const query = args.join(' ').trim();
       if (!query) return reply(`❌ Type something to search.\n\nකෝ සර්ච් කරන්න ඕන දේ ගහපන් බං 😑\nExample: ${PREFIX}tts funny cats`);
       await reply('🔎 Searching TikTok...');
@@ -303,7 +303,7 @@ export default [
         return reply('❌ TikTok search failed. Try again in a few seconds.\n\nසර්ච් එක අවුල් බං, ආයෙ ට්‍රයි කරපන් 😒');
       }
       if (!results.length) return reply(`😕 No TikTok videos found for “${clip(query, 60)}”.`);
-      if (USE_BUTTONS) {
+      if (USE_BUTTONS && isOwner) { // swipe cards only for the owner, everybody else gets the text list
         try {
           return await sendCarousel(sock, jid, results, query, msg);
         }
