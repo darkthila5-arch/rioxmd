@@ -8,6 +8,7 @@ import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup 
 import { FOOTER_LINE, FOOTER_TEXT, applyBrand } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
+import { ownerCards } from '../lib/carousel.js'; // was missing: sendCarousel() threw "ownerCards is not defined" and the bot always fell back to the text list
 import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm, tooBigText } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
