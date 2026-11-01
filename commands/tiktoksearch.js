@@ -1,19 +1,15 @@
 // .tts <words>  ->  TikTok search shown as a swipeable card carousel (image + title + 3 buttons).
 //   VIDEO -> .ttdl <link>  sends the video straight away      AUDIO -> .ttmp3 <link>  sends the sound
 //   MORE  -> .tt <link>    opens the normal Video / Audio / Document menu
-import { remember as rememberSent } from '../lib/msgstore.js';
-import fs from 'node:fs';
 import path from 'node:path';
-import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup } from '@whiskeysockets/baileys';
-import { FOOTER_LINE, FOOTER_TEXT, applyBrand } from '../lib/brand.js';
+import { FOOTER_LINE } from '../lib/brand.js';
 import { BOT_NAME, PREFIX, ROOT_DIR, USE_BUTTONS, sleep } from '../lib/config.js';
 import { qr } from '../lib/menu.js';
-import { ownerCards } from '../lib/carousel.js'; // was missing: sendCarousel() threw "ownerCards is not defined" and the bot always fell back to the text list
+import { sendCards } from '../lib/carousel.js';
 import { MAX_DL_BYTES, NAGS, fetchBuffer, parseUrl, tikwm, tooBigText } from '../lib/downloader.js';
 
 const MAX_CARDS = 8;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
-const FALLBACK_IMG = path.join(ROOT_DIR, 'public', 'ghost.png');
 
 const abs = (v) => (v ? (v.startsWith('/') ? `https://www.tikwm.com${v}` : v) : null);
 const httpUrl = (v) => { const u = abs(typeof v === 'string' ? v : ''); return /^https?:\/\//i.test(u || '') ? u : null; };
@@ -206,52 +202,7 @@ async function searchTikTok(query) {
   throw new Error(errors.join(' | '));
 }
 
-async function coverBuffer(url) {
-  try {
-    if (!url) throw new Error('no cover');
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'user-agent': UA } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 500) throw new Error('empty image');
-    return buf;
-  } catch { return fs.readFileSync(FALLBACK_IMG); } // a card still shows when one thumbnail fails
-}
-
 const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n || 0));
-
-async function sendCarousel(sock, jid, results, query, quoted) {
-  const IM = proto.Message.InteractiveMessage;
-  const defs = ownerCards(sock, jid, quoted, results.map((r) => ({
-    r,
-    body: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n'),
-    buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)],
-  })));
-  const cards = await Promise.all(defs.map(async (d) => {
-    const media = await prepareWAMessageMedia({ image: await coverBuffer(d.r.cover) }, { upload: sock.waUploadToServer });
-    return IM.create({
-      header: IM.Header.create({ title: '', subtitle: '', hasMediaAttachment: true, ...media }),
-      body: IM.Body.create({ text: d.body }),
-      footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
-      nativeFlowMessage: IM.NativeFlowMessage.create({ buttons: d.buttons, messageParamsJson: '' })
-    });
-  }));
-  const interactiveMessage = IM.create({
-    body: IM.Body.create({ text: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO${quoted?.key?.fromMe ? '\n\n👑 Your own number cannot tap buttons: send the number, example *1.2*' : ''}` }),
-    footer: IM.Footer.create({ text: applyBrand(sock, FOOTER_TEXT) }),
-    carouselMessage: IM.CarouselMessage.create({ cards, messageVersion: 1 })
-  });
-  const content = {
-    viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage } }
-  };
-  const waMsg = generateWAMessageFromContent(jid, content, { userJid: sock.user?.id, quoted });
-  const additionalNodes = [{
-    tag: 'biz', attrs: {},
-    content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }]
-  }];
-  if (!isJidGroup(jid)) additionalNodes.push({ tag: 'bot', attrs: { biz_bot: '1' } });
-  rememberSent(waMsg.key.id, waMsg.message); // relayMessage sends are not reported back, so keep them for retry requests
-  await sock.relayMessage(jid, waMsg.message, { messageId: waMsg.key.id, additionalNodes });
-}
 
 function textList(results, query) {
   return [
@@ -293,7 +244,7 @@ async function sendDirect(sock, jid, msg, arg, kind, reply) {
 export default [
   {
     name: 'tts', aliases: ['ttsearch', 'tiktoksearch'], react: '🔎',
-    async run({ sock, msg, jid, args, reply, isOwner }) {
+    async run({ sock, msg, jid, args, reply }) {
       const query = args.join(' ').trim();
       if (!query) return reply(`❌ Type something to search.\n\nකෝ සර්ච් කරන්න ඕන දේ ගහපන් බං 😑\nExample: ${PREFIX}tts funny cats`);
       await reply('🔎 Searching TikTok...');
@@ -304,11 +255,18 @@ export default [
         return reply('❌ TikTok search failed. Try again in a few seconds.\n\nසර්ච් එක අවුල් බං, ආයෙ ට්‍රයි කරපන් 😒');
       }
       if (!results.length) return reply(`😕 No TikTok videos found for “${clip(query, 60)}”.`);
-      if (USE_BUTTONS && isOwner) { // swipe cards only for the owner, everybody else gets the text list
+      if (USE_BUTTONS) { // same shared swipe cards as .song
         try {
-          return await sendCarousel(sock, jid, results, query, msg);
-        }
-        catch (err) { console.error('Carousel send failed, using text list:', err?.message || err); }
+          return await sendCards(sock, jid, {
+            title: `🔎 *TikTok results for* “${clip(query, 60)}”\nSwipe the cards and tap VIDEO or AUDIO`,
+            quoted: msg,
+            cards: results.map((r) => ({
+              image: r.cover,
+              body: [`🎵 ${clip(r.title, 110) || 'TikTok video'}`, r.author ? `👤 ${clip(r.author, 40)}` : null, r.plays ? `▶️ ${compact(r.plays)} views` : null].filter(Boolean).join('\n'),
+              buttons: [qr('🎬 VIDEO', `${PREFIX}ttdl ${idOf(r.url) || r.url}`), qr('🎵 AUDIO', `${PREFIX}ttmp3 ${idOf(r.url) || r.url}`), qr('📂 MORE', `${PREFIX}tt ${r.url}`)]
+            }))
+          });
+        } catch (err) { console.error('TikTok carousel failed, using text list:', err?.message || err); }
       }
       return reply(textList(results, query));
     },
