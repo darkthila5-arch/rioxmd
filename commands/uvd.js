@@ -65,37 +65,63 @@ function fileName(pageUrl, ext) {
 }
 
 /* ---------- search by name ---------- */
-const SEARCH_URLS = [(q) => `https://ukussa.net/?s=${encodeURIComponent(q)}`, (q) => `https://ukussa.net/search?q=${encodeURIComponent(q)}`];
-const SKIP_PATH = /^\/(category|tag|tags|page|author|wp-|feed|search|login|register|contact|about|privacy|dmca|terms|cdn-cgi)(\/|$)/i;
+const SEARCH_URLS = [
+  (q) => `https://ukussa.net/?s=${encodeURIComponent(q)}`,
+  (q) => `https://ukussa.net/search/${encodeURIComponent(q)}`,
+  (q) => `https://ukussa.net/search?q=${encodeURIComponent(q)}`,
+  (q) => `https://ukussa.net/search?query=${encodeURIComponent(q)}`,
+  (q) => `https://ukussa.net/?search=${encodeURIComponent(q)}`,
+];
+const SKIP_PATH = /^\/(category|categories|tag|tags|page|author|wp-|feed|search|login|register|contact|about|privacy|dmca|terms|cdn-cgi)(\/|$)/i;
 const stripTags = (t) => decode(String(t || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+const slugTitle = (u) => decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '').replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[-_+]+/g, ' ').trim();
 function findResults(html, base) {
   const out = [], seen = new Set();
   for (const m of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
     const href = m[1].match(/\bhref=["']([^"']+)["']/i)?.[1];
     if (!href) continue;
     let u; try { u = new URL(decode(href), base); } catch { continue; }
-    if (!SITE.test(u.hostname) || u.search.includes('s=') || SKIP_PATH.test(u.pathname) || u.pathname.replace(/\//g, '').length < 4) continue;
+    if (!SITE.test(u.hostname) || /[?&](s|q|search|query)=/.test(u.search) || SKIP_PATH.test(u.pathname) || u.pathname.replace(/\//g, '').length < 4) continue;
     u.hash = '';
-    const title = stripTags(m[2]) || stripTags(m[1].match(/\btitle=["']([^"']+)["']/i)?.[1]) || stripTags(m[2].match(/\balt=["']([^"']+)["']/i)?.[1]);
-    if (title.length < 3 || /^(read more|more|next|previous|home|watch|download)$/i.test(title) || seen.has(u.href)) continue;
+    const title = stripTags(m[2]) || stripTags(m[1].match(/\btitle=["']([^"']+)["']/i)?.[1]) || stripTags(m[2].match(/\balt=["']([^"']+)["']/i)?.[1]) || slugTitle(u);
+    if (title.length < 3 || /^(read more|more|next|previous|home|watch|download|login|register)$/i.test(title) || seen.has(u.href)) continue;
     seen.add(u.href);
     out.push({ url: u.href, title: title.slice(0, 80) });
     if (out.length >= 8) break;
   }
   return out;
 }
+// Returns { list, notes }: notes = short reasons when nothing was found (shown to the owner so a failure can be traced).
 async function searchSite(q) {
+  const notes = [];
+  try { // WordPress sites answer this with clean JSON
+    await assertPublic('https://ukussa.net/');
+    const res = await fetch(`https://ukussa.net/wp-json/wp/v2/posts?per_page=8&_fields=link,title&search=${encodeURIComponent(q)}`, { headers: { 'user-agent': UA, accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+    if (res.ok) {
+      const data = await res.json();
+      const list = (Array.isArray(data) ? data : []).map((d) => ({ url: d.link, title: stripTags(d.title?.rendered).slice(0, 80) })).filter((d) => d.url && SITE.test(new URL(d.url).hostname));
+      if (list.length) return { list, notes };
+      notes.push('api: empty');
+    } else notes.push(`api: ${res.status}`);
+  } catch (e) { notes.push(`api: ${e?.message || e}`.slice(0, 40)); }
   for (const make of SEARCH_URLS) {
-    try { const { html, finalUrl } = await getHtml(make(q)); const r = findResults(html, finalUrl); if (r.length) return r; } catch (e) { console.error('uvd search error:', e?.message || e); }
+    const url = make(q);
+    try {
+      const { html, finalUrl } = await getHtml(url);
+      const list = findResults(html, finalUrl);
+      if (list.length) return { list, notes };
+      notes.push(`${new URL(url).pathname.slice(0, 10)}${new URL(url).search.slice(0, 4)}: 0 links (${html.length} bytes)`);
+    } catch (e) { notes.push(`${new URL(url).pathname.slice(0, 10)}: ${e?.message || e}`.slice(0, 40)); }
   }
-  return [];
+  console.error('uvd search found nothing:', notes.join(' | '));
+  return { list: [], notes };
 }
 const picks = new Map(); // chat + sender -> { list, at }  (the last search, for  .uvd 1 )
 const pickKey = (jid, msg) => `${jid}|${msg.key?.participant || ''}`;
 
 export default [
   {
-    name: 'uvd', aliases: ['ukussa'], owner: true, premium: true, react: '📥',
+    name: 'uvd', aliases: ['uvdl'], owner: true, premium: true, react: '📥',
     async run({ sock, msg, jid, args, reply }) {
       const input = args.join(' ').trim();
       let page = null;
@@ -107,10 +133,10 @@ export default [
         page = new URL(item.url);
       }
       if (!page) {
-        if (!input || /^https?:\/\//i.test(input)) return reply(`📥 Use:\n*${PREFIX}uvd <video name>* (search, then ${PREFIX}uvd 1 to pick)\n*${PREFIX}uvd <ukussa.net link>*\nThe video comes back as a document.`);
+        if (!input || /^https?:\/\//i.test(input)) return reply(`📥 Use:\n*${PREFIX}uvd <video name>* (search, then ${PREFIX}uvd 1 to pick)\n*${PREFIX}uvd <link>*\nThe video comes back as a document.`);
         await reply(`🔎 Searching *${input}*...`);
-        const list = await searchSite(input);
-        if (!list.length) return reply('❌ Nothing found for that name. Try other words, or send the video link.');
+        const { list, notes } = await searchSite(input);
+        if (!list.length) return reply(`❌ Nothing found for that name. Try other words, or send the video link.\n\n🛠️ ${notes.slice(0, 4).join('\n🛠️ ')}`);
         picks.set(pickKey(jid, msg), { list, at: Date.now() });
         if (picks.size > 200) picks.delete(picks.keys().next().value);
         return reply(['╭━━━〔 🔎 *RESULTS* 〕━━━⬣', ...list.map((r, i) => `┃ ${i + 1}. ${r.title}`), '╰━━━━━━━━━━━━━━━━━━━━⬣', '', `▸ Send *${PREFIX}uvd <number>* (example: ${PREFIX}uvd 1) to download.`].join('\n'));
