@@ -181,3 +181,7 @@ body[data-page=admin] .top .btn::after{display:none}
 .axis{display:flex;justify-content:space-between;margin-top:6px;font-size:.74rem;color:var(--muted)}
 #sysKv{grid-template-columns:1fr 1fr;gap:0 24px}
 @media(max-width:700px){#sysKv{grid-template-columns:1fr}.spark{height:120px}}
+.sysgrid.plain .sysbox .s{min-height:0}
+.sysbox.tick .v{animation:tick .7s var(--ease)}
+@keyframes tick{0%{transform:scale(1.14);text-shadow:0 0 18px var(--c)}100%{transform:none;text-shadow:none}}
+@media(prefers-reduced-motion:reduce){.sysbox.tick .v{animation:none}}
