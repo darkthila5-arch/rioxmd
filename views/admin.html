@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/web.css?v=6">
-<link rel="stylesheet" href="/admin.css?v=2">
+<link rel="stylesheet" href="/admin.css?v=3">
 </head>
 <body data-page="admin">
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -118,6 +118,12 @@
         <div class="sysbox" data-k="mem"><small>Memory</small><b class="v">–</b><span class="bar"><i></i></span><em class="s"></em></div>
         <div class="sysbox" data-k="loop"><small>Event loop delay</small><b class="v">–</b><span class="bar"><i></i></span><em class="s">Bot reaction time (lower is better)</em></div>
         <div class="sysbox" data-k="disk"><small>Disk</small><b class="v">–</b><span class="bar"><i></i></span><em class="s"></em></div>
+      </div>
+      <div class="sysgrid plain">
+        <div class="sysbox" data-k="cmdTotal"><small>Commands run (all time)</small><b class="v">–</b><em class="s"></em></div>
+        <div class="sysbox" data-k="cmdToday"><small>Commands today</small><b class="v">–</b><em class="s"></em></div>
+        <div class="sysbox" data-k="cmdMin"><small>Commands in the last minute</small><b class="v">–</b><em class="s"></em></div>
+        <div class="sysbox" data-k="cmdErr"><small>Command errors</small><b class="v">–</b><em class="s"></em></div>
       </div>
       <div class="duo">
         <section class="card tight"><h2>CPU</h2><p class="note">Last 5 minutes. Whole server (grey) and this bot only (green).</p>
@@ -450,7 +456,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=8"></script>
+<script src="/web.js?v=9"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>
