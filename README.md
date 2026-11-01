@@ -142,7 +142,8 @@ All switches are **OFF** by default and are per linked account.
 - `.statusseen on|off`: view every new status automatically.
 - `.statusreact on|off`: react to fresh statuses (under 30 min old) with a random emoji from your list, after a short random pause. `.statusemoji 😍 🔥 ❤️` sets the list, `.statusemoji reset` restores the default.
 - `.statussave on|off`: send every status (photo, video, voice, text) to your own chat with the sender's name. Statuses older than 6 hours are skipped.
-- `.viewonce on|off`: send a copy of every view-once photo / video / voice note you receive to your own chat. `.vv` (reply to a view-once message) opens it in the current chat.
+- `.viewonce on|off`: send a copy of every view-once photo / video / voice note you receive to your own chat. `.vv` (reply to a view-once message) saves it to your own chat, see *Silent vv* below.
+- **Silent vv:** reply to a view-once photo / video / voice note with `vv` (or `.vv`) or with one of your vv emojis (default 😂 or 👀, change with `.vvemoji 😍 🔥`, `.vvemoji reset`). The file is sent to your **own chat** with the details (type, who sent it, chat or group name, time, caption). Nothing is answered, reacted or sent in the chat where you replied. Only your own messages count; an emoji reply to a normal (not view-once) photo does nothing.
 - `.save` (reply to a photo / video / voice note) sends it to your own chat. Do not reply to a **status** with `.save`: a reply to a status goes to the person who posted it. Use `.statussave on` for statuses.
 - `.autostatus` shows all the switches.
 Reacting to many statuses automatically can look like spam to WhatsApp, use it moderately.
