@@ -45,13 +45,21 @@ export default [
       const { width, height } = found.part;
       const dims = width && height ? `${width}x${height}` : 'original size';
       // Try in order, stop at the first one WhatsApp accepts:
-      // 1) original bytes  2) clean JPEG, same size (fixes progressive / CMYK / odd JPEGs)  3) square canvas, whole picture kept (no crop)  4) Baileys' normal 720x720 DP
+      // 1) original bytes  2) clean JPEG, same size  3) same shape scaled down  4) square canvas, whole picture kept. Never crops.
       let mode = 'exact';
       const attempts = [
         ['exact', async () => setRawPicture(sock, buf)],
         ['jpeg', async () => {
           const sharp = (await import('sharp')).default;
           await setRawPicture(sock, await sharp(buf).rotate().toColorspace('srgb').jpeg({ quality: 95, chromaSubsampling: '4:4:4', progressive: false }).toBuffer());
+        }],
+        ['fit', async () => { // whole picture, same shape, only scaled down (no crop)
+          const sharp = (await import('sharp')).default;
+          await setRawPicture(sock, await sharp(buf).rotate().resize(720, 720, { fit: 'inside', withoutEnlargement: true }).toColorspace('srgb').jpeg({ quality: 95 }).toBuffer());
+        }],
+        ['fit640', async () => {
+          const sharp = (await import('sharp')).default;
+          await setRawPicture(sock, await sharp(buf).rotate().resize(640, 640, { fit: 'inside' }).toColorspace('srgb').jpeg({ quality: 92 }).toBuffer());
         }],
         ['square', async () => {
           const sharp = (await import('sharp')).default;
@@ -63,11 +71,6 @@ export default [
           const out = await sharp(bg).composite([{ input: await img.toBuffer(), gravity: 'centre' }]).toColorspace('srgb').jpeg({ quality: 95 }).toBuffer();
           await setRawPicture(sock, out);
         }],
-        ['standard', async () => {
-          const sharp = (await import('sharp')).default;
-          const out = await sharp(buf).rotate().resize(720, 720, { fit: 'cover' }).jpeg({ quality: 95 }).toBuffer();
-          await sock.updateProfilePicture(sock.user.id, out);
-        }],
       ];
       let ok = false, lastErr;
       for (const [name, fn] of attempts) {
@@ -76,7 +79,7 @@ export default [
       }
       if (!ok) return reply(`❌ WhatsApp did not accept the picture (${(buf.length / 1048576).toFixed(1)} MB, ${dims}).\nReason: ${String(lastErr?.message || lastErr).slice(0, 80)}`);
       resetBotDp(sock); // the reply cards pick up the new DP
-      const note = { exact: 'nothing resized or cropped', jpeg: 'same size, re-saved as clean JPEG', square: 'whole picture kept on a square background', standard: 'WhatsApp would not take the full size, so a normal 720x720 DP was set' }[mode];
+      const note = { exact: 'nothing resized or cropped', jpeg: 'same size, re-saved as clean JPEG', square: 'whole picture kept on a square background', fit: 'same shape, scaled down to max 720px, no crop', fit640: 'same shape, scaled down to max 640px, no crop' }[mode];
       return reply(`✅ DP set (${dims}: ${note}).\nOpen your profile picture to check it.`);
     },
   },
