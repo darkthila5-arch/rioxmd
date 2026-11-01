@@ -427,7 +427,6 @@
     /* ----- tabs, drawer and the selection bar ----- */
     function showTab(name) {
       $('#tabs').querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
-      try { $('#tabs').querySelector('.tab[aria-selected=true]')?.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch {} // phones: keep the chosen tab visible in the scrolling tab bar
       document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
       try { history.replaceState(null, '', `#${name}`); } catch {}
       if (name === 'insights') drawInsights();
@@ -437,7 +436,57 @@
       if (name === 'broadcast') loadBroadcast();
       if (name === 'security') loadSecurity();
       if (name === 'logs') startLogs(); else stopLogs();
+      if (name === 'server') startSys(); else stopSys();
     }
+    /* ----- live server stats ----- */
+    let sysTimer = null, sysBusy = false, sysHist = [], sysCpuProc = [];
+    const gb = (n) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(2)} GB` : `${Math.round(n / 1048576)} MB`);
+    const lvl = (p) => (p >= 85 ? 'hot' : p >= 60 ? 'warm' : 'ok');
+    const sbox = (k, value, sub, pct) => {
+      const e = document.querySelector(`.sysbox[data-k="${k}"]`); if (!e) return;
+      e.querySelector('.v').textContent = value; e.querySelector('.s').textContent = sub;
+      const bar = e.querySelector('.bar i'); bar.style.width = `${Math.max(0, Math.min(100, pct))}%`; e.dataset.l = lvl(pct);
+    };
+    const pathOf = (vals, max, area) => {
+      const n = vals.length; if (n < 2) return '';
+      const pts = vals.map((v, i) => `${(300 - (n - 1 - i) * (300 / 149)).toFixed(1)} ${(86 - (Math.min(v, max) / max) * 80).toFixed(1)}`);
+      const x0 = pts[0].split(' ')[0];
+      return area ? `M${x0} 86L${pts.join('L')}L300 86Z` : `M${pts.join('L')}`;
+    };
+    const drawChart = (svg, vals, max, other) => {
+      const p = svg.querySelectorAll('path');
+      p[1].setAttribute('d', pathOf(vals, max, true));
+      if (other) { p[2].setAttribute('d', pathOf(other, max, false)); p[3].setAttribute('d', pathOf(vals, max, false)); }
+      else p[2].setAttribute('d', pathOf(vals, max, false));
+    };
+    function drawSys(d) {
+      if (d.history) { sysHist = d.history.slice(); sysCpuProc = []; }
+      else { sysHist.push({ t: d.t, cpu: d.cpu, mem: d.mem.pct, loop: d.loop.p99 }); if (sysHist.length > 150) sysHist.shift(); }
+      sysCpuProc.push(d.proc); if (sysCpuProc.length > 150) sysCpuProc.shift();
+      sbox('cpu', `${d.cpu.toFixed(1)}%`, `Bot uses ${d.proc.toFixed(1)}% · ${d.cores} core${d.cores === 1 ? '' : 's'} · load ${d.load.join(' / ')}`, d.cpu);
+      sbox('mem', `${d.mem.pct.toFixed(1)}%`, `${gb(d.mem.used)} of ${gb(d.mem.total)}${d.mem.limited ? '' : ' (whole machine)'} · bot ${gb(d.mem.rss)}`, d.mem.pct);
+      sbox('loop', `${d.loop.p99.toFixed(1)} ms`, `Average ${d.loop.mean.toFixed(1)} ms in the last 2 seconds`, Math.min(100, d.loop.p99 / 2));
+      if (d.disk) sbox('disk', `${d.disk.pct.toFixed(1)}%`, `${gb(d.disk.used)} of ${gb(d.disk.total)} used`, d.disk.pct); else sbox('disk', '–', 'Not available here', 0);
+      const cpuVals = sysHist.map((x) => x.cpu), memVals = sysHist.map((x) => x.mem);
+      drawChart($('#chCpu'), cpuVals, 100, sysCpuProc.length > 1 ? sysCpuProc : null);
+      drawChart($('#chMem'), memVals, 100);
+      const kv = (a, b) => h('div', {}, h('span', {}, a), h('b', {}, String(b)));
+      $('#sysKv').replaceChildren(
+        kv('Bot memory (RSS)', gb(d.mem.rss)), kv('JS heap', `${gb(d.mem.heapUsed)} / ${gb(d.mem.heapTotal)}`),
+        kv('Numbers connected', `${d.sessions.connected} of ${d.sessions.total} (max ${d.sessions.max})`), kv('Bot uptime', uptime(d.uptime)),
+        kv('Machine uptime', uptime(d.osUptime)), kv('Node', d.node), kv('System', d.platform), kv('Measured from', d.container ? 'Container limits' : 'Whole machine'));
+      $('#sysLive').textContent = 'Live'; $('#sysLive').classList.add('on');
+    }
+    async function pollSys(first) {
+      if (sysBusy || document.hidden) return; sysBusy = true;
+      try { drawSys(await api('GET', `/api/admin/system${first ? '?history=1' : ''}`)); }
+      catch (e) { if (e.status === 401) stopSys(); else { $('#sysLive').textContent = 'Reconnecting…'; $('#sysLive').classList.remove('on'); } }
+      finally { sysBusy = false; }
+    }
+    const startSys = () => { stopSys(); pollSys(true); sysTimer = setInterval(() => pollSys(false), 2000); };
+    const stopSys = () => { clearInterval(sysTimer); sysTimer = null; };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && sysTimer) pollSys(true); }); // after the tab was hidden, reload the history so the graph has no gap
+
     /* ----- commands on/off, maintenance, bans ----- */
     let cmds = [], cmdData = null, cfilter = 'all';
     const shownCmds = () => { const q = $('#cq').value.trim().toLowerCase(); return cmds.filter((c) => (cfilter === 'all' || (cfilter === 'off' ? c.disabled : c.errors > 0)) && (!q || c.name.includes(q) || c.aliases.some((a) => a.includes(q)))); };
@@ -694,7 +743,7 @@
 
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics', 'server'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
