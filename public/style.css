@@ -166,3 +166,16 @@ footer small{display:block;margin-top:4px;font-size:.76rem;opacity:.8}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}
 }
+
+/* ---------- pair page: bot name on top + a softer, glassier look ---------- */
+.hero{position:relative;padding-top:26px}
+.hero::before{content:"";position:absolute;left:50%;top:-6px;width:min(560px,100%);height:150px;transform:translateX(-50%);background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 24%,transparent),transparent 72%);filter:blur(6px);pointer-events:none;z-index:-1}
+.hero-name{display:flex;align-items:center;justify-content:center;gap:clamp(10px,3vw,20px);margin:0 auto 4px;animation:fade .9s var(--ease) both}
+.hero-name .nm{font-weight:800;font-size:clamp(1.55rem,7vw,2.35rem);letter-spacing:.3em;margin-right:-.3em;line-height:1.1;white-space:nowrap;background:linear-gradient(90deg,#fff,var(--accent-2),var(--accent),#fff);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 16px color-mix(in srgb,var(--accent) 45%,transparent));animation:gradmove 7s linear infinite}
+.hero-name .nm .x{margin:0 .22em;-webkit-text-fill-color:var(--accent)}
+.hero-name .ln{flex:1;max-width:96px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--accent));opacity:.85}
+.hero-name .ln.r{background:linear-gradient(90deg,var(--accent),transparent)}
+.hero-tag{margin:0 0 14px;font-size:.66rem;font-weight:700;letter-spacing:.42em;margin-right:-.42em;color:var(--muted);animation:fade 1s var(--ease) .15s both}
+.eyebrow{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 14%,transparent),0 6px 22px -8px color-mix(in srgb,var(--accent) 45%,transparent)}
+.card{background:linear-gradient(180deg,color-mix(in srgb,var(--card) 84%,transparent),color-mix(in srgb,var(--card) 94%,transparent));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:color-mix(in srgb,var(--accent) 22%,var(--line));box-shadow:0 24px 70px -10px color-mix(in srgb,var(--accent) 16%,transparent),inset 0 1px 0 color-mix(in srgb,#fff 6%,transparent)}
+@media(max-width:420px){.hero-name .nm{letter-spacing:.22em;margin-right:-.22em}.hero-name .ln{max-width:38px}.hero-tag{letter-spacing:.32em;margin-right:-.32em}}
