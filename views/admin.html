@@ -63,6 +63,7 @@
       <p class="navgroup">Monitor</p>
       <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span>Insights</span></button>
       <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg></span><span>Analytics</span></button>
+      <button class="tab" role="tab" type="button" data-tab="server" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></span><span>Server</span></button>
       <button class="tab" role="tab" type="button" data-tab="logs" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg></span><span>Logs</span><em class="badge" id="logBadge" hidden>0</em></button>
       <button class="tab" role="tab" type="button" data-tab="activity" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>Audit</span></button>
       <p class="navgroup">System</p>
@@ -107,6 +108,26 @@
           </section>
         </div>
       </div>
+    </section>
+
+    <!-- SERVER (live) -->
+    <section class="tabpane" id="pane-server" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Server</h1><p>Live CPU, memory and more. Updates every 2 seconds while this page is open.</p></div><span class="pill on" id="sysLive">Live</span></header>
+      <div class="sysgrid">
+        <div class="sysbox" data-k="cpu"><small>CPU</small><b class="v">–</b><span class="bar"><i></i></span><em class="s">Waiting for data…</em></div>
+        <div class="sysbox" data-k="mem"><small>Memory</small><b class="v">–</b><span class="bar"><i></i></span><em class="s"></em></div>
+        <div class="sysbox" data-k="loop"><small>Event loop delay</small><b class="v">–</b><span class="bar"><i></i></span><em class="s">Bot reaction time (lower is better)</em></div>
+        <div class="sysbox" data-k="disk"><small>Disk</small><b class="v">–</b><span class="bar"><i></i></span><em class="s"></em></div>
+      </div>
+      <div class="duo">
+        <section class="card tight"><h2>CPU</h2><p class="note">Last 5 minutes. Whole server (grey) and this bot only (green).</p>
+          <svg class="spark" id="chCpu" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="CPU usage over the last 5 minutes"><path class="grid" d="M0 22.5H300M0 45H300M0 67.5H300"/><path class="area" d=""/><path class="line other" d=""/><path class="line" d=""/></svg>
+          <div class="axis"><span>5 min ago</span><span>now</span></div></section>
+        <section class="card tight"><h2>Memory</h2><p class="note">Last 5 minutes, as a share of the memory this server may use.</p>
+          <svg class="spark" id="chMem" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="Memory usage over the last 5 minutes"><path class="grid" d="M0 22.5H300M0 45H300M0 67.5H300"/><path class="area" d=""/><path class="line" d=""/></svg>
+          <div class="axis"><span>5 min ago</span><span>now</span></div></section>
+      </div>
+      <section class="card"><h2>Details</h2><div class="kv" id="sysKv"></div></section>
     </section>
 
     <!-- NUMBERS -->
@@ -429,7 +450,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=7"></script>
+<script src="/web.js?v=8"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>
