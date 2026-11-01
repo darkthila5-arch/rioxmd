@@ -9,6 +9,7 @@ import { PREFIX } from '../lib/config.js';
 
 const SITE = /(^|\.)ukussa\.net$/i;
 const UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+const BROWSER_HEADERS = { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'accept-language': 'en-US,en;q=0.9', 'upgrade-insecure-requests': '1', 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'same-origin' };
 const VIDEO_RE = /https?:(?:\\?\/){2}[^\s"'<>\\]+?\.(?:mp4|m3u8|webm|mov|mkv)(?:\?[^\s"'<>\\]*)?/gi;
 
 function privateIp(ip) {
@@ -34,7 +35,7 @@ const decode = (s) => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, 
 
 async function getHtml(url, referer) {
   await assertPublic(url);
-  const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/html,*/*', ...(referer ? { referer } : {}) }, signal: AbortSignal.timeout(20000) });
+  const res = await fetch(url, { headers: { ...BROWSER_HEADERS, referer: referer || 'https://ukussa.net/' }, signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`page ${res.status}`);
   const text = await res.text();
   return { html: text.slice(0, 2_000_000), finalUrl: res.url || url };
@@ -96,7 +97,7 @@ async function searchSite(q) {
   const notes = [];
   try { // WordPress sites answer this with clean JSON
     await assertPublic('https://ukussa.net/');
-    const res = await fetch(`https://ukussa.net/wp-json/wp/v2/posts?per_page=8&_fields=link,title&search=${encodeURIComponent(q)}`, { headers: { 'user-agent': UA, accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+    const res = await fetch(`https://ukussa.net/wp-json/wp/v2/posts?per_page=8&_fields=link,title&search=${encodeURIComponent(q)}`, { headers: { ...BROWSER_HEADERS, accept: 'application/json', referer: 'https://ukussa.net/' }, signal: AbortSignal.timeout(15000) });
     if (res.ok) {
       const data = await res.json();
       const list = (Array.isArray(data) ? data : []).map((d) => ({ url: d.link, title: stripTags(d.title?.rendered).slice(0, 80) })).filter((d) => d.url && SITE.test(new URL(d.url).hostname));
