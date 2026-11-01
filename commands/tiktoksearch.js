@@ -1,6 +1,7 @@
 // .tts <words>  ->  TikTok search shown as a swipeable card carousel (image + title + 3 buttons).
 //   VIDEO -> .ttdl <link>  sends the video straight away      AUDIO -> .ttmp3 <link>  sends the sound
 //   MORE  -> .tt <link>    opens the normal Video / Audio / Document menu
+import { remember as rememberSent } from '../lib/msgstore.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { proto, generateWAMessageFromContent, prepareWAMessageMedia, isJidGroup } from '@whiskeysockets/baileys';
@@ -242,6 +243,7 @@ async function sendCarousel(sock, jid, results, query, quoted) {
     content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }]
   }];
   if (!isJidGroup(jid)) additionalNodes.push({ tag: 'bot', attrs: { biz_bot: '1' } });
+  rememberSent(waMsg.key.id, waMsg.message); // relayMessage sends are not reported back, so keep them for retry requests
   await sock.relayMessage(jid, waMsg.message, { messageId: waMsg.key.id, additionalNodes });
 }
 
