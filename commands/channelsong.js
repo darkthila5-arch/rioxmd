@@ -1,6 +1,6 @@
 // .chsong <channel jid | channel link | group jid> <song name or YouTube link>      (old names .csong and .channelsong still work)
 //   Posts to the channel by itself, no buttons: 1) the thumbnail with the song details and quality, 2) the song as a voice note.
-//   The thumbnail is either the normal picture or a short video with an animated equalizer: the host picks the default in /admin > Channels > Channel song.
+//   The thumbnail is either the normal picture or a short GIF-style clip: the song's thumbnail as a round badge with an animated equalizer ring around it: the host picks the default in /admin > Channels > Channel song.
 //   Per post: add -eq (equalizer) or -normal (plain picture) anywhere in the command, e.g. .chsong <channel> -eq shape of you
 //   Leave the target out and it posts into the chat where you typed the command.
 //   The linked number must be the channel owner / admin (channels) or a member (groups).
@@ -14,7 +14,7 @@ import { execFile } from 'node:child_process';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { copyBtn, qr, sendRich } from '../lib/menu.js';
 import { unwrapMessage } from '../lib/text.js';
-import { getCsong, makeEqualizerVideo } from '../lib/csong.js';
+import { clipStart, getCsong, makeEqualizerVideo } from '../lib/csong.js';
 import { MAX_DL_BYTES, tooBigText, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
@@ -178,7 +178,7 @@ export default [
         const cfg = getCsong();
         let posted = false;
         if ((look || cfg.mode) === 'equalizer') {
-          try { await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, cfg), mimetype: 'video/mp4', caption: details }); posted = true; }
+          try { await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, { ...cfg, start: clipStart(length, cfg.seconds) }), mimetype: 'video/mp4', gifPlayback: true, caption: details }); posted = true; } // silent looping clip (GIF style)
           catch (err) { console.error('chsong equalizer failed, sending the normal thumbnail:', err?.message || err); } // never lose the post because of the animation
         }
         if (!posted) {
