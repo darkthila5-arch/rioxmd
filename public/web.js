@@ -909,7 +909,7 @@
       $('#csongEq').hidden = c.mode !== 'equalizer'; csongCenterShow();
       $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : `round ${c.center === 'channel' ? 'channel logo' : 'thumbnail'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
     };
-    const csongCenterShow = () => { const b = $('#csongCenterBox'); if (b) b.hidden = $('#csongLayout')?.value === 'bars'; }; // the middle picture only exists in the round layout
+    const csongCenterShow = () => { const c = $('#csongCenter'), bars = $('#csongLayout')?.value === 'bars'; if (c) { c.disabled = bars; c.title = bars ? 'Only used by the round layout' : ''; } }; // the middle picture only exists in the round layout: always visible, greyed out for bars
     $('#csongLayout')?.addEventListener('change', csongCenterShow);
     $('#csongMode')?.addEventListener('change', () => { $('#csongEq').hidden = $('#csongMode').value !== 'equalizer'; });
     $('#csongSave')?.addEventListener('click', busy($('#csongSave'), async () => {
