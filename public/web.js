@@ -63,6 +63,15 @@
       { k: 'brandFooter', type: 'text', max: 60, label: 'Footer text', hint: 'Replaces the default footer text. Leave empty for the default.', placeholder: 'Powered by me' },
       { k: 'brandLogo', type: 'text', max: 400, label: 'Logo link', hint: 'A direct https link to a JPG, PNG or WEBP picture (max 3 MB). It replaces the menu picture and the reply card picture.', placeholder: 'https://example.com/logo.png' },
     ] },
+    { title: '👑 Channel song (.chsong)', premiumOnly: true, note: 'How the first post of .chsong looks for your number: a short equalizer animation made from the song thumbnail. Leave a choice on "Default" to use the bot owner\'s look. Premium only.', items: [
+      { k: 'csongMode', type: 'select', label: 'Look', options: [['', '↩️ Default'], ['normal', 'Normal thumbnail'], ['equalizer', 'Equalizer animation']] },
+      { k: 'csongEqLayout', type: 'select', label: 'Layout', options: [['', '↩️ Default'], ['circle', '⭕ Round picture with equalizer ring'], ['bars', '📊 Bars along the bottom']] },
+      { k: 'csongEqStyle', type: 'select', label: 'Equalizer colour', options: [['', '↩️ Default'], ['white', '⚪ White'], ['cyan', '🔵 Cyan'], ['green', '🟢 Green'], ['pink', '🩷 Pink'], ['gold', '🟡 Gold']] },
+      { k: 'csongEqCenter', type: 'select', label: 'Picture in the middle (round layout)', options: [['', '↩️ Default'], ['thumbnail', '🖼️ The song thumbnail'], ['channel', '📢 The channel / group logo'], ['custom', '⭐ My own picture']] },
+      { k: 'csongPic', type: 'picture', label: 'My own picture', hint: 'Any JPG, PNG, WEBP or GIF. It is cut to a square and shown as the round badge. Pick "My own picture" above to use it.' },
+      { k: 'csongEqMotion', type: 'select', label: 'Middle picture moves', options: [['', '↩️ Default'], ['spin', '🔄 Turns slowly'], ['still', '⏸️ Stays still'], ['pulse', '💓 Pulses with the beat'], ['both', '🌀 Turns and pulses']] },
+      { k: 'csongEqSeconds', type: 'select', label: 'Animation length', hint: 'Longer clips take longer to make. The bot owner sets the longest allowed.', options: [['', '↩️ Default'], ['6', '6 seconds'], ['8', '8 seconds'], ['10', '10 seconds'], ['12', '12 seconds'], ['15', '15 seconds']] },
+    ] },
     { title: '📣 Support other channels', userOnly: true, items: [
       { k: 'boostOptIn', type: 'switch', label: 'Let my number follow and react to channels added by premium users', hint: 'Off by default. When on, your number follows those channels and reacts to their new posts. Turn it off any time and your number unfollows them again. Heavy automatic following can make WhatsApp limit an account, so only turn it on if you accept that.' },
     ] },
@@ -90,7 +99,7 @@
     ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
-  const BULKABLE = FLAT.filter((i) => !i.hostOnly && !/^(brand|boostOptIn)/.test(i.k)); // name / footer / logo / consent switch are per number, never bulk
+  const BULKABLE = FLAT.filter((i) => !i.hostOnly && !/^(brand|boostOptIn|csong)/.test(i.k)); // name / footer / logo / song look / consent switch are per number, never bulk
   const SWITCHES = FLAT.filter((i) => i.type === 'switch').map((i) => i.k);
 
   // premium: true / undefined = branding can be edited (admin sees everything); false = locked for a free number.
@@ -131,6 +140,33 @@
           });
           const row = h('div', { class: 'stack' }, txt, h('div', { class: 'field sm' }, sel));
           card.append(row);
+        } else if (it.type === 'picture') { // premium: upload the number's own picture for the middle of the round animation
+          if (premium === undefined) continue; // the admin page has no upload here
+          const img = h('img', { alt: 'Your picture', width: 64, height: 64, style: 'border-radius:50%;object-fit:cover;border:2px solid #fff3' });
+          const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
+          const pick = h('button', { class: 'btn alt', type: 'button', disabled: locked }, 'Choose picture');
+          const del = h('button', { class: 'btn danger', type: 'button', disabled: locked }, 'Remove');
+          const draw = () => { const has = !!values.csongHasImg; img.hidden = !has; del.hidden = !has; if (has) img.src = `/api/me/csong-image?t=${Date.now()}`; };
+          pick.addEventListener('click', () => file.click());
+          file.addEventListener('change', async () => {
+            const f = file.files[0]; file.value = '';
+            if (!f) return;
+            if (f.size > 8 * 1048576) return toast('That picture is over 8 MB.', true);
+            pick.disabled = true;
+            try {
+              toast('Uploading…');
+              const r = await fetch('/api/me/csong-image', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': f.type || 'image/jpeg', 'x-rio': '1' }, body: f });
+              let j = {}; try { j = await r.json(); } catch {}
+              if (!r.ok) throw new Error(j.error || 'Upload failed. Try again.');
+              Object.assign(values, j.settings || {}); onChange?.(values); draw(); toast(`Picture saved (${j.kb} KB). Pick "My own picture" above to use it.`);
+            } catch (e) { toast(e.message, true); } finally { pick.disabled = locked; }
+          });
+          del.addEventListener('click', async () => {
+            try { const j = await api('POST', '/api/me/csong-image/remove'); Object.assign(values, j.settings || {}); onChange?.(values); draw(); renderSettings(root, values, save, onChange, premium, host); toast('Picture removed.'); }
+            catch (e) { toast(e.message, true); }
+          });
+          draw();
+          card.append(h('div', { class: 'stack' }, txt, h('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, img, pick, del, file)));
         } else {
           const area = it.type === 'textarea';
           const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label }) : h('input', { id, type: 'text', maxlength: it.max || 200, placeholder: it.placeholder || '', 'aria-label': it.label });
