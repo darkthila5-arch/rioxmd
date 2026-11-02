@@ -159,6 +159,19 @@
     <!-- CHANNELS -->
     <section class="tabpane" id="pane-channels" role="tabpanel" hidden>
       <header class="pagehead"><div><h1>Channels</h1><p>Channels that premium users added for support.</p></div></header>
+      <section class="card" id="csongCard">
+        <h2>🎙️ Channel song (.chsong)</h2>
+        <p class="note">How the first post of <b>.chsong</b> looks. The song itself always follows as a voice note. You can still force one look per post with <b>-eq</b> or <b>-normal</b> in the command.</p>
+        <div class="stack">
+          <div class="field sm"><select id="csongMode" aria-label="Thumbnail look"><option value="normal">Normal thumbnail (picture + details)</option><option value="equalizer">Thumbnail with equalizer animation (short video)</option></select></div>
+          <div id="csongEq" class="stack" hidden>
+            <div class="field sm"><input id="csongSecs" type="number" inputmode="numeric" min="8" max="60" step="1" placeholder="Animation length in seconds (8 to 60)" aria-label="Animation length in seconds"></div>
+            <div class="field sm"><select id="csongStyle" aria-label="Equalizer colour"></select></div>
+          </div>
+          <div class="actions"><button class="btn" id="csongSave" type="button">Save</button></div>
+          <p class="note" id="csongNote" aria-live="polite"></p>
+        </div>
+      </section>
       <section class="card" id="boostPost">
         <h2>React to one post</h2>
         <p class="note">Open the post in WhatsApp, copy its link and paste it here. The numbers react one by one, a few seconds apart.</p>
