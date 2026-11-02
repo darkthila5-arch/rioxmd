@@ -120,3 +120,17 @@ test('admin can pause and reopen new links', async () => {
   await call('POST', '/api/admin/pairing', { open: true });
   assert.equal(isPairingOpen(), true);
 });
+
+test('admin can choose the .chsong thumbnail look (normal / equalizer) and bad values are refused', async () => {
+  assert.equal((await call('GET', '/api/admin/csong', undefined, { auth: false })).status, 401);
+  const login = await call('POST', '/api/admin/login', { user: 'boss', password: 'correct-horse-battery' });
+  cookie = (login.setCookie || '').split(';')[0] || cookie;
+  const g = await call('GET', '/api/admin/csong');
+  assert.equal(g.json.csong.mode, 'normal');
+  assert.ok(g.json.styles.includes('pink'));
+  const s = await call('POST', '/api/admin/csong', { mode: 'equalizer', seconds: 20, style: 'gold' });
+  assert.deepEqual(s.json.csong, { mode: 'equalizer', seconds: 20, style: 'gold' });
+  assert.equal((await call('POST', '/api/admin/csong', { mode: 'disco' })).status, 400);
+  assert.equal((await call('POST', '/api/admin/csong', { style: 'rainbow' })).status, 400);
+  assert.equal((await call('GET', '/api/admin/csong')).json.csong.mode, 'equalizer'); // the bad calls changed nothing
+});
