@@ -118,6 +118,7 @@ Send `menu` or `help` without the prefix and it works too.
 **Owner (`.momenu`, aliases `.ownermenu`, `.omenu`)** works only for the linked account or `OWNER_NUMBER`. For everybody else `.momenu` is ignored silently and owner commands answer "owner only".
 - News auto posting: `.newson [hiru derana itn]` (this chat), `.hiru on|off` / `.derana on|off` / `.itn on|off` (one channel, this chat), `.newsadd <group link | channel link | jid> [sources]`, `.newsoff`, `.newsdel <target>`, `.newslist`
 - `.mode public|private`, `.broadcast <text>`, `.block` / `.unblock`, `.join <group link>`, `.leave`, `.setbio <text>`, `.setpp` (reply to an image), `.restart` (only `OWNER_NUMBER`, restarts every session)
+- 👑 Premium: `.gadd <group link> <numbers>` (in a private chat) or `.gadd <numbers>` (inside the group) adds many numbers to a group, slowly, see *Bulk add to a group*
 - Calls: `.call`, `.callstream`, `.callreject`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`
 
 ## Downloaders
@@ -189,6 +190,21 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 - Click one number to manage it alone: status, settings, restart, web password, message, reset, unlink.
 - A log of recent admin actions (kept in memory, cleared on restart). Numbers are shown partly hidden.
 - WhatsApp auth keys and session files are never shown.
+
+## Bulk add to a group (`.gadd`, 👑 premium)
+Adds many numbers to a group with the linked account. Only for the number that linked the bot and only while it has premium (the host admin can change this in `/admin` → Commands).
+```
+.gadd https://chat.whatsapp.com/xxxx 94771234567, 94779876543, 0711112222     (in a private chat with the bot)
+.gadd 94771234567, 94779876543, 0711112222                                   (inside the group)
+.gadd <group link> 94771234567, 94779876543 invite                           (also DM the link to people who block adding)
+```
+- Separate numbers with commas or new lines. `0771234567` is read with `DEFAULT_COUNTRY_CODE` (default `94`). Duplicates are removed.
+- The linked number must be a **member and admin** of the group. If it is not a member, use `.join <link>` first.
+- Safe by design: one number at a time with a 3 to 6.5 s pause, **30 numbers per command**, **120 adds per hour**, one run at a time per number. If WhatsApp says "slow down" the run stops and the report says so.
+- Numbers already in the group and numbers not on WhatsApp are skipped before any add is tried.
+- The report lists: added, already in the group, privacy blocked (🔒), left recently, not on WhatsApp, failed, invalid and the numbers that were not processed (send them again).
+- **Privacy blocked** people cannot be added by anyone. With the word `invite` at the end, the bot sends them the group link by DM (one by one). Only use this for people who expect it: unwanted messages get accounts reported and restricted.
+- Adding many people who did not ask for it is the fastest way to get a WhatsApp number banned. Use it for your own communities.
 
 ## Notices (news and alerts on the sites)
 The host writes a notice in `/admin` → **Notices** and it appears on the **pair site** (`/`), the **settings site** (`/settings`, only for logged-in users) or both. No restart or deploy is needed: visitors get it within a minute.
