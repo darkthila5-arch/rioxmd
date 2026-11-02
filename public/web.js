@@ -896,6 +896,22 @@
       } catch (e) { toast(e.message, true); }
     }));
 
+    /* ----- .chsong look: normal thumbnail or thumbnail with equalizer animation ----- */
+    const CS_LABEL = { cyan: '🔵 Cyan', green: '🟢 Green', pink: '🩷 Pink', gold: '🟡 Gold', white: '⚪ White' };
+    const csongDraw = (c, styles = [], min = 8, max = 60) => {
+      const st = $('#csongStyle');
+      if (st && !st.options.length) for (const k of styles) st.append(h('option', { value: k }, CS_LABEL[k] || k));
+      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style;
+      $('#csongEq').hidden = c.mode !== 'equalizer';
+      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation, ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
+    };
+    $('#csongMode')?.addEventListener('change', () => { $('#csongEq').hidden = $('#csongMode').value !== 'equalizer'; });
+    $('#csongSave')?.addEventListener('click', busy($('#csongSave'), async () => {
+      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value }); csongDraw(r.csong, r.styles, r.min, r.max); toast('Saved. The next .chsong post uses it.'); }
+      catch (e) { toast(e.message, true); }
+    }));
+    api('GET', '/api/admin/csong').then((r) => csongDraw(r.csong, r.styles, r.min, r.max)).catch(() => {});
+
     $('#welcomeAll')?.addEventListener('change', async (e) => {
       const box = e.target; box.disabled = true;
       try { const r = await api('POST', '/api/admin/boost/welcome', { on: box.checked }); drawBoost(r.boost); toast(box.checked ? 'Every new link now follows / joins automatically.' : 'New links are only followed / joined for opted-in numbers.'); }
