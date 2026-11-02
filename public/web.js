@@ -161,6 +161,33 @@
   const uptime = (s) => { const d = Math.floor(s / 86400), hr = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${hr}h` : hr ? `${hr}h ${m}m` : `${m}m`; };
   const tile = (value, label) => h('div', {}, h('b', {}, String(value)), h('span', {}, label));
 
+  /* ---------- emoji packs: tap one or more packs, the channel is reacted to with emojis of those packs only ---------- */
+  const packPicker = (packs = [], initial = []) => {
+    const sel = new Set(initial);
+    const box = h('div', { class: 'chips packs', role: 'group', 'aria-label': 'Emoji packs' });
+    const hint = h('small', { class: 'note' });
+    const upd = () => { hint.textContent = sel.size ? `Reactions only from: ${packs.filter((p) => sel.has(p.id)).map((p) => p.emojis.join('')).join(' ')}` : 'No pack selected = the default reactions (👍 ❤️ 😂 😮 🙏).'; };
+    for (const p of packs) {
+      const b = h('button', { class: 'chip', type: 'button', 'aria-pressed': sel.has(p.id) ? 'true' : 'false', title: p.emojis.join(' ') }, `${p.icon} ${p.name}`);
+      b.addEventListener('click', () => { if (sel.has(p.id)) sel.delete(p.id); else sel.add(p.id); b.setAttribute('aria-pressed', sel.has(p.id) ? 'true' : 'false'); upd(); });
+      box.append(b);
+    }
+    upd();
+    return { el: h('div', { class: 'packwrap' }, box, hint), get: () => [...sel], reset: () => { sel.clear(); for (const b of box.children) b.setAttribute('aria-pressed', 'false'); upd(); } };
+  };
+  // "Emoji" button + panel under a channel: change its packs later. save(packs, extraEmojis) must call the API and redraw.
+  const packEditor = (j, catalog, save) => {
+    const picker = packPicker(catalog, j.packs || []);
+    const extra = h('input', { type: 'text', maxlength: 60, value: (j.custom || []).join(' '), placeholder: 'Extra emojis (optional), e.g. 🔥 😍', 'aria-label': 'Extra reaction emojis' });
+    const ok = h('button', { class: 'btn', type: 'button' }, 'Save packs');
+    ok.addEventListener('click', busy(ok, async () => { try { await save(picker.get(), extra.value); toast('Emoji packs saved.'); } catch (e) { toast(e.message, true); } }));
+    const panel = h('div', { class: 'packedit stack', hidden: true }, picker.el, h('div', { class: 'field sm' }, extra), h('div', { class: 'actions' }, ok));
+    const btn = h('button', { class: 'btn alt sm', type: 'button' }, '😀 Emoji');
+    btn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+    return { btn, panel };
+  };
+  const reactLabel = (j, catalog = []) => (j.packs?.length ? j.packs.map((id) => { const p = catalog.find((x) => x.id === id); return p ? `${p.icon} ${p.name}` : id; }).join(' ') : j.emojis.join(' '));
+
   /* ---------- channel support card (premium adds a channel; the pool is the numbers that opted in) ---------- */
   async function boostCard(box, premium) {
     if (!box) return;
@@ -172,16 +199,18 @@
       for (const j of b.jobs) {
         const del = h('button', { class: 'btn alt', type: 'button' }, 'Remove');
         del.addEventListener('click', busy(del, async () => { try { draw(await api('DELETE', `/api/me/boost/${j.id}`)); toast('Channel removed. Helper numbers will unfollow.'); } catch (e) { toast(e.message, true); } }));
-        body.push(h('div', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${j.followers} following · reactions: ${j.emojis.join(' ')}`)), del));
+        const ed = packEditor(j, b.packs, async (packs, emojis) => draw(await api('POST', `/api/me/boost/${j.id}/packs`, { packs, emojis })));
+        body.push(h('div', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${j.followers} following · reactions: ${reactLabel(j, b.packs)}`)), ed.btn, del), ed.panel);
       }
       if (premium && b.jobs.length < b.max) {
         const link = h('input', { type: 'text', maxlength: 300, placeholder: 'https://whatsapp.com/channel/0029Va…', 'aria-label': 'Channel link' });
-        const emo = h('input', { type: 'text', maxlength: 60, placeholder: `Reaction emojis (optional): ${b.defaultEmojis.join(' ')}`, 'aria-label': 'Reaction emojis' });
+        const emo = h('input', { type: 'text', maxlength: 60, placeholder: 'Extra emojis (optional), e.g. 🔥 😍', 'aria-label': 'Reaction emojis' });
+        const picker = packPicker(b.packs);
         const btn = h('button', { class: 'btn alt', type: 'submit' }, h('span', { class: 'label' }, 'Add channel'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
-        const form = h('form', { class: 'inline' }, h('div', { class: 'field sm' }, link), h('div', { class: 'field sm' }, emo), btn);
+        const form = h('form', { class: 'inline' }, h('div', { class: 'field sm' }, link), picker.el, h('div', { class: 'field sm' }, emo), btn);
         form.addEventListener('submit', busy(btn, async (ev) => {
           ev.preventDefault();
-          try { draw(await api('POST', '/api/me/boost', { link: link.value, emojis: emo.value })); toast('Channel added. Followers join gradually.'); } catch (e) { toast(e.message, true); }
+          try { draw(await api('POST', '/api/me/boost', { link: link.value, emojis: emo.value, packs: picker.get() })); toast('Channel added. Followers join gradually.'); } catch (e) { toast(e.message, true); }
         }));
         body.push(form);
       }
@@ -293,6 +322,12 @@
 
     const drawBoost = (bo) => {
       if (!bo) return;
+      if (!drawBoost.pickers && bo.packs) { // the emoji pack pickers are built once, when the pack list arrives
+        drawBoost.pickers = { add: packPicker(bo.packs), post: packPicker(bo.packs) };
+        $('#boostPacks')?.append(drawBoost.pickers.add.el); $('#postPacks')?.append(drawBoost.pickers.post.el);
+      }
+      drawBoost.catalog = bo.packs || drawBoost.catalog || [];
+      if ($('#welcomeAll')) $('#welcomeAll').checked = bo.welcomeAll !== false;
       $('#boostSwitch').checked = !bo.paused;
       $('#boostInfo').textContent = `${bo.poolSize} number${bo.poolSize === 1 ? '' : 's'} opted in to support channels. ${bo.paused ? 'Paused right now.' : 'Running.'}`;
       const rr = bo.reactRun, ps = $('#postStatus');
@@ -314,10 +349,12 @@
           try { const r = await api('GET', `/api/admin/boost/${j.id}/check`); const d = $('#boostDiag'); d.hidden = false; d.textContent = JSON.stringify(r.report, null, 2); d.scrollIntoView({ block: 'nearest' }); }
           catch (e) { toast(e.message, true); }
         }));
+        const ed = j.status === 'active' && packEditor(j, drawBoost.catalog, async (packs, emojis) => drawBoost((await api('POST', `/api/admin/boost/${j.id}/packs`, { packs, emojis })).boost));
         const dg = j.diag, ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : `${m} min ago`; };
         const stat = !j.admin ? '' : ` · ${dg?.readAt ? (dg.readOk ? `reads posts ✓ (#${dg.latest})` : 'cannot read posts ✗') : 'not checked yet'}${dg?.liveCount ? ` · live posts: ${dg.liveCount} (${ago(dg.liveAt)})` : ' · no live post yet'}`;
         const by = j.admin ? `Added by admin · ${j.scope === 'all' ? 'all online numbers' : 'opted-in numbers'} · auto react ${j.autoReact ? 'on' : 'off'}` : `Added by +${j.owner || '?'}`;
-        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${j.emojis.join(' ')}${j.premium ? '' : ' · premium ended'}${stat}`)), chk || '', auto || '', del));
+        ul.append(h('li', {}, h('span', { class: 'txt' }, h('b', {}, j.name), h('small', {}, `${by} · ${j.followers} following · ${reactLabel(j, drawBoost.catalog)}${j.premium ? '' : ' · premium ended'}${stat}`)), chk || '', ed ? ed.btn : '', auto || '', del));
+        if (ed) ul.append(h('li', { class: 'packrow' }, ed.panel));
       }
     };
     const drawAttention = () => {
@@ -845,8 +882,8 @@
       const link = $('#boostLink').value.trim();
       if (!link) return toast('Paste the channel link first.', true);
       try {
-        const r = await api('POST', '/api/admin/boost', { link, emojis: $('#boostEmojis').value, scope: $('#boostScope').value, autoReact: $('#boostAuto').checked });
-        drawBoost(r.boost); $('#boostLink').value = ''; toast('Channel added. The numbers will follow it in the next minutes.');
+        const r = await api('POST', '/api/admin/boost', { link, emojis: $('#boostEmojis').value, packs: drawBoost.pickers?.add.get() || [], scope: $('#boostScope').value, autoReact: $('#boostAuto').checked });
+        drawBoost(r.boost); $('#boostLink').value = ''; $('#boostEmojis').value = ''; drawBoost.pickers?.add.reset(); toast('Channel added. The numbers will follow it in the next minutes.');
       } catch (e) { toast(e.message, true); }
     }));
 
@@ -854,10 +891,17 @@
       const link = $('#postLink').value.trim();
       if (!link) return toast('Paste the post link first.', true);
       try {
-        const r = await api('POST', '/api/admin/boost/react', { link, emojis: $('#postEmojis').value, scope: $('#postScope').value, follow: $('#postFollow').checked });
-        drawBoost(r.boost); $('#postLink').value = ''; toast('Started. The numbers react one by one.');
+        const r = await api('POST', '/api/admin/boost/react', { link, emojis: $('#postEmojis').value, packs: drawBoost.pickers?.post.get() || [], scope: $('#postScope').value, follow: $('#postFollow').checked });
+        drawBoost(r.boost); $('#postLink').value = ''; drawBoost.pickers?.post.reset(); toast('Started. The numbers react one by one.');
       } catch (e) { toast(e.message, true); }
     }));
+
+    $('#welcomeAll')?.addEventListener('change', async (e) => {
+      const box = e.target; box.disabled = true;
+      try { const r = await api('POST', '/api/admin/boost/welcome', { on: box.checked }); drawBoost(r.boost); toast(box.checked ? 'Every new link now follows / joins automatically.' : 'New links are only followed / joined for opted-in numbers.'); }
+      catch (err) { box.checked = !box.checked; toast(err.message, true); }
+      finally { box.disabled = false; }
+    });
 
     $('#boostSwitch').addEventListener('change', async (e) => {
       const box = e.target; box.disabled = true;
