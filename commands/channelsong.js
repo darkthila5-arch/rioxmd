@@ -1,5 +1,7 @@
 // .chsong <channel jid | channel link | group jid> <song name or YouTube link>      (old names .csong and .channelsong still work)
 //   Posts to the channel by itself, no buttons: 1) the thumbnail with the song details and quality, 2) the song as a voice note.
+//   The thumbnail is either the normal picture or a short video with an animated equalizer: the host picks the default in /admin > Channels > Channel song.
+//   Per post: add -eq (equalizer) or -normal (plain picture) anywhere in the command, e.g. .chsong <channel> -eq shape of you
 //   Leave the target out and it posts into the chat where you typed the command.
 //   The linked number must be the channel owner / admin (channels) or a member (groups).
 // .chid <channel link>      shows the channel's JID, ready to copy. Also: reply to a forwarded channel post, or send .chid alone to get this chat's id.
@@ -12,6 +14,7 @@ import { execFile } from 'node:child_process';
 import { BOT_NAME, PREFIX, USE_BUTTONS } from '../lib/config.js';
 import { copyBtn, qr, sendRich } from '../lib/menu.js';
 import { unwrapMessage } from '../lib/text.js';
+import { getCsong, makeEqualizerVideo } from '../lib/csong.js';
 import { MAX_DL_BYTES, tooBigText, ytDownload, ytQuickInfo, ytSearchInfo, ytSearchList } from '../lib/downloader.js';
 
 const MAX_SONG_MIN = Number(process.env.MAX_SONG_MIN || 20);
@@ -110,7 +113,7 @@ export default [
   {
     name: 'chsong', aliases: ['csong', 'channelsong'], owner: true, react: '🎙️',
     async run({ sock, jid, args, reply }) {
-      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}chsong <channel jid or link> <song name or YouTube link>\nExample: ${PREFIX}chsong 120363xxxxxxxxx@newsletter shape of you\n\nIt posts by itself: thumbnail + details + the song as a voice note.\nDon't know the channel jid? Send ${PREFIX}chid <channel link>\n\nTest first (no YouTube): ${PREFIX}chsong <channel> test`);
+      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}chsong <channel jid or link> <song name or YouTube link>\nExample: ${PREFIX}chsong 120363xxxxxxxxx@newsletter shape of you\n\nIt posts by itself: thumbnail + details + the song as a voice note.\nLook: -eq = thumbnail with equalizer animation, -normal = plain thumbnail (default is set in /admin).\nDon't know the channel jid? Send ${PREFIX}chid <channel link>\n\nTest first (no YouTube): ${PREFIX}chsong <channel> test`);
 
       let target = jid, rest = args;
       if (looksLikeTarget(args[0])) {
@@ -118,6 +121,8 @@ export default [
         if (!target) return reply(`❌ I could not read that channel / group. Send its jid (ending in @newsletter or @g.us) or its link. ${PREFIX}chid <link> shows the jid.`);
         rest = args.slice(1);
       }
+      let look = null; // -eq / -normal for this post only
+      rest = rest.filter((t) => { if (/^-(eq|equalizer)$/i.test(t)) { look = 'equalizer'; return false; } if (/^-(normal|plain)$/i.test(t)) { look = 'normal'; return false; } return true; });
       const query = rest.join(' ').trim();
       if (!query) return reply(`❌ Add the song name or a YouTube link.\nExample: ${PREFIX}chsong <channel> shape of you`);
 
@@ -169,9 +174,17 @@ export default [
           '', '🎧 Voice note below ⬇️', `${FOOTER_LINE}`
         ].filter((l) => l !== null).join('\n');
 
-        // thumbnail + details first, then the voice note
-        if (pic) await sock.sendMessage(target, { image: pic, caption: details });
-        else await sock.sendMessage(target, { text: details });
+        // thumbnail + details first (plain picture, or a short video with a moving equalizer), then the voice note
+        const cfg = getCsong();
+        let posted = false;
+        if ((look || cfg.mode) === 'equalizer') {
+          try { await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, cfg), mimetype: 'video/mp4', caption: details }); posted = true; }
+          catch (err) { console.error('chsong equalizer failed, sending the normal thumbnail:', err?.message || err); } // never lose the post because of the animation
+        }
+        if (!posted) {
+          if (pic) await sock.sendMessage(target, { image: pic, caption: details });
+          else await sock.sendMessage(target, { text: details });
+        }
         await sock.sendMessage(target, { audio: voice, mimetype: 'audio/ogg; codecs=opus', ptt: true, ...(length ? { seconds: length } : {}) });
         return target === jid ? undefined : reply(`✅ Posted to ${target.endsWith('@newsletter') ? 'the channel' : 'the group'}:\n🎵 ${clip(info.title, 80)}\n🎚️ ${VOICE_KBPS} kbps · ⏱️ ${mmss(length)}`);
       } catch (err) {
