@@ -898,21 +898,25 @@
 
     /* ----- .chsong look: normal thumbnail or thumbnail with equalizer animation ----- */
     const CS_LABEL = { white: '⚪ White', cyan: '🔵 Cyan', green: '🟢 Green', pink: '🩷 Pink', gold: '🟡 Gold' };
+    const CS_CENTER = { thumbnail: '🖼️ Middle: the song thumbnail', channel: '📢 Middle: the channel / group logo' };
     const CS_LAYOUT = { circle: '⭕ Round thumbnail with equalizer ring', bars: '📊 Thumbnail with bars along the bottom' };
-    const csongDraw = (c, styles = [], layouts = [], min = 4, max = 30) => {
-      const st = $('#csongStyle'), ly = $('#csongLayout');
+    const csongDraw = (c, styles = [], layouts = [], min = 4, max = 30, centers = []) => {
+      const st = $('#csongStyle'), ly = $('#csongLayout'), ce = $('#csongCenter');
       if (st && !st.options.length) for (const k of styles) st.append(h('option', { value: k }, CS_LABEL[k] || k));
       if (ly && !ly.options.length) for (const k of layouts) ly.append(h('option', { value: k }, CS_LAYOUT[k] || k));
-      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout;
-      $('#csongEq').hidden = c.mode !== 'equalizer';
-      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : 'round thumbnail'}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
+      if (ce && !ce.options.length) for (const k of centers) ce.append(h('option', { value: k }, CS_CENTER[k] || k));
+      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center;
+      $('#csongEq').hidden = c.mode !== 'equalizer'; csongCenterShow();
+      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : `round ${c.center === 'channel' ? 'channel logo' : 'thumbnail'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
     };
+    const csongCenterShow = () => { const b = $('#csongCenterBox'); if (b) b.hidden = $('#csongLayout')?.value === 'bars'; }; // the middle picture only exists in the round layout
+    $('#csongLayout')?.addEventListener('change', csongCenterShow);
     $('#csongMode')?.addEventListener('change', () => { $('#csongEq').hidden = $('#csongMode').value !== 'equalizer'; });
     $('#csongSave')?.addEventListener('click', busy($('#csongSave'), async () => {
-      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max); toast('Saved. The next .chsong post uses it.'); }
+      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value, center: $('#csongCenter').value }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers); toast('Saved. The next .chsong post uses it.'); }
       catch (e) { toast(e.message, true); }
     }));
-    api('GET', '/api/admin/csong').then((r) => csongDraw(r.csong, r.styles, r.layouts, r.min, r.max)).catch(() => {});
+    api('GET', '/api/admin/csong').then((r) => csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers)).catch(() => {});
 
     $('#welcomeAll')?.addEventListener('change', async (e) => {
       const box = e.target; box.disabled = true;
