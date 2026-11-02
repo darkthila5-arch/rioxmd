@@ -905,13 +905,13 @@
       if (st && !st.options.length) for (const k of styles) st.append(h('option', { value: k }, CS_LABEL[k] || k));
       if (ly && !ly.options.length) for (const k of layouts) ly.append(h('option', { value: k }, CS_LAYOUT[k] || k));
       if (ce && !ce.options.length) for (const k of centers) ce.append(h('option', { value: k }, CS_CENTER[k] || k));
-      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center; if ($('#csongSpin')) $('#csongSpin').value = c.spin ? 'on' : 'off';
+      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center; if ($('#csongMotion')) $('#csongMotion').value = c.motion;
       csongImgDraw(c.hasImage);
       $('#csongEq').hidden = c.mode !== 'equalizer'; csongCenterShow();
-      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : `round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${c.spin ? '' : ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
+      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : `round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${{ spin: ', turning', pulse: ', pulsing', both: ', turning and pulsing' }[c.motion] || ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
     };
     const csongCenterShow = () => { // the middle picture only exists in the round layout: always visible, greyed out for bars
-      const c = $('#csongCenter'), sp = $('#csongSpin'), bars = $('#csongLayout')?.value === 'bars';
+      const c = $('#csongCenter'), sp = $('#csongMotion'), bars = $('#csongLayout')?.value === 'bars';
       for (const el of [c, sp]) if (el) { el.disabled = bars; el.title = bars ? 'Only used by the round layout' : ''; }
       const box = $('#csongImgBox'); if (box) box.hidden = bars || c?.value !== 'custom';
     };
@@ -940,7 +940,7 @@
     $('#csongLayout')?.addEventListener('change', csongCenterShow);
     $('#csongMode')?.addEventListener('change', () => { $('#csongEq').hidden = $('#csongMode').value !== 'equalizer'; });
     $('#csongSave')?.addEventListener('click', busy($('#csongSave'), async () => {
-      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value, center: $('#csongCenter').value, spin: $('#csongSpin').value !== 'off' }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers); toast('Saved. The next .chsong post uses it.'); }
+      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value, center: $('#csongCenter').value, motion: $('#csongMotion').value }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers); toast('Saved. The next .chsong post uses it.'); }
       catch (e) { toast(e.message, true); }
     }));
     api('GET', '/api/admin/csong').then((r) => csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers)).catch(() => {});
