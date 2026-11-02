@@ -128,9 +128,10 @@ test('admin can choose the .chsong thumbnail look (normal / equalizer) and bad v
   const g = await call('GET', '/api/admin/csong');
   assert.equal(g.json.csong.mode, 'normal');
   assert.ok(g.json.styles.includes('pink'));
-  const s = await call('POST', '/api/admin/csong', { mode: 'equalizer', seconds: 20, style: 'gold' });
-  assert.deepEqual(s.json.csong, { mode: 'equalizer', seconds: 20, style: 'gold' });
+  const s = await call('POST', '/api/admin/csong', { mode: 'equalizer', seconds: 20, style: 'gold', layout: 'bars' });
+  assert.deepEqual(s.json.csong, { mode: 'equalizer', seconds: 20, style: 'gold', layout: 'bars' });
   assert.equal((await call('POST', '/api/admin/csong', { mode: 'disco' })).status, 400);
   assert.equal((await call('POST', '/api/admin/csong', { style: 'rainbow' })).status, 400);
+  assert.equal((await call('POST', '/api/admin/csong', { layout: 'spiral' })).status, 400);
   assert.equal((await call('GET', '/api/admin/csong')).json.csong.mode, 'equalizer'); // the bad calls changed nothing
 });
