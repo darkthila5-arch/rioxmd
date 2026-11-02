@@ -167,6 +167,16 @@
           <div id="csongEq" class="stack" hidden>
             <div class="field sm"><select id="csongLayout" aria-label="Equalizer layout"></select></div>
             <div class="field sm" id="csongCenterBox"><select id="csongCenter" aria-label="Picture in the middle of the round layout"></select></div>
+            <div id="csongImgBox" class="stack" hidden>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <img id="csongImgPrev" alt="Your centre picture" width="64" height="64" hidden style="border-radius:50%;object-fit:cover;border:2px solid #fff3">
+                <input id="csongImgFile" type="file" accept="image/*" hidden>
+                <button class="btn alt sm" id="csongImgPick" type="button">Choose picture</button>
+                <button class="btn danger sm" id="csongImgDel" type="button" hidden>Remove</button>
+              </div>
+              <p class="note">Any JPG, PNG, WEBP or GIF. It is cut to a square and shown as the round badge. The picture is saved as soon as it uploads; press <b>Save</b> to use it.</p>
+            </div>
+            <div class="field sm" id="csongSpinBox"><select id="csongSpin" aria-label="Does the middle picture turn"><option value="on">🔄 Middle picture turns slowly</option><option value="off">⏸️ Middle picture stays still</option></select></div>
             <div class="field sm"><input id="csongSecs" type="number" inputmode="numeric" min="4" max="30" step="1" placeholder="Animation length in seconds (4 to 30)" aria-label="Animation length in seconds"></div>
             <div class="field sm"><select id="csongStyle" aria-label="Equalizer colour"></select></div>
           </div>
