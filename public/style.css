@@ -179,23 +179,3 @@ footer small{display:block;margin-top:4px;font-size:.76rem;opacity:.8}
 .eyebrow{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 14%,transparent),0 6px 22px -8px color-mix(in srgb,var(--accent) 45%,transparent)}
 .card{background:linear-gradient(180deg,color-mix(in srgb,var(--card) 84%,transparent),color-mix(in srgb,var(--card) 94%,transparent));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:color-mix(in srgb,var(--accent) 22%,var(--line));box-shadow:0 24px 70px -10px color-mix(in srgb,var(--accent) 16%,transparent),inset 0 1px 0 color-mix(in srgb,#fff 6%,transparent)}
 @media(max-width:420px){.hero-name .nm{letter-spacing:.22em;margin-right:-.22em}.hero-name .ln{max-width:38px}.hero-tag{letter-spacing:.32em;margin-right:-.32em}}
-
-/* ---------- "Before you pair" notice (English / සිංහල) ---------- */
-.advice{position:relative;margin:0 0 18px;padding:16px 16px 14px;border-radius:18px;background:linear-gradient(180deg,color-mix(in srgb,#ffb84d 10%,var(--paper)),var(--paper));border:1px solid color-mix(in srgb,#ffb84d 38%,var(--line));box-shadow:0 8px 26px -14px color-mix(in srgb,#ffb84d 55%,transparent);animation:rise .6s var(--ease) both}
-.advice::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:#ffb84d}
-.advice-head{display:flex;align-items:center;gap:12px;margin:0 0 10px}
-.advice-ico{flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,#ffb84d 16%,transparent);border:1px solid color-mix(in srgb,#ffb84d 40%,transparent)}
-.advice-ico svg{width:20px;height:20px;fill:none;stroke:#ffb84d;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.advice-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.advice-tag{font-size:.62rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#ffb84d}
-.advice-title b{font-size:1.02rem;font-weight:800;line-height:1.25}
-.advice-lang{flex:none;display:inline-flex;padding:3px;gap:2px;background:var(--tab-bg);border:1px solid var(--line);border-radius:999px}
-.advice-lang button{min-width:40px;min-height:30px;padding:2px 11px;border:0;border-radius:999px;background:none;color:var(--muted);font-weight:700;font-size:.78rem;cursor:pointer;transition:background .25s var(--ease),color .25s var(--ease)}
-.advice-lang button.on{background:#ffb84d;color:#241500}
-.advice-body p{margin:0 0 8px;font-size:.9rem;line-height:1.6;color:#d6d6d6}
-.advice-body p:last-child{margin-bottom:0}
-.advice-body strong{color:#ffd28a;font-weight:700}
-.advice [lang="si"]{font-family:"Iskoola Pota","Noto Sans Sinhala","Nirmala UI","Sinhala MN",system-ui,sans-serif;line-height:1.75}
-/* show only the chosen language */
-.advice[data-lang="en"] [lang="si"],.advice[data-lang="si"] [lang="en"]{display:none}
-@media(max-width:420px){.advice{padding:14px 13px 12px}.advice-title b{font-size:.96rem}}
