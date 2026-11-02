@@ -61,3 +61,30 @@ test('every motion of the middle picture renders (turning, still, pulsing with t
     assert.equal(mp4.subarray(4, 8).toString(), 'ftyp', motion);
   }
 });
+test('who gets the animation: free numbers never, premium numbers with their own look, the host always', async () => {
+  const { resolveCsong, PREMIUM_MAX_S } = await import('../lib/csong.js');
+  const { setSetting } = await import('../lib/storage.js');
+  setCsong({ mode: 'equalizer', layout: 'circle', seconds: 30, motion: 'spin', center: 'thumbnail' });
+  const free = resolveCsong('free1');
+  assert.equal(free.allowed, false); assert.equal(free.mode, 'normal');
+  const host = resolveCsong('free1', { host: true });
+  assert.equal(host.allowed, true); assert.equal(host.mode, 'equalizer'); assert.equal(host.seconds, 30); // the host is not limited
+  setSetting('vip', 'premium', { until: Date.now() + 1e7 });
+  const vip = resolveCsong('vip');
+  assert.equal(vip.allowed, true); assert.equal(vip.mode, 'equalizer'); assert.equal(vip.layout, 'circle'); assert.equal(vip.seconds, PREMIUM_MAX_S); // host default, capped
+  setSetting('vip', 'csongEqLayout', 'bars'); setSetting('vip', 'csongEqMotion', 'pulse'); setSetting('vip', 'csongEqSeconds', 9); setSetting('vip', 'csongEqStyle', 'pink');
+  const own = resolveCsong('vip');
+  assert.deepEqual([own.layout, own.motion, own.seconds, own.style], ['bars', 'pulse', 9, 'pink']);
+  setSetting('vip', 'csongMode', 'normal');
+  assert.equal(resolveCsong('vip').mode, 'normal');                       // its own choice wins over the host default
+  setSetting('vip', 'csongEqCenter', 'custom');
+  assert.equal(resolveCsong('vip').center, 'thumbnail');                   // "my own picture" without a picture = thumbnail
+  setSetting('vip', 'premium', { until: Date.now() - 1000 });
+  assert.equal(resolveCsong('vip').mode, 'normal');                       // premium ended: back to the normal thumbnail
+  setCsong({ mode: 'normal', seconds: 8 });
+});
+test('too many animations at once: the extra one is turned away (the command then posts the normal thumbnail)', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
+  const jobs = [1, 2, 3].map(() => makeEqualizerVideo(null, Buffer.from('x'), 'm4a', {}).catch((e) => e.message));
+  await assert.rejects(makeEqualizerVideo(null, Buffer.from('x'), 'm4a', {}), /BUSY/);
+  await Promise.all(jobs);
+});

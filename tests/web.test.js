@@ -129,9 +129,18 @@ test('admin can choose the .chsong thumbnail look (normal / equalizer) and bad v
   assert.equal(g.json.csong.mode, 'normal');
   assert.ok(g.json.styles.includes('pink'));
   const s = await call('POST', '/api/admin/csong', { mode: 'equalizer', seconds: 20, style: 'gold', layout: 'bars' });
-  assert.deepEqual(s.json.csong, { mode: 'equalizer', seconds: 20, style: 'gold', layout: 'bars' });
+  assert.deepEqual(s.json.csong, { mode: 'equalizer', seconds: 20, style: 'gold', layout: 'bars', center: 'thumbnail', motion: 'spin', hasImage: false });
+  assert.equal((await call('POST', '/api/admin/csong', { center: 'custom' })).status, 400); // no picture uploaded yet
+  assert.equal((await call('POST', '/api/admin/csong', { motion: 'dance' })).status, 400);
   assert.equal((await call('POST', '/api/admin/csong', { mode: 'disco' })).status, 400);
   assert.equal((await call('POST', '/api/admin/csong', { style: 'rainbow' })).status, 400);
   assert.equal((await call('POST', '/api/admin/csong', { layout: 'spiral' })).status, 400);
   assert.equal((await call('GET', '/api/admin/csong')).json.csong.mode, 'equalizer'); // the bad calls changed nothing
+});
+
+test('a premium number\'s own .chsong look is validated (empty = the host default)', () => {
+  assert.deepEqual(parseSettings({ csongEqLayout: 'bars', csongEqSeconds: '9', csongMode: '' }), [['csongEqLayout', 'bars'], ['csongEqSeconds', 9], ['csongMode', null]]);
+  assert.throws(() => parseSettings({ csongEqLayout: 'spiral' }), /Invalid/);
+  assert.throws(() => parseSettings({ csongEqSeconds: '99' }), /seconds/);
+  assert.throws(() => parseSettings({ csongEqMotion: true }), /Invalid/);
 });
