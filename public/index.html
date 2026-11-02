@@ -64,46 +64,6 @@
         <li><i>4</i><span>Done</span></li>
       </ol>
 
-      <aside class="advice" id="advice" role="note" aria-label="Before you pair / සම්බන්ධ කිරීමට පෙර" data-lang="en">
-        <div class="advice-head">
-          <span class="advice-ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M12 8.5v4"/><path d="M12 15.5h.01"/></svg>
-          </span>
-          <div class="advice-title">
-            <span class="advice-tag">Recommended</span>
-            <b><span lang="en">Before you pair</span><span lang="si">සම්බන්ධ කිරීමට පෙර</span></b>
-          </div>
-          <div class="advice-lang" role="group" aria-label="Language / භාෂාව">
-            <button type="button" data-set="en" class="on" aria-pressed="true">EN</button>
-            <button type="button" data-set="si" aria-pressed="false">සිං</button>
-          </div>
-        </div>
-        <div class="advice-body">
-          <div lang="en">
-            <p>Please use a <strong>secondary number</strong> instead of your main WhatsApp account.</p>
-            <p>Bots connect through an unofficial method, and WhatsApp may limit or ban accounts that use automation. A spare number keeps your personal chats, contacts and groups safe.</p>
-          </div>
-          <div lang="si">
-            <p>ඔබගේ ප්‍රධාන WhatsApp ගිණුම වෙනුවට <strong>දෙවන (අමතර) අංකයක්</strong> භාවිත කරන්න.</p>
-            <p>Bot සම්බන්ධ වන්නේ නිල නොවන ක්‍රමයකින් බැවින්, ස්වයංක්‍රීය (automation) භාවිතය නිසා WhatsApp විසින් ගිණුම සීමා කිරීමට හෝ තහනම් කිරීමට ඉඩ ඇත. අමතර අංකයක් භාවිතා කිරීමෙන් ඔබගේ පුද්ගලික chat, contacts සහ groups ආරක්ෂිතව පවතී.</p>
-          </div>
-        </div>
-      </aside>
-      <script>
-      (function () {
-        var box = document.getElementById('advice'); if (!box) return;
-        function set(l) {
-          box.setAttribute('data-lang', l);
-          box.querySelectorAll('.advice-lang button').forEach(function (b) { var on = b.getAttribute('data-set') === l; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
-          try { localStorage.setItem('adviceLang', l); } catch (e) {}
-        }
-        var saved = null; try { saved = localStorage.getItem('adviceLang'); } catch (e) {}
-        if (saved === 'si' || saved === 'en') set(saved);
-        else if ((navigator.language || '').toLowerCase().indexOf('si') === 0) set('si');
-        box.querySelectorAll('.advice-lang button').forEach(function (b) { b.addEventListener('click', function () { set(b.getAttribute('data-set')); }); });
-      })();
-      </script>
-
       <div class="tabs" id="tabs" data-mode="code" role="tablist">
         <span class="slider" aria-hidden="true"></span>
         <button type="button" class="tab on" data-mode="code" role="tab">
