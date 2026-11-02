@@ -6,7 +6,7 @@ const { getCsong, setCsong, makeEqualizerVideo, clipStart } = await import('../l
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
 test('default look is the normal thumbnail', () => {
-  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail' });
+  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', spin: true, hasImage: false });
 });
 test('settings are validated and clamped', () => {
   assert.equal(setCsong({ mode: 'equalizer' }).mode, 'equalizer');
@@ -18,7 +18,10 @@ test('settings are validated and clamped', () => {
   assert.throws(() => setCsong({ style: 'rainbow' }), /colour/);
   assert.equal(setCsong({ center: 'channel' }).center, 'channel');
   assert.throws(() => setCsong({ center: 'moon' }), /centre/);
-  setCsong({ center: 'thumbnail' });
+  assert.throws(() => setCsong({ center: 'custom' }), /picture/); // nothing uploaded yet
+  assert.equal(setCsong({ spin: false }).spin, false);
+  assert.throws(() => setCsong({ spin: 'maybe' }), /on or off/);
+  setCsong({ center: 'thumbnail', spin: true });
   assert.throws(() => setCsong({ seconds: 'abc' }), /number/);
   assert.equal(setCsong({ mode: 'whatever' }).mode, 'normal'); // anything unknown = normal
 });
