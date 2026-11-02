@@ -6,7 +6,7 @@ const { getCsong, setCsong, makeEqualizerVideo, clipStart } = await import('../l
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
 test('default look is the normal thumbnail', () => {
-  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', spin: true, hasImage: false });
+  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', motion: 'spin', hasImage: false });
 });
 test('settings are validated and clamped', () => {
   assert.equal(setCsong({ mode: 'equalizer' }).mode, 'equalizer');
@@ -19,9 +19,9 @@ test('settings are validated and clamped', () => {
   assert.equal(setCsong({ center: 'channel' }).center, 'channel');
   assert.throws(() => setCsong({ center: 'moon' }), /centre/);
   assert.throws(() => setCsong({ center: 'custom' }), /picture/); // nothing uploaded yet
-  assert.equal(setCsong({ spin: false }).spin, false);
-  assert.throws(() => setCsong({ spin: 'maybe' }), /on or off/);
-  setCsong({ center: 'thumbnail', spin: true });
+  assert.equal(setCsong({ motion: 'pulse' }).motion, 'pulse');
+  assert.throws(() => setCsong({ motion: 'dance' }), /motion/);
+  setCsong({ center: 'thumbnail', motion: 'spin' });
   assert.throws(() => setCsong({ seconds: 'abc' }), /number/);
   assert.equal(setCsong({ mode: 'whatever' }).mode, 'normal'); // anything unknown = normal
 });
@@ -53,4 +53,11 @@ test('the round layout can show another picture (channel logo) in the middle', {
   assert.equal(imageExt(Buffer.from('not a picture at all')), null);
   const mp4 = await makeEqualizerVideo(null, tone, 'mp3', { seconds: 4, layout: 'circle', badge: png });
   assert.equal(mp4.subarray(4, 8).toString(), 'ftyp');
+});
+test('every motion of the middle picture renders (turning, still, pulsing with the beat, both)', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
+  const tone = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anoisesrc=d=6:c=pink', '-f', 'mp3', '-'], { maxBuffer: 1 << 24 });
+  for (const motion of ['spin', 'still', 'pulse', 'both']) {
+    const mp4 = await makeEqualizerVideo(null, tone, 'mp3', { seconds: 4, layout: 'circle', motion });
+    assert.equal(mp4.subarray(4, 8).toString(), 'ftyp', motion);
+  }
 });
