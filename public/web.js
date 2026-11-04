@@ -368,7 +368,9 @@
       $('#boostInfo').textContent = `${bo.poolSize} number${bo.poolSize === 1 ? '' : 's'} opted in to support channels. ${bo.paused ? 'Paused right now.' : 'Running.'}`;
       const rr = bo.reactRun, ps = $('#postStatus');
       if (ps) ps.textContent = rr ? `${rr.running ? '⏳ Reacting' : '✅ Done'}: ${rr.post}, ${rr.ok}/${rr.total} reacted${rr.failed ? `, ${rr.failed} failed` : ''}.` : '';
-      if (rr?.running && !drawBoost.poll) drawBoost.poll = setInterval(async () => { try { const r = await api('GET', '/api/admin/boost'); drawBoost(r.boost); if (!r.boost.reactRun?.running) { clearInterval(drawBoost.poll); drawBoost.poll = null; } } catch { clearInterval(drawBoost.poll); drawBoost.poll = null; } }, 3000);
+      const pr = bo.pollRun, pst = $('#pollStatus');
+      if (pst) pst.textContent = pr ? `${pr.running ? '⏳ Voting' : '✅ Done'}: ${pr.post} → "${pr.option}", ${pr.ok}/${pr.total} sent${pr.failed ? `, ${pr.failed} failed` : ''}.` : '';
+      if ((rr?.running || pr?.running) && !drawBoost.poll) drawBoost.poll = setInterval(async () => { try { const r = await api('GET', '/api/admin/boost'); drawBoost(r.boost); if (!r.boost.reactRun?.running && !r.boost.pollRun?.running) { clearInterval(drawBoost.poll); drawBoost.poll = null; } } catch { clearInterval(drawBoost.poll); drawBoost.poll = null; } }, 3000);
       const ul = $('#boostList'); ul.replaceChildren();
       const live = bo.jobs.filter((j) => j.status === 'active' || j.followers);
       if (!live.length) ul.append(h('li', {}, h('span', { class: 'txt' }, h('small', {}, 'No channels added yet.'))));
@@ -929,6 +931,41 @@
       try {
         const r = await api('POST', '/api/admin/boost/react', { link, emojis: $('#postEmojis').value, packs: drawBoost.pickers?.post.get() || [], scope: $('#postScope').value, follow: $('#postFollow').checked });
         drawBoost(r.boost); $('#postLink').value = ''; drawBoost.pickers?.post.reset(); toast('Started. The numbers react one by one.');
+      } catch (e) { toast(e.message, true); }
+    }));
+
+    /* ----- vote on a channel poll: load the options, pick one, choose how many numbers vote ----- */
+    const pollState = { link: '', online: 0, optin: 0 };
+    const pollAvail = () => {
+      const max = $('#pollScope').value === 'optin' ? pollState.optin : pollState.online;
+      $('#pollAvail').textContent = `🟢 ${max} active number${max === 1 ? '' : 's'} can vote.`;
+      $('#pollCount').max = String(Math.max(1, max));
+      if (Number($('#pollCount').value) > max) $('#pollCount').value = String(Math.max(1, max));
+    };
+    $('#pollScope')?.addEventListener('change', pollAvail);
+    $('#pollLoad')?.addEventListener('click', busy($('#pollLoad'), async () => {
+      const link = $('#pollLink').value.trim();
+      if (!link) return toast('Paste the poll post link first.', true);
+      try {
+        const r = await api('POST', '/api/admin/boost/poll/load', { link });
+        pollState.link = link; pollState.online = r.online; pollState.optin = r.optin;
+        $('#pollQ').textContent = `📊 ${r.poll.question || 'Poll'} (${r.poll.channel})`;
+        const box = $('#pollOpts'); box.replaceChildren();
+        r.poll.options.forEach((o, i) => {
+          const rb = h('input', { type: 'radio', name: 'pollOpt', value: String(i), 'aria-label': o }); if (i === 0) rb.checked = true;
+          box.append(h('label', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, o)), rb));
+        });
+        $('#pollBox').hidden = false; pollAvail();
+      } catch (e) { $('#pollBox').hidden = true; toast(e.message, true); }
+    }));
+    $('#pollGo')?.addEventListener('click', busy($('#pollGo'), async () => {
+      const pick = document.querySelector('input[name="pollOpt"]:checked');
+      const count = Math.floor(Number($('#pollCount').value));
+      if (!pick) return toast('Pick an option first.', true);
+      if (!(count >= 1)) return toast('Enter how many votes (1 or more).', true);
+      try {
+        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, option: Number(pick.value), count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
+        drawBoost(r.boost); toast('Started. The numbers vote one by one.');
       } catch (e) { toast(e.message, true); }
     }));
 
