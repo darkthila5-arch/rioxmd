@@ -937,16 +937,17 @@
 
     /* ----- vote on a channel poll: load the options, pick one, choose how many numbers vote ----- */
     const pollState = { link: '', online: 0, optin: 0, counts: { all: { online: 0, voted: 0 }, optin: { online: 0, voted: 0 } } };
-    const pollMax = () => { const c = pollState.counts[$('#pollScope').value] || { online: 0, voted: 0 }; return $('#pollAction').value === 'vote' ? Math.max(0, c.online - c.voted) : c.voted; };
+    const pollMax = () => { const c = pollState.counts[$('#pollScope').value] || { online: 0, voted: 0 }; const a = $('#pollAction').value; return a === 'vote' ? Math.max(0, c.online - c.voted) : ($('#pollAny').checked ? c.online : c.voted); };
     const pollAvail = () => {
       const c = pollState.counts[$('#pollScope').value] || { online: 0, voted: 0 }, act = $('#pollAction').value, max = pollMax();
-      $('#pollAvail').textContent = act === 'vote' ? `🟢 ${c.online} active number${c.online === 1 ? '' : 's'}, ${c.voted} already voted on this poll: ${max} can vote.` : `🔁 ${c.voted} number${c.voted === 1 ? '' : 's'} voted on this poll before: ${max} can ${act === 'remove' ? 'remove the vote' : 'change the vote'}.`;
+      $('#pollAvail').textContent = act === 'vote' ? `🟢 ${c.online} active number${c.online === 1 ? '' : 's'}, ${c.voted} already voted on this poll: ${max} can vote.` : `🔁 ${c.voted} number${c.voted === 1 ? '' : 's'} remembered as voted on this poll: ${max} can ${act === 'remove' ? 'remove the vote' : 'change the vote'}.`;
+      $('#pollAnyRow').hidden = act === 'vote';
       $('#pollCount').max = String(Math.max(1, max));
       if (Number($('#pollCount').value) > max) $('#pollCount').value = String(Math.max(1, max));
       $('#pollOpts').hidden = act === 'remove'; $('#pollManual').hidden = act === 'remove' || !pollState.manual;
       $('#pollGo').textContent = act === 'remove' ? 'Remove votes' : act === 'change' ? 'Change votes' : 'Vote now';
     };
-    $('#pollScope')?.addEventListener('change', pollAvail); $('#pollAction')?.addEventListener('change', pollAvail);
+    $('#pollScope')?.addEventListener('change', pollAvail); $('#pollAction')?.addEventListener('change', pollAvail); $('#pollAny')?.addEventListener('change', pollAvail);
     $('#pollLoad')?.addEventListener('click', busy($('#pollLoad'), async () => {
       const link = $('#pollLink').value.trim();
       if (!link) return toast('Paste the poll post link first.', true);
@@ -975,7 +976,7 @@
       if (!pollMax()) return toast('No number can do this right now. Check the line above the vote box.', true);
       if (!(count >= 1)) return toast('Enter how many votes (1 or more).', true);
       try {
-        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, action, option: pick ? Number(pick.value) : 0, optionText: text, count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
+        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, action, anyNumber: $('#pollAny').checked, option: pick ? Number(pick.value) : 0, optionText: text, count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
         drawBoost(r.boost); toast('Started. The numbers vote one by one.');
       } catch (e) { toast(e.message, true); }
     }));
