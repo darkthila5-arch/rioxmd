@@ -61,3 +61,10 @@ test('unreadable poll: load still works (manual mode) and a typed option can be 
   assert.equal(sent.length, 1);
   assert.ok(sent[0].message.pollUpdateMessage.vote.selectedOptions[0].equals(crypto.createHash('sha256').update('Mango').digest()));
 });
+
+test('raw messages query result with a plaintext poll is read; a live poll is cached', async () => {
+  const { cachePollFromMessage } = await import('../lib/boost.js');
+  cachePollFromMessage({ key: { remoteJid: '123@newsletter' }, newsletter_server_id: 77, message: { pollCreationMessageV3: { name: 'Live?', options: [{ optionName: 'Yes' }, { optionName: 'No' }] } } });
+  const p = await loadPoll('https://whatsapp.com/channel/0029VaABCDEFGH/77');
+  assert.equal(p.question, 'Live?'); assert.deepEqual(p.options, ['Yes', 'No']);
+});
