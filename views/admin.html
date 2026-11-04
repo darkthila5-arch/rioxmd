@@ -206,6 +206,10 @@
           <div id="pollBox" hidden>
             <p class="note"><b id="pollQ"></b></p>
             <div id="pollOpts" role="radiogroup" aria-label="Poll options"></div>
+            <div id="pollManual" hidden>
+              <p class="note" id="pollDiag"></p>
+              <div class="field sm"><input id="pollText" type="text" maxlength="100" placeholder="Option text, exactly as in the poll" autocomplete="off" aria-label="Option text"></div>
+            </div>
             <div class="field sm"><select id="pollScope" aria-label="Which numbers vote"><option value="all">All online numbers</option><option value="optin">Only numbers that switched on "Support other channels"</option></select></div>
             <p class="note" id="pollAvail" aria-live="polite"></p>
             <div class="field sm"><input id="pollCount" type="number" min="1" step="1" value="1" inputmode="numeric" aria-label="How many votes"></div>
@@ -516,7 +520,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=11"></script>
+<script src="/web.js?v=12"></script>
 <script src="/notices.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
