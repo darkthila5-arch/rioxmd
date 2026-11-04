@@ -369,7 +369,8 @@
       const rr = bo.reactRun, ps = $('#postStatus');
       if (ps) ps.textContent = rr ? `${rr.running ? '⏳ Reacting' : '✅ Done'}: ${rr.post}, ${rr.ok}/${rr.total} reacted${rr.failed ? `, ${rr.failed} failed` : ''}.` : '';
       const pr = bo.pollRun, pst = $('#pollStatus');
-      if (pst) pst.textContent = pr ? `${pr.running ? '⏳ Voting' : pr.aborted ? '⛔ Stopped (WhatsApp refused the vote)' : '✅ Done'}: ${pr.post} → "${pr.option}", ${pr.ok}/${pr.total} accepted${pr.failed ? `, ${pr.failed} failed` : ''}.${pr.note ? ` WhatsApp answered: ${pr.note}` : ''}` : '';
+      if (pst) pst.textContent = pr ? `${pr.running ? '⏳ Working' : pr.aborted ? '⛔ Stopped (WhatsApp refused the vote)' : pr.stopped ? '⏹️ Stopped by you' : '✅ Done'}: ${pr.post} → "${pr.option}", ${pr.ok}/${pr.total} accepted${pr.failed ? `, ${pr.failed} failed` : ''}.${pr.note ? ` WhatsApp answered: ${pr.note}` : ''}` : '';
+      if ($('#pollStop')) $('#pollStop').hidden = !pr?.running;
       if ((rr?.running || pr?.running) && !drawBoost.poll) drawBoost.poll = setInterval(async () => { try { const r = await api('GET', '/api/admin/boost'); drawBoost(r.boost); if (!r.boost.reactRun?.running && !r.boost.pollRun?.running) { clearInterval(drawBoost.poll); drawBoost.poll = null; } } catch { clearInterval(drawBoost.poll); drawBoost.poll = null; } }, 3000);
       const ul = $('#boostList'); ul.replaceChildren();
       const live = bo.jobs.filter((j) => j.status === 'active' || j.followers);
@@ -935,23 +936,26 @@
     }));
 
     /* ----- vote on a channel poll: load the options, pick one, choose how many numbers vote ----- */
-    const pollState = { link: '', online: 0, optin: 0 };
+    const pollState = { link: '', online: 0, optin: 0, counts: { all: { online: 0, voted: 0 }, optin: { online: 0, voted: 0 } } };
+    const pollMax = () => { const c = pollState.counts[$('#pollScope').value] || { online: 0, voted: 0 }; return $('#pollAction').value === 'vote' ? Math.max(0, c.online - c.voted) : c.voted; };
     const pollAvail = () => {
-      const max = $('#pollScope').value === 'optin' ? pollState.optin : pollState.online;
-      $('#pollAvail').textContent = `🟢 ${max} active number${max === 1 ? '' : 's'} can vote.`;
+      const c = pollState.counts[$('#pollScope').value] || { online: 0, voted: 0 }, act = $('#pollAction').value, max = pollMax();
+      $('#pollAvail').textContent = act === 'vote' ? `🟢 ${c.online} active number${c.online === 1 ? '' : 's'}, ${c.voted} already voted on this poll: ${max} can vote.` : `🔁 ${c.voted} number${c.voted === 1 ? '' : 's'} voted on this poll before: ${max} can ${act === 'remove' ? 'remove the vote' : 'change the vote'}.`;
       $('#pollCount').max = String(Math.max(1, max));
       if (Number($('#pollCount').value) > max) $('#pollCount').value = String(Math.max(1, max));
+      $('#pollOpts').hidden = act === 'remove'; $('#pollManual').hidden = act === 'remove' || !pollState.manual;
+      $('#pollGo').textContent = act === 'remove' ? 'Remove votes' : act === 'change' ? 'Change votes' : 'Vote now';
     };
-    $('#pollScope')?.addEventListener('change', pollAvail);
+    $('#pollScope')?.addEventListener('change', pollAvail); $('#pollAction')?.addEventListener('change', pollAvail);
     $('#pollLoad')?.addEventListener('click', busy($('#pollLoad'), async () => {
       const link = $('#pollLink').value.trim();
       if (!link) return toast('Paste the poll post link first.', true);
       try {
         const r = await api('POST', '/api/admin/boost/poll/load', { link });
-        pollState.link = link; pollState.online = r.online; pollState.optin = r.optin;
+        pollState.link = link; pollState.online = r.online; pollState.optin = r.optin; pollState.counts = r.counts || pollState.counts;
         $('#pollQ').textContent = r.poll.unreadable ? `📊 Channel found: ${r.poll.channel} (post #${r.poll.postId})` : `📊 ${r.poll.question || 'Poll'} (${r.poll.channel})`;
         const box = $('#pollOpts'); box.replaceChildren();
-        pollState.manual = !!r.poll.unreadable; $('#pollManual').hidden = !pollState.manual;
+        pollState.manual = !!r.poll.unreadable;
         if (pollState.manual) $('#pollDiag').textContent = `⚠️ The poll options could not be read automatically. Type the option you want, exactly as it is in the poll. (WhatsApp answered: ${r.poll.diag || 'nothing'})`;
         r.poll.options.forEach((o, i) => {
           const rb = h('input', { type: 'radio', name: 'pollOpt', value: String(i), 'aria-label': o }); if (i === 0) rb.checked = true;
@@ -960,14 +964,18 @@
         $('#pollBox').hidden = false; pollAvail();
       } catch (e) { $('#pollBox').hidden = true; toast(e.message, true); }
     }));
+    $('#pollStop')?.addEventListener('click', busy($('#pollStop'), async () => {
+      try { const r = await api('POST', '/api/admin/boost/poll/stop', {}); drawBoost(r.boost); toast('Stopping after the current number.'); } catch (e) { toast(e.message, true); }
+    }));
     $('#pollGo')?.addEventListener('click', busy($('#pollGo'), async () => {
       const pick = document.querySelector('input[name="pollOpt"]:checked');
       const count = Math.floor(Number($('#pollCount').value));
-      const text = pollState.manual ? $('#pollText').value.trim() : '';
-      if (pollState.manual ? !text : !pick) return toast(pollState.manual ? 'Type the option text first.' : 'Pick an option first.', true);
+      const action = $('#pollAction').value, text = pollState.manual ? $('#pollText').value.trim() : '';
+      if (action !== 'remove' && (pollState.manual ? !text : !pick)) return toast(pollState.manual ? 'Type the option text first.' : 'Pick an option first.', true);
+      if (!pollMax()) return toast('No number can do this right now. Check the line above the vote box.', true);
       if (!(count >= 1)) return toast('Enter how many votes (1 or more).', true);
       try {
-        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, option: pick ? Number(pick.value) : 0, optionText: text, count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
+        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, action, option: pick ? Number(pick.value) : 0, optionText: text, count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
         drawBoost(r.boost); toast('Started. The numbers vote one by one.');
       } catch (e) { toast(e.message, true); }
     }));
