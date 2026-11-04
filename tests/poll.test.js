@@ -49,3 +49,15 @@ test('votePoll: N distinct numbers vote once each, count is capped', async () =>
 test('votePoll rejects a wrong option index', async () => {
   await assert.rejects(() => votePoll(LINK, 7, 1, 'all', false), /Pick one/);
 });
+
+test('unreadable poll: load still works (manual mode) and a typed option can be voted', async () => {
+  for (const r of sessions.values()) r.sock.newsletterFetchMessages = async () => ({ tag: 'messages', content: [] });
+  const p = await loadPoll(LINK);
+  assert.equal(p.unreadable, true); assert.ok(p.diag.length > 0);
+  await assert.rejects(() => votePoll(LINK, 0, 1, 'all', false, ''), /Type the option text/);
+  sent.length = 0;
+  await votePoll(LINK, 0, 1, 'all', false, 'Mango');
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].message.pollUpdateMessage.vote.selectedOptions[0].equals(crypto.createHash('sha256').update('Mango').digest()));
+});
