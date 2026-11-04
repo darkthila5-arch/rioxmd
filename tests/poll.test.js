@@ -131,3 +131,12 @@ test('anyNumber: change / remove also work for numbers whose vote is not remembe
   sent.length = 0; await votePoll(L, 0, 9, 'all', false, '', 'remove', true); await done();
   assert.equal(sent.length, 3);
 });
+
+test('poll results (tally) are read from the post node by option hash', async () => {
+  const h = (t) => crypto.createHash('sha256').update(t).digest();
+  for (const r of sessions.values()) r.sock.newsletterFetchMessages = async () => ({ tag: 'messages', content: [{ tag: 'message', attrs: { server_id: '55' }, content: [
+    { pollCreationMessage: { name: 'Best fruit?', options: [{ optionName: 'Mango' }, { optionName: 'Apple' }] } },
+    { tag: 'votes', attrs: {}, content: [{ tag: 'vote', attrs: { count: '4' }, content: h('Mango') }, { tag: 'vote', attrs: { count: '1' }, content: h('Apple') }] }] }] });
+  const p = await loadPoll('https://whatsapp.com/channel/0029VaABCDEFGH/55');
+  assert.deepEqual(p.tally.counts, { Mango: 4, Apple: 1 });
+});
