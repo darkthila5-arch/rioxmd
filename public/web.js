@@ -369,7 +369,7 @@
       const rr = bo.reactRun, ps = $('#postStatus');
       if (ps) ps.textContent = rr ? `${rr.running ? '⏳ Reacting' : '✅ Done'}: ${rr.post}, ${rr.ok}/${rr.total} reacted${rr.failed ? `, ${rr.failed} failed` : ''}.` : '';
       const pr = bo.pollRun, pst = $('#pollStatus');
-      if (pst) pst.textContent = pr ? `${pr.running ? '⏳ Voting' : '✅ Done'}: ${pr.post} → "${pr.option}", ${pr.ok}/${pr.total} sent${pr.failed ? `, ${pr.failed} failed` : ''}.` : '';
+      if (pst) pst.textContent = pr ? `${pr.running ? '⏳ Voting' : pr.aborted ? '⛔ Stopped (WhatsApp refused the vote)' : '✅ Done'}: ${pr.post} → "${pr.option}", ${pr.ok}/${pr.total} accepted${pr.failed ? `, ${pr.failed} failed` : ''}.${pr.note ? ` WhatsApp answered: ${pr.note}` : ''}` : '';
       if ((rr?.running || pr?.running) && !drawBoost.poll) drawBoost.poll = setInterval(async () => { try { const r = await api('GET', '/api/admin/boost'); drawBoost(r.boost); if (!r.boost.reactRun?.running && !r.boost.pollRun?.running) { clearInterval(drawBoost.poll); drawBoost.poll = null; } } catch { clearInterval(drawBoost.poll); drawBoost.poll = null; } }, 3000);
       const ul = $('#boostList'); ul.replaceChildren();
       const live = bo.jobs.filter((j) => j.status === 'active' || j.followers);
