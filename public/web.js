@@ -949,8 +949,10 @@
       try {
         const r = await api('POST', '/api/admin/boost/poll/load', { link });
         pollState.link = link; pollState.online = r.online; pollState.optin = r.optin;
-        $('#pollQ').textContent = `📊 ${r.poll.question || 'Poll'} (${r.poll.channel})`;
+        $('#pollQ').textContent = r.poll.unreadable ? `📊 Channel found: ${r.poll.channel} (post #${r.poll.postId})` : `📊 ${r.poll.question || 'Poll'} (${r.poll.channel})`;
         const box = $('#pollOpts'); box.replaceChildren();
+        pollState.manual = !!r.poll.unreadable; $('#pollManual').hidden = !pollState.manual;
+        if (pollState.manual) $('#pollDiag').textContent = `⚠️ The poll options could not be read automatically. Type the option you want, exactly as it is in the poll. (WhatsApp answered: ${r.poll.diag || 'nothing'})`;
         r.poll.options.forEach((o, i) => {
           const rb = h('input', { type: 'radio', name: 'pollOpt', value: String(i), 'aria-label': o }); if (i === 0) rb.checked = true;
           box.append(h('label', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, o)), rb));
@@ -961,10 +963,11 @@
     $('#pollGo')?.addEventListener('click', busy($('#pollGo'), async () => {
       const pick = document.querySelector('input[name="pollOpt"]:checked');
       const count = Math.floor(Number($('#pollCount').value));
-      if (!pick) return toast('Pick an option first.', true);
+      const text = pollState.manual ? $('#pollText').value.trim() : '';
+      if (pollState.manual ? !text : !pick) return toast(pollState.manual ? 'Type the option text first.' : 'Pick an option first.', true);
       if (!(count >= 1)) return toast('Enter how many votes (1 or more).', true);
       try {
-        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, option: Number(pick.value), count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
+        const r = await api('POST', '/api/admin/boost/poll/vote', { link: pollState.link, option: pick ? Number(pick.value) : 0, optionText: text, count, scope: $('#pollScope').value, follow: $('#pollFollow').checked });
         drawBoost(r.boost); toast('Started. The numbers vote one by one.');
       } catch (e) { toast(e.message, true); }
     }));
