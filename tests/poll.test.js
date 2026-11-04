@@ -28,11 +28,19 @@ test('loadPoll reads question and options', async () => {
 test('loadPoll rejects a bad link', async () => {
   await assert.rejects(() => loadPoll('https://example.com/x'), /POLL post link/);
 });
-test('vote is sent as a message stanza and the ack decides', async () => {
+test('vote is the WA Web channel stanza: meta + votes/vote with the sha256 of the option name', async () => {
+  const { pollVoteNode } = await import('../lib/boost.js');
+  const n = pollVoteNode('123@newsletter', '55', 'Apple');
+  assert.equal(n.tag, 'message'); assert.equal(n.attrs.type, 'poll'); assert.equal(n.attrs.server_id, '55'); assert.equal(n.attrs.to, '123@newsletter');
+  assert.deepEqual(n.content.map((c) => c.tag), ['meta', 'votes']);
+  assert.equal(n.content[0].attrs.polltype, 'vote');
+  const vote = n.content[1].content[0];
+  assert.equal(vote.tag, 'vote'); assert.ok(vote.content.equals(crypto.createHash('sha256').update('Apple').digest())); assert.equal(vote.content.length, 32);
+});
+test('the ack decides: accepted vs refused', async () => {
   sent.length = 0;
   const r = await sendPollVote(sessions.get('a').sock, '123@newsletter', '55', 'Apple');
-  assert.equal(r.ok, true); assert.equal(r.format, 'poll+server_id');
-  assert.equal(sent[0].node.attrs.server_id, '55');
+  assert.equal(r.ok, true); assert.equal(sent[0].node.attrs.server_id, '55');
   const bad = { query: async () => ({ attrs: { error: '403' } }) };
   const r2 = await sendPollVote(bad, '123@newsletter', '55', 'Apple');
   assert.equal(r2.ok, false); assert.match(r2.ack, /403/);
