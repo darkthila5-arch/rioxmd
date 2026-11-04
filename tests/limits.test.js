@@ -1,70 +1,123 @@
 import './setup.js';
+process.env.BOOST_GAP_MS = '1';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
-process.env.MAX_DL_MB = '1';   // 1 MB limit for the test
-process.env.MAX_DL_JOBS = '3';
-const { fetchBuffer, limited, MAX_DL_BYTES } = await import('../lib/downloader.js');
+const { sessions } = await import('../lib/config.js');
+const { loadPoll, votePoll, sendPollVote, adminBoost } = await import('../lib/boost.js');
+import crypto from 'node:crypto';
+const { setSetting } = await import('../lib/storage.js');
+const reset = () => setSetting('_global', 'pollVoters', {}); // voters are remembered per poll: every test starts clean
 
-const listen = (handler) => new Promise((resolve) => {
-  const server = http.createServer(handler);
-  server.listen(0, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${server.address().port}` }));
+const LINK = 'https://whatsapp.com/channel/0029VaABCDEFGH/55';
+const sent = [];
+const mk = (id) => ({
+  status: 'connected', phone: id,
+  sock: {
+    newsletterMetadata: async () => ({ id: '123@newsletter', name: 'Test channel' }),
+    newsletterFetchMessages: async () => ({ tag: 'messages', content: [{ tag: 'message', attrs: { server_id: '55' }, content: [{ pollCreationMessage: { name: 'Best fruit?', options: [{ optionName: 'Mango' }, { optionName: 'Apple' }] } }] }] }),
+    newsletterFollow: async () => {},
+    query: async (node) => { if (node.tag === 'message') sent.push({ id, node }); return { attrs: {} }; },
+  },
+});
+for (const id of ['a', 'b', 'c']) sessions.set(id, mk(id));
+
+test('loadPoll reads question and options', async () => {
+  const p = await loadPoll(LINK);
+  assert.equal(p.question, 'Best fruit?');
+  assert.deepEqual(p.options, ['Mango', 'Apple']);
+  assert.equal(p.online, 3);
+});
+test('loadPoll rejects a bad link', async () => {
+  await assert.rejects(() => loadPoll('https://example.com/x'), /POLL post link/);
+});
+test('vote is the WA Web channel stanza: meta + votes/vote with the sha256 of the option name', async () => {
+  const { pollVoteNode } = await import('../lib/boost.js');
+  const n = pollVoteNode('123@newsletter', '55', 'Apple');
+  assert.equal(n.tag, 'message'); assert.equal(n.attrs.type, 'poll'); assert.equal(n.attrs.server_id, '55'); assert.equal(n.attrs.to, '123@newsletter');
+  assert.deepEqual(n.content.map((c) => c.tag), ['meta', 'votes']);
+  assert.equal(n.content[0].attrs.polltype, 'vote');
+  const vote = n.content[1].content[0];
+  assert.equal(vote.tag, 'vote'); assert.ok(vote.content.equals(crypto.createHash('sha256').update('Apple').digest())); assert.equal(vote.content.length, 32);
+});
+test('the ack decides: accepted vs refused', async () => {
+  sent.length = 0;
+  const r = await sendPollVote(sessions.get('a').sock, '123@newsletter', '55', 'Apple');
+  assert.equal(r.ok, true); assert.equal(sent[0].node.attrs.server_id, '55');
+  const bad = { query: async () => ({ attrs: { error: '403' } }) };
+  const r2 = await sendPollVote(bad, '123@newsletter', '55', 'Apple');
+  assert.equal(r2.ok, false); assert.match(r2.ack, /403/);
+});
+test('first vote refused: the run stops and other numbers are not used', async () => {
+  for (const r of sessions.values()) r.sock.query = async () => ({ attrs: { error: '479' } });
+  sent.length = 0;
+  await votePoll(LINK, 0, 3, 'all', false);
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  const run = adminBoost().pollRun;
+  assert.equal(run.aborted, true); assert.equal(run.failed, 1); assert.match(run.note, /479/);
+  for (const r of sessions.values()) r.sock.query = async (node) => { if (node.tag === 'message') sent.push({ node }); return { attrs: {} }; };
+});
+test('votePoll: N distinct numbers vote once each, count is capped', async () => {
+  reset();
+  sent.length = 0;
+  await votePoll(LINK, 1, 99, 'all', true);
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  const run = adminBoost().pollRun;
+  assert.equal(run.total, 3); assert.equal(run.ok, 3); assert.equal(run.option, 'Apple');
+  assert.equal(sent.length, 3);
+  reset(); sent.length = 0;
+  await votePoll(LINK, 0, 2, 'all', false);
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sent.length, 2);
+});
+test('votePoll rejects a wrong option index', async () => {
+  await assert.rejects(() => votePoll(LINK, 7, 1, 'all', false), /Pick one/);
 });
 
-test('limit is 1 MB in this test', () => assert.equal(MAX_DL_BYTES, 1048576));
-
-test('a small file downloads completely', async () => {
-  const { server, url } = await listen((_q, res) => res.end(Buffer.alloc(200_000, 7)));
-  const buf = await fetchBuffer(url);
-  server.close();
-  assert.equal(buf.length, 200_000);
-  assert.equal(buf[0], 7);
+test('unreadable poll: load still works (manual mode) and a typed option can be voted', async () => {
+  reset();
+  for (const r of sessions.values()) r.sock.newsletterFetchMessages = async () => ({ tag: 'messages', content: [] });
+  const p = await loadPoll(LINK);
+  assert.equal(p.unreadable, true); assert.ok(p.diag.length > 0);
+  await assert.rejects(() => votePoll(LINK, 0, 1, 'all', false, ''), /Type the option text/);
+  sent.length = 0;
+  await votePoll(LINK, 0, 1, 'all', false, 'Mango');
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].node.tag, 'message');
 });
 
-test('too big (Content-Length says so): refused before downloading', async () => {
-  const { server, url } = await listen((_q, res) => { res.setHeader('content-length', 50_000_000); res.write('x'); setTimeout(() => res.destroy(), 200); });
-  await assert.rejects(fetchBuffer(url), /TOO_BIG/);
-  server.close();
+test('raw messages query result with a plaintext poll is read; a live poll is cached', async () => {
+  const { cachePollFromMessage } = await import('../lib/boost.js');
+  cachePollFromMessage({ key: { remoteJid: '123@newsletter' }, newsletter_server_id: 77, message: { pollCreationMessageV3: { name: 'Live?', options: [{ optionName: 'Yes' }, { optionName: 'No' }] } } });
+  const p = await loadPoll('https://whatsapp.com/channel/0029VaABCDEFGH/77');
+  assert.equal(p.question, 'Live?'); assert.deepEqual(p.options, ['Yes', 'No']);
 });
 
-test('too big with NO Content-Length: stops reading at the limit instead of loading everything', async () => {
-  let sent = 0, stopped = false;
-  const { server, url } = await listen((_q, res) => {
-    res.on('close', () => { stopped = true; });
-    const chunk = Buffer.alloc(64 * 1024);
-    const pump = () => {
-      while (!stopped && res.writableLength < 1_000_000) { sent += chunk.length; if (!res.write(chunk)) break; if (sent > 200 * 1024 * 1024) return res.end(); }
-      if (!stopped && sent <= 200 * 1024 * 1024) res.once('drain', pump);
-    };
-    pump();
-  });
-  await assert.rejects(fetchBuffer(url), /TOO_BIG/);
-  await new Promise((r) => setTimeout(r, 300));
-  server.close();
-  assert.ok(stopped, 'server connection was closed by the client');
-  assert.ok(sent < 40 * 1024 * 1024, `server pushed ${(sent / 1048576).toFixed(0)} MB (a full read would be 200 MB)`);
+test('voters are remembered: vote skips voted numbers, change / remove only touch voters, remove sends an empty <votes/>', async () => {
+  reset();
+  for (const [id, r] of sessions) r.sock.newsletterFetchMessages = async () => ({ tag: 'messages', content: [{ tag: 'message', attrs: { server_id: '55' }, content: [{ pollCreationMessage: { name: 'Best fruit?', options: [{ optionName: 'Mango' }, { optionName: 'Apple' }] } }] }] });
+  const done = async () => { for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20)); };
+  const L = 'https://whatsapp.com/channel/0029VaABCDEFGH/55';
+  await assert.rejects(() => votePoll(L, 0, 1, 'all', false, '', 'remove'), /No online number has a vote/);
+  sent.length = 0; await votePoll(L, 0, 2, 'all', false, '', 'vote'); await done();
+  assert.equal(sent.length, 2);
+  let p = await loadPoll(L); assert.equal(p.counts.all.voted, 2);
+  sent.length = 0; await votePoll(L, 1, 5, 'all', false, '', 'vote'); await done(); // only the one number left
+  assert.equal(sent.length, 1);
+  await assert.rejects(() => votePoll(L, 1, 1, 'all', false, '', 'vote'), /already voted/);
+  sent.length = 0; await votePoll(L, 0, 1, 'all', false, '', 'change'); await done();
+  assert.equal(sent.length, 1); assert.equal(sent[0].node.content[1].content.length, 1);
+  sent.length = 0; await votePoll(L, 0, 9, 'all', false, '', 'remove'); await done();
+  assert.equal(sent.length, 3); assert.equal(sent[0].node.content[1].content, undefined);
+  p = await loadPoll(L); assert.equal(p.counts.all.voted, 0);
 });
-
-test('HTTP errors are reported', async () => {
-  const { server, url } = await listen((_q, res) => { res.statusCode = 404; res.end('no'); });
-  await assert.rejects(fetchBuffer(url), /404/);
-  server.close();
-});
-
-test('job limiter: 12 jobs, never more than 3 at the same time, all finish, in order of arrival', async () => {
-  let running = 0, peak = 0; const order = [];
-  const job = (i) => limited(async () => {
-    running++; peak = Math.max(peak, running);
-    await new Promise((r) => setTimeout(r, 30));
-    order.push(i); running--; return i;
-  });
-  const results = await Promise.all(Array.from({ length: 12 }, (_, i) => job(i)));
-  assert.equal(peak, 3);
-  assert.deepEqual(results, [...Array(12).keys()]);
-  assert.deepEqual(order, [...Array(12).keys()]);
-});
-
-test('job limiter: a failing job frees its slot', async () => {
-  for (let i = 0; i < 10; i++) await assert.rejects(limited(async () => { throw new Error('boom'); }), /boom/);
-  assert.equal(await limited(async () => 'still works'), 'still works');
+test('stopPoll stops a running vote before the next number', async () => {
+  reset();
+  const { stopPoll } = await import('../lib/boost.js');
+  const L = 'https://whatsapp.com/channel/0029VaABCDEFGH/55';
+  process.env.BOOST_GAP_MS = '1';
+  sent.length = 0; await votePoll(L, 0, 3, 'all', false, '', 'vote'); stopPoll();
+  for (let i = 0; i < 50 && adminBoost().pollRun?.running; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(adminBoost().pollRun.stopped, true); assert.ok(sent.length < 3);
+  await assert.rejects(async () => stopPoll(), /No poll vote is running/);
 });
