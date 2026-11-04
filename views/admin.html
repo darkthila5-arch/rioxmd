@@ -205,6 +205,7 @@
           <div class="actions"><button class="btn" id="pollLoad" type="button">Load poll</button></div>
           <div id="pollBox" hidden>
             <p class="note"><b id="pollQ"></b></p>
+            <div class="field sm"><select id="pollAction" aria-label="What to do"><option value="vote">Vote (numbers that have not voted on this poll yet)</option><option value="change">Change vote (numbers that already voted)</option><option value="remove">Remove vote (numbers that already voted)</option></select></div>
             <div id="pollOpts" role="radiogroup" aria-label="Poll options"></div>
             <div id="pollManual" hidden>
               <p class="note" id="pollDiag"></p>
@@ -214,7 +215,7 @@
             <p class="note" id="pollAvail" aria-live="polite"></p>
             <div class="field sm"><input id="pollCount" type="number" min="1" step="1" value="1" inputmode="numeric" aria-label="How many votes"></div>
             <label class="row" for="pollFollow"><span class="txt"><b>Follow the channel first</b><small>Numbers that do not follow it yet follow it before voting.</small></span><input type="checkbox" class="sw" id="pollFollow" role="switch" aria-label="Follow first" checked></label>
-            <div class="actions"><button class="btn" id="pollGo" type="button">Vote now</button></div>
+            <div class="actions"><button class="btn" id="pollGo" type="button">Vote now</button> <button class="btn" id="pollStop" type="button" hidden>Stop</button></div>
           </div>
           <p class="note" id="pollStatus" aria-live="polite"></p>
         </div>
@@ -520,7 +521,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=12"></script>
+<script src="/web.js?v=13"></script>
 <script src="/notices.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
