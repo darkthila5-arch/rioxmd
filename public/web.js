@@ -957,6 +957,8 @@
         $('#pollQ').textContent = r.poll.unreadable ? `📊 Channel found: ${r.poll.channel} (post #${r.poll.postId})` : `📊 ${r.poll.question || 'Poll'} (${r.poll.channel})`;
         const box = $('#pollOpts'); box.replaceChildren();
         pollState.manual = !!r.poll.unreadable;
+        const t = r.poll.tally, pt = $('#pollTally');
+        pt.textContent = !t ? '📈 Results: the post did not show vote counts.' : Object.keys(t.counts).length ? `📈 Results now: ${r.poll.options.map((o) => `${o} ${t.counts[o] ?? 0}`).join(' · ')} (counts can lag a little; press Load poll again)` : `📈 Results could not be read. WhatsApp sent: ${t.raw}`;
         if (pollState.manual) $('#pollDiag').textContent = `⚠️ The poll options could not be read automatically. Type the option you want, exactly as it is in the poll. (WhatsApp answered: ${r.poll.diag || 'nothing'})`;
         r.poll.options.forEach((o, i) => {
           const rb = h('input', { type: 'radio', name: 'pollOpt', value: String(i), 'aria-label': o }); if (i === 0) rb.checked = true;
