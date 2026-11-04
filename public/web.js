@@ -65,7 +65,7 @@
     ] },
     { title: '👑 Channel song (.chsong)', premiumOnly: true, note: 'How the first post of .chsong looks for your number: a short equalizer animation made from the song thumbnail. Leave a choice on "Default" to use the bot owner\'s look. Premium only.', items: [
       { k: 'csongMode', type: 'select', label: 'Look', options: [['', '↩️ Default'], ['normal', 'Normal thumbnail'], ['equalizer', 'Equalizer animation']] },
-      { k: 'csongEqLayout', type: 'select', label: 'Layout', options: [['', '↩️ Default'], ['circle', '⭕ Round picture with equalizer ring'], ['bars', '📊 Bars along the bottom'], ['wave', '🌊 Smooth wave line'], ['sparkle', '✨ Smooth wave line + floating particles']] },
+      { k: 'csongEqLayout', type: 'select', label: 'Layout', options: [['', '↩️ Default'], ['circle', '⭕ Round picture with equalizer ring'], ['bars', '📊 Bars along the bottom'], ['wave', '🌊 Smooth wave line + floating particles']] },
       { k: 'csongEqStyle', type: 'select', label: 'Equalizer colour', options: [['', '↩️ Default'], ['white', '⚪ White'], ['cyan', '🔵 Cyan'], ['green', '🟢 Green'], ['pink', '🩷 Pink'], ['gold', '🟡 Gold']] },
       { k: 'csongEqCenter', type: 'select', label: 'Picture in the middle (round layout)', options: [['', '↩️ Default'], ['thumbnail', '🖼️ The song thumbnail'], ['channel', '📢 The channel / group logo'], ['custom', '⭐ My own picture']] },
       { k: 'csongPic', type: 'picture', label: 'My own picture', hint: 'Any JPG, PNG, WEBP or GIF. It is cut to a square and shown as the round badge. Pick "My own picture" above to use it.' },
@@ -986,7 +986,7 @@
     /* ----- .chsong look: normal thumbnail or thumbnail with equalizer animation ----- */
     const CS_LABEL = { white: '⚪ White', cyan: '🔵 Cyan', green: '🟢 Green', pink: '🩷 Pink', gold: '🟡 Gold' };
     const CS_CENTER = { thumbnail: '🖼️ Middle: the song thumbnail', channel: '📢 Middle: the channel / group logo', custom: '⭐ Middle: my own picture' };
-    const CS_LAYOUT = { circle: '⭕ Round thumbnail with equalizer ring', bars: '📊 Thumbnail with bars along the bottom', wave: '🌊 Thumbnail with a smooth wave line', sparkle: '✨ Smooth wave line + floating particles' };
+    const CS_LAYOUT = { circle: '⭕ Round thumbnail with equalizer ring', bars: '📊 Thumbnail with bars along the bottom', wave: '🌊 Thumbnail with smooth wave line + floating particles' };
     const csongDraw = (c, styles = [], layouts = [], min = 4, max = 30, centers = []) => {
       const st = $('#csongStyle'), ly = $('#csongLayout'), ce = $('#csongCenter');
       if (st && !st.options.length) for (const k of styles) st.append(h('option', { value: k }, CS_LABEL[k] || k));
@@ -995,10 +995,10 @@
       $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center; if ($('#csongMotion')) $('#csongMotion').value = c.motion;
       csongImgDraw(c.hasImage);
       $('#csongEq').hidden = c.mode !== 'equalizer'; csongCenterShow();
-      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${{ bars: 'bars along the bottom', wave: 'smooth wave line', sparkle: 'smooth wave line + floating particles' }[c.layout] || `round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${{ spin: ', turning', pulse: ', pulsing', both: ', turning and pulsing' }[c.motion] || ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
+      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : c.layout === 'wave' ? 'smooth wave line with floating particles' : `round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${{ spin: ', turning', pulse: ', pulsing', both: ', turning and pulsing' }[c.motion] || ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
     };
     const csongCenterShow = () => { // the middle picture only exists in the round layout: always visible, greyed out for bars
-      const c = $('#csongCenter'), sp = $('#csongMotion'), bars = ['bars', 'wave', 'sparkle'].includes($('#csongLayout')?.value);
+      const c = $('#csongCenter'), sp = $('#csongMotion'), bars = ['bars', 'wave'].includes($('#csongLayout')?.value);
       for (const el of [c, sp]) if (el) { el.disabled = bars; el.title = bars ? 'Only used by the round layout' : ''; }
       const box = $('#csongImgBox'); if (box) box.hidden = bars || c?.value !== 'custom';
     };
