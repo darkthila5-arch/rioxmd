@@ -42,7 +42,7 @@ test('the clip starts a little way into the song and always inside it', () => {
   assert.equal(clipStart(20, 8), 4);      // short song: stays inside it
   assert.equal(clipStart(0, 8), 0);       // unknown length: from the start
 });
-test('every layout makes a silent GIF-style mp4 (640x360, 20 fps), with and without a thumbnail', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
+test('every layout makes a silent GIF-style mp4 (640x360, 20 fps; blob 960x540, 25 fps), with and without a thumbnail', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
   const tone = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anoisesrc=d=6:c=pink', '-f', 'mp3', '-'], { maxBuffer: 1 << 24 });
   const jpg = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720:d=1', '-frames:v', '1', '-f', 'image2', '-c:v', 'mjpeg', '-'], { maxBuffer: 1 << 24 });
   for (const layout of ['circle', 'bars', 'wave', 'blob']) for (const pic of [jpg, null]) for (const particles of [false, true]) {
@@ -52,7 +52,7 @@ test('every layout makes a silent GIF-style mp4 (640x360, 20 fps), with and with
     const file = path.join(os.tmpdir(), `csong-test-${process.pid}.mp4`); fs.writeFileSync(file, mp4); // a file, not stdin: ffprobe may stop reading a pipe early (EPIPE)
     const info = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate', '-of', 'csv=p=0', file]).toString().trim();
     fs.rmSync(file, { force: true });
-    assert.equal(info, 'video,640,360,20/1');                  // one stream only: no audio
+    assert.equal(info, layout === 'blob' ? 'video,960,540,25/1' : 'video,640,360,20/1'); // one stream only: no audio (the blob layout is made bigger and smoother)
   }
 });
 test('broken audio rejects (the command then falls back to the normal thumbnail)', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
