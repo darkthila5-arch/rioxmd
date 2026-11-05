@@ -2,7 +2,7 @@
 //   Posts to the channel by itself, no buttons: 1) the thumbnail with the song details and quality, 2) the song as a voice note.
 //   The thumbnail is either the normal picture or a short GIF-style clip: the song's thumbnail as a round badge with an animated equalizer ring around it: the host picks the default in /admin > Channels > Channel song.
 //   Per post: add -eq (equalizer) or -normal (plain picture) anywhere in the command, e.g. .chsong <channel> -eq shape of you
-//   Round layout, picture in the middle: the host picks it in /admin (song thumbnail or the channel / group logo); per post -logo, -img (your own uploaded picture) or -thumb overrides it, -spin / -still / -pulse / -both sets how it moves.
+//   Round layout, picture in the middle: the host picks it in /admin (song thumbnail or the channel / group logo); per post -logo, -img (your own uploaded picture) or -thumb overrides it, -spin / -still / -pulse / -both sets how it moves. -particles / -noparticles switches the floating particles on or off for this post.
 //   Leave the target out and it posts into the chat where you typed the command.
 //   The linked number must be the channel owner / admin (channels) or a member (groups).
 // .chid <channel link>      shows the channel's JID, ready to copy. Also: reply to a forwarded channel post, or send .chid alone to get this chat's id.
@@ -114,7 +114,7 @@ export default [
   {
     name: 'chsong', aliases: ['csong', 'channelsong'], owner: true, react: '🎙️',
     async run({ sock, jid, sessionId, args, reply }) {
-      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}chsong <channel jid or link> <song name or YouTube link>\nExample: ${PREFIX}chsong 120363xxxxxxxxx@newsletter shape of you\n\nIt posts by itself: thumbnail + details + the song as a voice note.\nLook: -eq = thumbnail with equalizer animation, -normal = plain thumbnail (default is set in /admin).\nRound equalizer middle: -logo = channel logo, -img = your own picture (set in /admin), -thumb = song thumbnail. -spin = turning, -still = not moving, -pulse = pulses with the beat, -both = turns and pulses.\nDon't know the channel jid? Send ${PREFIX}chid <channel link>\n\nTest first (no YouTube): ${PREFIX}chsong <channel> test`);
+      if (!args.length) return reply(`🎙️ *Post a song to a channel*\n\n${PREFIX}chsong <channel jid or link> <song name or YouTube link>\nExample: ${PREFIX}chsong 120363xxxxxxxxx@newsletter shape of you\n\nIt posts by itself: thumbnail + details + the song as a voice note.\nLook: -eq = thumbnail with equalizer animation, -normal = plain thumbnail (default is set in /admin).\nRound equalizer middle: -logo = channel logo, -img = your own picture (set in /admin), -thumb = song thumbnail. -spin = turning, -still = not moving, -pulse = pulses with the beat, -both = turns and pulses.\nFloating particles: -particles / -noparticles.\nDon't know the channel jid? Send ${PREFIX}chid <channel link>\n\nTest first (no YouTube): ${PREFIX}chsong <channel> test`);
 
       let target = jid, rest = args;
       if (looksLikeTarget(args[0])) {
@@ -122,12 +122,12 @@ export default [
         if (!target) return reply(`❌ I could not read that channel / group. Send its jid (ending in @newsletter or @g.us) or its link. ${PREFIX}chid <link> shows the jid.`);
         rest = args.slice(1);
       }
-      let look = null, centre = null, motion = null; // -eq / -normal, -logo / -img / -thumb and -spin / -still / -pulse / -both for this post only
-      rest = rest.filter((t) => { if (/^-(eq|equalizer)$/i.test(t)) { look = 'equalizer'; return false; } if (/^-(normal|plain)$/i.test(t)) { look = 'normal'; return false; } if (/^-(logo|channel)$/i.test(t)) { centre = 'channel'; return false; } if (/^-(thumb|thumbnail)$/i.test(t)) { centre = 'thumbnail'; return false; } if (/^-(img|image|custom)$/i.test(t)) { centre = 'custom'; return false; } if (/^-spin$/i.test(t)) { motion = 'spin'; return false; } if (/^-(still|nospin)$/i.test(t)) { motion = 'still'; return false; } if (/^-pulse$/i.test(t)) { motion = 'pulse'; return false; } if (/^-(both|spinpulse)$/i.test(t)) { motion = 'both'; return false; } return true; });
+      let look = null, centre = null, motion = null, parts = null; // -eq / -normal, -logo / -img / -thumb and -spin / -still / -pulse / -both for this post only
+      rest = rest.filter((t) => { if (/^-(eq|equalizer)$/i.test(t)) { look = 'equalizer'; return false; } if (/^-(normal|plain)$/i.test(t)) { look = 'normal'; return false; } if (/^-(logo|channel)$/i.test(t)) { centre = 'channel'; return false; } if (/^-(thumb|thumbnail)$/i.test(t)) { centre = 'thumbnail'; return false; } if (/^-(img|image|custom)$/i.test(t)) { centre = 'custom'; return false; } if (/^-spin$/i.test(t)) { motion = 'spin'; return false; } if (/^-(still|nospin)$/i.test(t)) { motion = 'still'; return false; } if (/^-pulse$/i.test(t)) { motion = 'pulse'; return false; } if (/^-(both|spinpulse)$/i.test(t)) { motion = 'both'; return false; } if (/^-(particles|dots)$/i.test(t)) { parts = true; return false; } if (/^-(noparticles|nodots)$/i.test(t)) { parts = false; return false; } return true; });
       const query = rest.join(' ').trim();
       // The animation is for the host's own number and for 👑 premium numbers (a premium number can set its own look on /settings). Everybody else posts the normal thumbnail.
       const cfg = resolveCsong(sessionId, { host: Boolean(OWNER_NUMBER) && jidNum(sock.user?.id) === OWNER_NUMBER });
-      if (!cfg.allowed && (look === 'equalizer' || centre || motion)) await reply('🔒 The equalizer animation is a 👑 premium feature, so this post uses the normal thumbnail.');
+      if (!cfg.allowed && (look === 'equalizer' || centre || motion || parts !== null)) await reply('🔒 The equalizer animation is a 👑 premium feature, so this post uses the normal thumbnail.');
       if (!query) return reply(`❌ Add the song name or a YouTube link.\nExample: ${PREFIX}chsong <channel> shape of you`);
 
       if (/^(test|check)$/i.test(query)) { // .chsong <channel> test : proves the bot can post there, without touching YouTube
@@ -186,7 +186,7 @@ export default [
             const want = centre || cfg.center;
             const badge = cfg.layout !== 'circle' ? null : want === 'channel' ? await fetchChannelLogo(sock, target) : want === 'custom' ? (cfg.image || getCenterImage(sessionId) || getCenterImage()) : null;
             if (cfg.layout === 'circle' && want !== 'thumbnail' && !badge) console.error(`chsong: the ${want === 'custom' ? 'uploaded' : 'channel'} picture is not available, using the song thumbnail`);
-            await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, { ...cfg, motion: motion ?? cfg.motion, badge, start: clipStart(length, cfg.seconds) }), mimetype: 'video/mp4', gifPlayback: true, caption: details }); posted = true; // silent looping clip (GIF style)
+            await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, { ...cfg, motion: motion ?? cfg.motion, particles: parts ?? cfg.particles, badge, start: clipStart(length, cfg.seconds) }), mimetype: 'video/mp4', gifPlayback: true, caption: details }); posted = true; // silent looping clip (GIF style)
           }
           catch (err) { console.error(/^BUSY/.test(err?.message) ? 'chsong equalizer skipped (queue full), sending the normal thumbnail:' : 'chsong equalizer failed, sending the normal thumbnail:', err?.message || err); } // never lose the post because of the animation
         }
