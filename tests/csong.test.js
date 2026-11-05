@@ -2,11 +2,14 @@ import './setup.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 const { getCsong, setCsong, makeEqualizerVideo, clipStart } = await import('../lib/csong.js');
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
 test('default look is the normal thumbnail', () => {
-  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', motion: 'spin', hasImage: false });
+  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', motion: 'spin', hasImage: false, particles: false, particleStyle: 'match' });
 });
 test('settings are validated and clamped', () => {
   assert.equal(setCsong({ mode: 'equalizer' }).mode, 'equalizer');
@@ -22,6 +25,10 @@ test('settings are validated and clamped', () => {
   assert.equal(setCsong({ motion: 'pulse' }).motion, 'pulse');
   assert.throws(() => setCsong({ motion: 'dance' }), /motion/);
   setCsong({ center: 'thumbnail', motion: 'spin' });
+  assert.equal(setCsong({ particles: true, particleStyle: 'pink' }).particleStyle, 'pink');
+  assert.equal(getCsong().particles, true);
+  assert.throws(() => setCsong({ particleStyle: 'rainbow' }), /particle/);
+  assert.equal(setCsong({ particles: false, particleStyle: 'match' }).particles, false);
   assert.throws(() => setCsong({ seconds: 'abc' }), /number/);
   assert.equal(setCsong({ mode: 'whatever' }).mode, 'normal'); // anything unknown = normal
 });
@@ -34,11 +41,13 @@ test('the clip starts a little way into the song and always inside it', () => {
 test('every layout makes a silent GIF-style mp4 (640x360, 20 fps), with and without a thumbnail', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
   const tone = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anoisesrc=d=6:c=pink', '-f', 'mp3', '-'], { maxBuffer: 1 << 24 });
   const jpg = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720:d=1', '-frames:v', '1', '-f', 'image2', '-c:v', 'mjpeg', '-'], { maxBuffer: 1 << 24 });
-  for (const layout of ['circle', 'bars']) for (const pic of [jpg, null]) {
-    const mp4 = await makeEqualizerVideo(pic, tone, 'mp3', { seconds: 4, style: 'pink', layout, start: 0 });
+  for (const layout of ['circle', 'bars', 'wave']) for (const pic of [jpg, null]) for (const particles of [false, true]) {
+    const mp4 = await makeEqualizerVideo(pic, tone, 'mp3', { seconds: 4, style: 'pink', layout, start: 0, particles, particleStyle: particles ? 'cyan' : 'match' });
     assert.equal(mp4.subarray(4, 8).toString(), 'ftyp');
     assert.ok(mp4.length > 2000 && mp4.length < 1_500_000, `${layout} size ${mp4.length}`);
-    const info = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate', '-of', 'csv=p=0', '-'], { input: mp4 }).toString().trim();
+    const file = path.join(os.tmpdir(), `csong-test-${process.pid}.mp4`); fs.writeFileSync(file, mp4); // a file, not stdin: ffprobe may stop reading a pipe early (EPIPE)
+    const info = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate', '-of', 'csv=p=0', file]).toString().trim();
+    fs.rmSync(file, { force: true });
     assert.equal(info, 'video,640,360,20/1');                  // one stream only: no audio
   }
 });
