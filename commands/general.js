@@ -6,6 +6,7 @@ import { sendMenuCarousel } from '../lib/menucards.js';
 import { getMenuStyle } from '../lib/control.js';
 import { BOT_NAME, OWNER_NUMBER, PREFIX, jidNum } from '../lib/config.js';
 import { formatUptime, mem } from '../lib/text.js';
+import { sendAliveExtras } from '../lib/botmedia.js';
 
 export default [
   {
@@ -18,7 +19,7 @@ export default [
           try { return await sendMenuCarousel(sock, jid, { name, quoted: msg }); }
           catch (err) { console.error('Carousel menu failed, sending the classic menu:', err?.message || err); }
         }
-        return sendRich(sock, jid, { caption: menuCaption(name), buttons: menuButtons(), footer }, msg);
+        return sendRich(sock, jid, { caption: menuCaption(name), buttons: menuButtons(), footer, slot: 'menuImg' }, msg);
     },
   },
   {
@@ -30,7 +31,8 @@ export default [
   {
     name: 'alive', aliases: ['bot'],
     async run({ sock, msg, jid, name, footer }) {
-        return sendRich(sock, jid, { caption: aliveCaption(name), buttons: aliveButtons(), footer }, msg);
+        await sendRich(sock, jid, { caption: aliveCaption(name), buttons: aliveButtons(), footer, slot: 'aliveImg' }, msg);
+        return sendAliveExtras(sock, jid); // then the alive voice, then the video note (only the ones the host saved in /admin → Bot media)
     },
   },
   {

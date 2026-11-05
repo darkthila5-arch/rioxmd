@@ -2,7 +2,8 @@
 // Add a new command by adding one more object to this array (or create a new file in commands/).
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { FOOTER_TEXT } from '../lib/brand.js';
-import { DEFAULT_CALL_MSG, MAX_CALL_MEDIA, deleteCallMedia, loadCallMedia, saveCallMedia, sendCallMedia } from '../lib/calls.js';
+import { getDefaultCallMsg } from '../lib/botmedia.js';
+import { MAX_CALL_MEDIA, deleteCallMedia, loadCallMedia, saveCallMedia, sendCallMedia } from '../lib/calls.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 import { BOT_NAME, OWNER_NUMBER, PREFIX, jidNum, logger, state } from '../lib/config.js';
 import { parseToggle, unwrapMessage } from '../lib/text.js';
@@ -112,7 +113,7 @@ export default [
     name: 'setcallmsg', adminOnly: true, owner: true,
     async run({ sessionId, args, reply }) {
         const t = args.join(' ').trim();
-        if (!t) return reply(`Current call message:\n${getSetting(sessionId, 'callMsg', DEFAULT_CALL_MSG)}\n\nChange it: ${PREFIX}setcallmsg <text>  (or ${PREFIX}setcallmsg reset)`);
+        if (!t) return reply(`Current call message:\n${getSetting(sessionId, 'callMsg', getDefaultCallMsg())}\n\nChange it: ${PREFIX}setcallmsg <text>  (or ${PREFIX}setcallmsg reset)`);
         setSetting(sessionId, 'callMsg', /^reset$/i.test(t) ? null : t.slice(0, 500));
         return reply('✅ Call message updated.');
     },
