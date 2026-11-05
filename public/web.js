@@ -510,7 +510,7 @@
       document.querySelectorAll('.tabpane').forEach((p) => { p.hidden = p.id !== `pane-${name}`; });
       try { history.replaceState(null, '', `#${name}`); } catch {}
       if (name === 'insights') drawInsights();
-      if (name === 'commands') loadCommands();
+      if (name === 'commands') { loadCommands(); loadScNumbers(); }
       if (name === 'analytics') drawAnalytics();
       if (name === 'activity') loadAudit(true);
       if (name === 'broadcast') loadBroadcast();
@@ -619,6 +619,53 @@
       try { drawCommands(await api('POST', '/api/admin/commands/toggle', { names, disabled: off })); toast('Done.'); } catch (e) { toast(e.message, true); }
     };
     $('#cmdOffShown').addEventListener('click', bulkCmds(true)); $('#cmdOnShown').addEventListener('click', bulkCmds(false));
+    /* ----- commands for ONE number: tick what it may use, everything else is off for that number ----- */
+    let scId = '', scOn = false, scSet = new Set();
+    const scShown = () => { const q = $('#scq').value.trim().toLowerCase(); return cmds.filter((c) => c.who !== 'host' && (!q || c.name.includes(q) || c.aliases.some((a) => a.includes(q)))); }; // host-only commands never work for other numbers anyway
+    const drawSc = () => {
+      $('#scBody').hidden = !scId; if (!scId) return;
+      $('#scOnly').checked = scOn;
+      const ul = $('#scList'); ul.replaceChildren();
+      const list = scShown(), order = (cmdData && cmdData.cats) || [];
+      if (!list.length) ul.append(h('li', { class: 'empty' }, 'No commands match.'));
+      list.sort((a, b) => (order.indexOf(a.cat) - order.indexOf(b.cat)) || a.name.localeCompare(b.name));
+      let lastCat = null;
+      for (const c of list) {
+        if (c.cat !== lastCat) {
+          lastCat = c.cat;
+          const inCat = list.filter((x) => x.cat === c.cat), names = inCat.map((x) => x.name);
+          const mk = (label, on) => { const b = h('button', { class: 'btn alt sm', type: 'button' }, label); b.addEventListener('click', () => { for (const n of names) on ? scSet.add(n) : scSet.delete(n); drawSc(); }); return b; };
+          ul.append(h('li', { class: 'cathead' }, h('span', { class: 'txt' }, h('b', {}, c.cat), h('small', {}, `${inCat.filter((x) => scSet.has(x.name)).length} of ${inCat.length} ticked`)), h('span', { class: 'pills' }, mk('Tick all', true), mk('Untick all', false))));
+        }
+        const sw = h('input', { type: 'checkbox', class: 'sw', role: 'switch', 'aria-label': `${c.name} allowed for this number` }); sw.checked = scSet.has(c.name);
+        sw.addEventListener('change', () => { sw.checked ? scSet.add(c.name) : scSet.delete(c.name); $('#scCount').textContent = `${scSet.size} command(s) ticked`; });
+        ul.append(h('li', {}, h('span', { class: 'go' }, h('span', { class: 'who' }, h('span', { class: 'num' }, `.${c.name}`)), h('span', { class: 'pills' }, c.disabled && h('span', { class: 'pill off' }, 'Off for everybody'), c.who === 'owner' && h('span', { class: 'pill' }, 'Owner command'))), sw));
+      }
+      $('#scCount').textContent = `${scSet.size} command(s) ticked`;
+    };
+    async function loadScNumbers() {
+      try {
+        const d = await api('GET', '/api/admin/overview'), sel = $('#scNum'), keep = scId;
+        sel.replaceChildren(h('option', { value: '' }, 'Choose a number…'), ...d.sessions.map((s) => h('option', { value: s.id }, `${s.phone || s.id}${s.cmdLimit != null ? ` · limited (${s.cmdLimit} commands)` : ''}${s.linked ? '' : ' · not linked'}`)));
+        sel.value = d.sessions.some((s) => s.id === keep) ? keep : ''; if (sel.value !== keep) { scId = ''; drawSc(); }
+      } catch (e) { toast(e.message, true); }
+    }
+    $('#scNum').addEventListener('change', async (e) => {
+      scId = e.target.value; if (!scId) return drawSc();
+      try { const r = await api('GET', `/api/admin/session/${encodeURIComponent(scId)}/commands`); scOn = r.only; scSet = new Set(r.allowed); drawSc(); } catch (x) { scId = ''; e.target.value = ''; drawSc(); toast(x.message, true); }
+    });
+    $('#scOnly').addEventListener('change', (e) => { scOn = e.target.checked; });
+    $('#scq').addEventListener('input', () => drawSc());
+    $('#scTick').addEventListener('click', () => { for (const c of scShown()) scSet.add(c.name); drawSc(); });
+    $('#scUntick').addEventListener('click', () => { for (const c of scShown()) scSet.delete(c.name); drawSc(); });
+    $('#scSave').addEventListener('click', busy($('#scSave'), async () => {
+      if (!scId) return;
+      try {
+        if (scOn && !scSet.size && !(await ask({ title: 'Nothing is ticked', body: 'This number will not be able to use any command. Save anyway?', ok: 'Save', danger: true }))) return;
+        const r = await api('POST', `/api/admin/session/${encodeURIComponent(scId)}/commands`, { only: scOn, allowed: [...scSet] });
+        scOn = r.only; scSet = new Set(r.allowed); drawSc(); loadScNumbers(); toast(scOn ? `Saved: this number can use ${scSet.size} command(s).` : 'Saved: no limit for this number.');
+      } catch (x) { toast(x.message, true); }
+    }));
     $('#maintSwitch').addEventListener('change', async (e) => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: e.target.checked, text: $('#maintText').value })); toast(e.target.checked ? 'Maintenance is ON.' : 'Maintenance is off.'); } catch (x) { e.target.checked = !e.target.checked; toast(x.message, true); } });
     $('#maintSave').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: $('#maintSwitch').checked, text: $('#maintText').value })); toast('Saved.'); } catch (x) { toast(x.message, true); } });
     $('#menuStyle').addEventListener('change', async (e) => { const prev = cmdData?.menuStyle || 'classic'; try { drawCommands(await api('POST', '/api/admin/menustyle', { style: e.target.value })); toast('Menu style saved.'); } catch (x) { e.target.value = prev; toast(x.message, true); } });
