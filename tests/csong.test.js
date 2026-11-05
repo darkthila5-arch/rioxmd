@@ -9,7 +9,7 @@ const { getCsong, setCsong, makeEqualizerVideo, clipStart } = await import('../l
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
 test('default look is the normal thumbnail', () => {
-  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', motion: 'spin', hasImage: false, particles: false, particleStyle: 'match' });
+  assert.deepEqual(getCsong(), { mode: 'normal', seconds: 8, style: 'white', layout: 'circle', center: 'thumbnail', motion: 'spin', hasImage: false, particles: false, particleStyle: 'match', blobStyle: 'filled', blobShape: 'wings' });
 });
 test('settings are validated and clamped', () => {
   assert.equal(setCsong({ mode: 'equalizer' }).mode, 'equalizer');
@@ -29,6 +29,10 @@ test('settings are validated and clamped', () => {
   assert.equal(getCsong().particles, true);
   assert.throws(() => setCsong({ particleStyle: 'rainbow' }), /particle/);
   assert.equal(setCsong({ particles: false, particleStyle: 'match' }).particles, false);
+  assert.equal(setCsong({ blobStyle: 'layers', blobShape: 'round' }).blobStyle, 'layers');
+  assert.throws(() => setCsong({ blobStyle: 'spiky' }), /shape/);
+  assert.throws(() => setCsong({ blobShape: 'cube' }), /shape/);
+  setCsong({ blobStyle: 'filled', blobShape: 'wings' });
   assert.throws(() => setCsong({ seconds: 'abc' }), /number/);
   assert.equal(setCsong({ mode: 'whatever' }).mode, 'normal'); // anything unknown = normal
 });
@@ -41,7 +45,7 @@ test('the clip starts a little way into the song and always inside it', () => {
 test('every layout makes a silent GIF-style mp4 (640x360, 20 fps), with and without a thumbnail', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
   const tone = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'anoisesrc=d=6:c=pink', '-f', 'mp3', '-'], { maxBuffer: 1 << 24 });
   const jpg = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720:d=1', '-frames:v', '1', '-f', 'image2', '-c:v', 'mjpeg', '-'], { maxBuffer: 1 << 24 });
-  for (const layout of ['circle', 'bars', 'wave']) for (const pic of [jpg, null]) for (const particles of [false, true]) {
+  for (const layout of ['circle', 'bars', 'wave', 'blob']) for (const pic of [jpg, null]) for (const particles of [false, true]) {
     const mp4 = await makeEqualizerVideo(pic, tone, 'mp3', { seconds: 4, style: 'pink', layout, start: 0, particles, particleStyle: particles ? 'cyan' : 'match' });
     assert.equal(mp4.subarray(4, 8).toString(), 'ftyp');
     assert.ok(mp4.length > 2000 && mp4.length < 1_500_000, `${layout} size ${mp4.length}`);
