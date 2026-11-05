@@ -1,9 +1,12 @@
 // Web tools.
 //   .short <link>   (aliases .shorten .shorturl)   short link (is.gd, then TinyURL if is.gd is down)
 //   .ss <link>      (aliases .screenshot .ssweb)   screenshot of a web page.  .ss <link> full = the whole page, not only the top
-// Both take the link after the command or from the message that was replied to.
+//   .expand <link>  (aliases .unshort .unshorten .longurl)   shows where a short link really goes (follows the redirects, never opens the page)
+// All take the link after the command or from the message that was replied to.
 // The screenshot is made by an outside service (thum.io, then Microlink), so this server never opens the page itself.
 // Optional env: SCREENSHOT_URL = your own screenshot service; write {url} where the encoded page address goes.
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import { PREFIX } from '../lib/config.js';
 import { createLimiter } from '../lib/mediatools.js';
 import { unwrapMessage } from '../lib/text.js';
@@ -147,4 +150,81 @@ const ss = {
   },
 };
 
-export default [short, ss];
+/* ---------- .expand ---------- */
+const MAX_HOPS = 10;
+export const expandDeps = { lookup: (host) => dns.lookup(host, { all: true }) }; // replaceable in tests
+
+// Addresses a short link must never be allowed to lead this server to (own machine, home / cloud networks).
+function isPrivateIp(ip) {
+  const v = net.isIP(ip);
+  if (v === 4) return PRIVATE_V4.test(ip) || /^(22[4-9]|2[3-5]\d)\./.test(ip);
+  if (v === 6) {
+    const a = ip.toLowerCase();
+    if (a === '::' || a === '::1' || /^f[cd]/.test(a) || /^fe[89ab]/.test(a)) return true;
+    const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    return mapped ? isPrivateIp(mapped[1]) : false;
+  }
+  return true;
+}
+async function assertPublicHost(url) {
+  const host = new URL(url).hostname;
+  if (net.isIP(host)) { if (isPrivateIp(host)) throw Object.assign(new Error('private address'), { unsafe: true }); return; }
+  const found = await expandDeps.lookup(host);
+  if (!found?.length || found.some((f) => isPrivateIp(f.address))) throw Object.assign(new Error('private address'), { unsafe: true });
+}
+
+// Follows the redirects one by one (the page itself is never downloaded) and returns every address on the way.
+// Each step is checked again, so a short link cannot send the bot to a local / private address.
+export async function expandUrl(startUrl) {
+  const chain = [startUrl];
+  let current = startUrl;
+  let status = 0;
+  for (let hop = 0; hop <= MAX_HOPS; hop++) {
+    await assertPublicHost(current);
+    const res = await fetch(current, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS), headers: UA });
+    status = res.status;
+    try { await res.body?.cancel(); } catch { /* nothing to close */ }
+    const location = res.headers?.get?.('location');
+    if (![301, 302, 303, 307, 308].includes(status) || !location) return { final: current, chain, status, tooMany: false, loop: false };
+    let next;
+    try { next = normalizeUrl(new URL(location, current).toString()); } catch { next = null; }
+    if (!next) throw Object.assign(new Error('redirects to an unsafe address'), { unsafe: true });
+    if (chain.includes(next)) return { final: current, chain, status, tooMany: false, loop: true };
+    chain.push(next);
+    current = next;
+  }
+  return { final: current, chain, status, tooMany: true, loop: false };
+}
+
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+const clip = (t, n) => (t.length > n ? `${t.slice(0, n - 3)}...` : t);
+
+const expand = {
+  name: 'expand', aliases: ['unshort', 'unshorten', 'longurl'], react: '🔍',
+  async run({ msg, jid, sessionId, args, reply }) {
+    const url = linkFrom(args, msg);
+    if (!url) return reply(`🔍 *Link expander*\nShows where a short link really goes, before you open it.\nUsage: ${PREFIX}expand <link>  (or reply to a message that has a link)\nExample: ${PREFIX}expand https://bit.ly/abc123`);
+    if (tooSoon(`expand|${who(sessionId, msg, jid)}`, 3000)) return reply('⏳ Wait a few seconds before the next one.');
+    try {
+      const r = await expandUrl(url);
+      if (r.chain.length === 1) return await reply(`🔍 *Link expander*\nThis link does not redirect anywhere, it already is the real address:\n${clip(r.final, 600)}${r.status >= 400 ? `\n\n⚠️ The page answered HTTP ${r.status}.` : ''}`);
+      const hops = r.chain.length - 1;
+      const path = r.chain.map(hostOf).filter((h, i, a) => h !== a[i - 1]).join(' → ');
+      return await reply([
+        '🔍 *Link expanded*',
+        `🔗 Short: ${clip(url, 120)}`,
+        `➡️ Real: ${clip(r.final, 600)}`,
+        `↪️ Redirects: ${hops}${path.includes('→') ? `  (${clip(path, 150)})` : ''}`,
+        r.tooMany ? `\n⚠️ Stopped after ${MAX_HOPS} redirects, the address above may not be the last one.` : '',
+        r.loop ? '\n⚠️ The link redirects in a circle.' : '',
+        r.status >= 400 ? `\n⚠️ The final page answered HTTP ${r.status}.` : '',
+      ].filter(Boolean).join('\n'));
+    } catch (err) {
+      console.error('expand error:', err?.message || err);
+      if (err?.unsafe) return reply('🚫 That link leads to a private or unsafe address, so I did not open it.');
+      return reply('❌ Could not follow that link. It may be broken, blocked or too slow. Try again later.');
+    }
+  },
+};
+
+export default [short, ss, expand];
