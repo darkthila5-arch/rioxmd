@@ -184,8 +184,9 @@ export default [
           try {
             // round layout: the middle shows the channel / group logo when chosen (falls back to the song thumbnail if the logo cannot be read)
             const want = centre || cfg.center;
-            const badge = cfg.layout !== 'circle' ? null : want === 'channel' ? await fetchChannelLogo(sock, target) : want === 'custom' ? (cfg.image || getCenterImage(sessionId) || getCenterImage()) : null;
-            if (cfg.layout === 'circle' && want !== 'thumbnail' && !badge) console.error(`chsong: the ${want === 'custom' ? 'uploaded' : 'channel'} picture is not available, using the song thumbnail`);
+            const round = cfg.layout === 'circle' || cfg.layout === 'blob'; // both have the round badge in the middle
+            const badge = !round ? null : want === 'channel' ? await fetchChannelLogo(sock, target) : want === 'custom' ? (cfg.image || getCenterImage(sessionId) || getCenterImage()) : null;
+            if (round && want !== 'thumbnail' && !badge) console.error(`chsong: the ${want === 'custom' ? 'uploaded' : 'channel'} picture is not available, using the song thumbnail`);
             await sock.sendMessage(target, { video: await makeEqualizerVideo(pic, buf, ext, { ...cfg, motion: motion ?? cfg.motion, particles: parts ?? cfg.particles, badge, start: clipStart(length, cfg.seconds) }), mimetype: 'video/mp4', gifPlayback: true, caption: details }); posted = true; // silent looping clip (GIF style)
           }
           catch (err) { console.error(/^BUSY/.test(err?.message) ? 'chsong equalizer skipped (queue full), sending the normal thumbnail:' : 'chsong equalizer failed, sending the normal thumbnail:', err?.message || err); } // never lose the post because of the animation
