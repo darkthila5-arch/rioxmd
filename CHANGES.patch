@@ -1,0 +1,1376 @@
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/Dockerfile rioxmd-main/Dockerfile
+--- a/Dockerfile	2026-11-05 03:38:16.000000000 +0000
++++ b/Dockerfile	2026-11-05 12:30:00.621242949 +0000
+@@ -14,7 +14,7 @@
+ # Stage 2: the bot itself.
+ FROM node:20-bookworm-slim
+ RUN apt-get update \
+- && apt-get install -y --no-install-recommends ffmpeg webp ca-certificates git \
++ && apt-get install -y --no-install-recommends ffmpeg webp ca-certificates git tesseract-ocr tesseract-ocr-eng tesseract-ocr-sin tesseract-ocr-tam \
+  && rm -rf /var/lib/apt/lists/*
+ WORKDIR /app
+ COPY package*.json ./
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/README.md rioxmd-main/README.md
+--- a/README.md	2026-11-05 03:38:16.000000000 +0000
++++ b/README.md	2026-11-05 12:30:17.189800997 +0000
+@@ -11,6 +11,7 @@
+ | `.pair` command | Anyone can send `.pair 94771234567` (or just `.pair` in a private chat) and the bot answers with a pair code and a **Copy Code** button, so they can link their own number as a bot. Rate limited, respects "new links paused" and `MAX_SESSIONS`. Can be switched off in `/admin` → Commands. |
+ | Menu | `.menu` image + buttons, `.alive`, emoji reaction on every command, bot DP link-preview card on every reply. |
+ | Downloaders | TikTok, Facebook, Pinterest, YouTube song / video. |
++| Look-up & file tools | `.define` dictionary, `.wiki` Wikipedia, `.short` short links, `.ss` website screenshot, `.tomp3` video / voice to MP3, `.topdf` photos to one PDF, `.ocr` text from a photo (Sinhala / English / Tamil). See *Look-up, web and file tools*. |
+ | TikTok search | `.tts <words>` shows results as swipeable cards with **VIDEO / AUDIO / MORE** buttons. |
+ | Sri Lanka news | `.news`, `.hiru`, `.derana`, `.itn` and **auto posting** of new headlines to the groups and channels you add. |
+ | Status tools | Auto view, auto react (your own emojis), auto save, view-once recovery. |
+@@ -93,6 +94,14 @@
+ | `BOOST_POLL_MIN` | Minutes between the backup check for new channel posts (default 1). |
+ | `BOOST_LIVE_MIN_S`, `BOOST_LIVE_MAX_S` | Random pause (seconds) before each number reacts to a live post (default 3 and 20). Raise the max (for example 60) when many numbers are linked. |
+ | `BOOST_GAP_MS`, `BOOST_MAX_ACTIONS`, `BOOST_DISABLED` | Pause between follow / react actions, actions per check, and `true` to switch the whole channel feature off. |
++| `MAX_MEDIA_MB` | Biggest file `.tomp3` / `.topdf` / `.ocr` will download (default 30). |
++| `MAX_MEDIA_JOBS` | How many MP3 / PDF-picture / OCR jobs run at the same time (default 2). |
++| `MAX_MP3_SECONDS` | Longest audio `.tomp3` makes, longer is cut (default 1200 = 20 min). |
++| `TOPDF_MAX_PAGES` | Photos in one `.topdf` PDF (default 20). |
++| `OCR_MAX_CHARS` | Longest text `.ocr` sends back (default 4000). |
++| `TESSERACT_PATH` | Only if `tesseract` is not on the PATH. |
++| `SCREENSHOT_URL` | Optional own screenshot service for `.ss`; write `{url}` where the encoded page address goes. |
++| `MAX_SS_JOBS` | Screenshots made at the same time (default 2). |
+ 
+ ## Who can use what
+ - **Host owner** = `OWNER_NUMBER` / `OWNER_LID`. Only the host owner can use `.momenu` and the commands in it: `.restart`, all AUTO NEWS commands, DOWNLOAD TOOLS (`.ytcheck`, `.dlcheck`) and all CALL commands except `.callreject` (`.call`, `.callstream`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`, packs, `.callto`). Real call answering and auto answer only run on the host owner's own number. The same options are locked on the `/settings` page for every other number.
+@@ -108,6 +117,7 @@
+ - News: `.news [hiru|derana|itn]`, `.hiru`, `.derana`, `.itn`
+ - Channel songs (owner): `.csong <channel link | jid> <song name>` posts the thumbnail + details and then the song as a **voice note** to a WhatsApp channel (or group). The thumbnail can be the normal picture or a short silent **GIF-style clip made from the song's own thumbnail**: a round, slowly turning badge with an animated equalizer ring around it (or bars along the bottom), moving with the real song (ffmpeg). The host chooses in `/admin` → Channels → *Channel song* (look, layout, length 4 to 30 s, bar colour), and `-eq` / `-normal` in the command overrides it for one post. Without a channel it posts in the current chat. Needs ffmpeg (included in the Docker image) and, if YouTube shows a bot check, YouTube cookies (`YTDLP_COOKIES`).
+ - Media / stickers: `.tosticker` (photo → sticker), `.toasticker` (video / GIF → animated sticker), `.toimg` (sticker → photo), `.tovideo` (animated sticker → video), `.sticker` / `.media` (help). Reply to the media or send it with the command as the caption. Stickers carry the bot name as pack name and the footer as publisher (a premium number's own brand is used instead). Needs ffmpeg (in the Docker image). `.tovideo` uses `anim_dump` from the `webp` package when it is installed (also in the Docker image) and has a built-in fallback when it is not. `MAX_STICKER_JOBS` (default 2) limits how many conversions run at once.
++- Look-up & file tools (anyone): `.define <word>`, `.wiki <topic>` (`.wiki -si <topic>` for another language), `.short <link>`, `.ss <link> [full]`, `.tomp3 [doc]`, `.topdf` (+ `done` / `now` / `clear` / `status`), `.ocr [si|en|ta|si+en]`. The commands that take a photo / video / audio work by replying to it, or by sending it with the command as the caption.
+ - Full DP (owner): `.fulldp` (reply to a picture, or send it with `.fulldp` as the caption) sets the profile picture **exactly as it is**: same size, no resize, no crop, no blur, no background layer (`.setpp` shrinks it to a 720x720 square). Newer WhatsApp versions show the DP in its original width and height when it is opened; only the round thumbnail is square. Send the picture as a *File / Document* so WhatsApp does not compress it first.
+ - Group (anyone): `.groupinfo`, `.grouphelp`, `.admins`, `.rules`, `.tagadmins`, `.poll Question | A | B`, `.gsettings`
+ - Group admin (the bot must be a group admin): `.kick`, `.add`, `.promote`, `.demote`, `.warn`, `.resetwarn`, `.warnlist`, `.tagall`, `.hidetag`, `.del`, `.group open|close` (`.mute` / `.unmute`), `.setname`, `.setdesc`, `.setgpp`, `.link`, `.revoke`, `.lockinfo` / `.unlockinfo`, `.ephemeral`, `.requests`, `.approveall`, `.rejectall`, `.rules set <text>`, `.antilink off|on|all`, `.welcome` / `.goodbye` (`on`, `off`, `set <text>`, `reset`, placeholders `{user} {group} {count} {desc}`)
+@@ -121,6 +131,15 @@
+ - 👑 Premium: `.gadd <group link> <numbers>` (in a private chat) or `.gadd <numbers>` (inside the group) adds many numbers to a group, slowly, see *Bulk add to a group*
+ - Calls: `.call`, `.callstream`, `.callreject`, `.autoanswer`, `.setcallaudio`, `.setcallvideo`, `.setcallmsg`, `.callpreview`, `.delcallmedia`
+ 
++## Look-up, web and file tools
++- `.define <word>`: English dictionary (dictionaryapi.dev): phonetic, up to 3 word types, example, synonyms. For Sinhala / Tamil words it points to `.translate`.
++- `.wiki <topic>`: Wikipedia summary with the picture and the link. Sinhala / Tamil letters pick Sinhala / Tamil Wikipedia automatically; `.wiki -hi <topic>` picks any other language. Exact title first, then the best search hit; disambiguation pages are marked.
++- `.short <link>`: short link from is.gd, TinyURL if is.gd is down. The link can also come from the message you reply to. Local / private addresses and links with a login inside are refused.
++- `.ss <link>`: screenshot of a page (`.ss <link> full` = whole page). It is made by an outside service (thum.io, then Microlink) so the bot never opens the page itself. Set `SCREENSHOT_URL` to use your own service first. Free services have daily limits, so each person can take one every 10 seconds.
++- `.tomp3`: video, voice note or audio to MP3 (128 kbps stereo). `.tomp3 doc` sends it as a file. Needs ffmpeg.
++- `.topdf`: WhatsApp gives a command one message at a time, so photos are collected per person: send each photo with `.topdf` (or reply to it), then `.topdf done [file name]`. `.topdf now` = one photo straight to a PDF, `.topdf clear` starts again, `.topdf status` shows the count. Photos are turned upright and put on A4 pages (long chat screenshots keep their own page shape). Pages wait 20 minutes in memory, at most `TOPDF_MAX_PAGES` pages / 20 MB per person. Send the photos one at a time: the bot ignores the same command repeated within a second (anti-spam).
++- `.ocr [si|en|ta|si+en]`: reads text from a photo with Tesseract (default Sinhala + English). The text is sent as plain text so it can be copied. Needs `tesseract-ocr` with the language packs (`tesseract-ocr-sin`, `-eng`, `-tam` are in the Docker image); a language that is not installed is skipped and the reply says so. Sinhala is less accurate than English, especially on photos of paper: use clear, straight, well lit pictures.
++
+ ## Downloaders
+ - `.tt` / `.fb` show a preview with **Video / Audio / Document** buttons. TikTok uses the tikwm API first, then yt-dlp. Facebook uses yt-dlp.
+ - `.pin <pinterest or pin.it link>`: image pins are sent straight away (original size when possible), video pins show **Video / Document** buttons. It reads the public pin page and falls back to yt-dlp.
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/commands/dictionary.js rioxmd-main/commands/dictionary.js
+--- a/commands/dictionary.js	1970-01-01 00:00:00.000000000 +0000
++++ b/commands/dictionary.js	2026-11-05 12:24:02.589451542 +0000
+@@ -0,0 +1,165 @@
++// Look-up commands.
++//   .define <word>   (aliases .dict .meaning)     English dictionary: meaning, example, synonyms
++//   .wiki <topic>    (aliases .wikipedia .wp)     Wikipedia summary with the picture and link
++//     .wiki -si <topic> picks the language (-en -si -ta -hi ...). Sinhala / Tamil letters pick Sinhala / Tamil Wikipedia on their own.
++// Free services, no API key: dictionaryapi.dev and the Wikipedia API (https://www.mediawiki.org/wiki/API:Action_API).
++// Wikipedia text is CC BY-SA, so the reply always carries the link.
++import { PREFIX } from '../lib/config.js';
++
++const TIMEOUT_MS = 12000;
++const UA = { 'user-agent': 'RIO-X-MD/1.4 (WhatsApp bot; https://www.mediawiki.org/wiki/API:Etiquette)', accept: 'application/json' };
++const SINHALA = /[඀-෿]/;
++const TAMIL = /[஀-௿]/;
++
++// A user can not ask many times in a row (the free services have limits too).
++const COOLDOWN_MS = 3000;
++const lastUse = new Map();
++setInterval(() => { const t = Date.now(); for (const [k, v] of lastUse) if (t - v > 60e3) lastUse.delete(k); }, 5 * 60e3).unref();
++function tooSoon(key) {
++  const now = Date.now();
++  if (now - (lastUse.get(key) || 0) < COOLDOWN_MS) return true;
++  lastUse.set(key, now);
++  return false;
++}
++const who = (sessionId, msg, jid) => `${sessionId}|${msg.key?.participant || jid}`;
++
++async function getJson(url) {
++  const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: UA });
++  if (res.status === 404) return null;
++  if (!res.ok) throw new Error(`HTTP ${res.status}`);
++  return res.json();
++}
++
++// Cuts at the end of a sentence when it can, so a long text never stops in the middle of a word.
++export function clip(text, max) {
++  const t = String(text || '').replace(/\s+\n/g, '\n').trim();
++  if (t.length <= max) return t;
++  const cut = t.slice(0, max);
++  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('.\n'), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
++  return `${stop > max * 0.5 ? cut.slice(0, stop + 1) : cut.replace(/\s+\S*$/, '')}…`;
++}
++
++/* ---------- .define ---------- */
++async function lookup(word) {
++  const data = await getJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
++  return Array.isArray(data) && data.length ? data : null;
++}
++
++// Pure formatter (tested without network). entries = the dictionaryapi.dev answer.
++export function defineText(entries) {
++  const first = entries[0];
++  const phonetic = first.phonetic || first.phonetics?.find((p) => p?.text)?.text || '';
++  const lines = [`📖 *${first.word}*${phonetic ? `  ${phonetic}` : ''}`];
++  const seen = new Set();
++  let shown = 0;
++  for (const entry of entries) {
++    for (const m of entry.meanings || []) {
++      const pos = m.partOfSpeech || 'other';
++      if (seen.has(pos) || shown >= 3 || !m.definitions?.length) continue;
++      seen.add(pos);
++      shown++;
++      lines.push('', `_${pos}_`);
++      m.definitions.slice(0, 2).forEach((d, i) => {
++        lines.push(`${i + 1}. ${clip(d.definition, 260)}`);
++        if (i === 0 && d.example) lines.push(`   _e.g. ${clip(d.example, 160)}_`);
++      });
++      const syn = [...new Set([...(m.synonyms || []), ...(m.definitions[0]?.synonyms || [])])].slice(0, 5);
++      if (syn.length) lines.push(`🔁 ${syn.join(', ')}`);
++    }
++  }
++  if (shown === 0) return null;
++  lines.push('', `💡 Sinhala meaning: ${PREFIX}tr si ${first.word}`);
++  return lines.join('\n');
++}
++
++const define = {
++  name: 'define', aliases: ['dict', 'meaning'], react: '📖',
++  async run({ msg, jid, sessionId, args, reply }) {
++    const word = args.join(' ').trim();
++    if (!word) return reply(`📖 *Dictionary*\nUsage: ${PREFIX}define <word>\nExample: ${PREFIX}define serendipity`);
++    if (SINHALA.test(word) || TAMIL.test(word)) return reply(`📖 This dictionary is for English words.\nFor Sinhala or Tamil use ${PREFIX}translate (example: ${PREFIX}tr en ${word.slice(0, 30)}).`);
++    if (!/^[\p{L}][\p{L}'’ -]{0,39}$/u.test(word)) return reply(`❌ Send one English word (letters only, up to 40 characters).\nExample: ${PREFIX}define serendipity`);
++    if (tooSoon(`def|${who(sessionId, msg, jid)}`)) return reply('⏳ Wait a few seconds before the next look-up.');
++    let entries;
++    try {
++      entries = await lookup(word.toLowerCase());
++    } catch (err) {
++      console.error('define error:', err?.message || err);
++      return reply('❌ The dictionary service is not answering right now. Try again in a little while.');
++    }
++    const text = entries && defineText(entries);
++    if (!text) return reply(`🔍 No meaning found for "${word}".\nCheck the spelling, or try ${PREFIX}wiki ${word}`);
++    return reply(text);
++  },
++};
++
++/* ---------- .wiki ---------- */
++// "-si colombo" -> { lang: 'si', topic: 'colombo' }.  Without a flag the language comes from the letters used (Sinhala / Tamil), else English.
++export function parseWiki(args) {
++  const list = [...args];
++  let lang = null;
++  const flag = /^-([a-z]{2,3})$/i.exec(list[0] || '');
++  if (flag) { lang = flag[1].toLowerCase(); list.shift(); }
++  const topic = list.join(' ').trim().slice(0, 100);
++  if (!lang) lang = SINHALA.test(topic) ? 'si' : TAMIL.test(topic) ? 'ta' : 'en';
++  return { lang, topic };
++}
++
++async function wikiPage(lang, topic) {
++  const base = `https://${lang}.wikipedia.org/w/api.php`;
++  const common = {
++    action: 'query', format: 'json', formatversion: '2', redirects: '1', converttitles: '1',
++    prop: 'extracts|pageimages|info|pageprops', exintro: '1', explaintext: '1', exsentences: '6',
++    inprop: 'url', piprop: 'thumbnail', pithumbsize: '640', ppprop: 'disambiguation',
++  };
++  const ask = async (extra) => (await getJson(`${base}?${new URLSearchParams({ ...common, ...extra })}`))?.query?.pages?.[0];
++  let page = await ask({ titles: topic });                                       // exact title first
++  if (!page || page.missing || page.invalid) page = await ask({ generator: 'search', gsrsearch: topic, gsrlimit: '1' }); // then the best search hit
++  if (!page || page.missing || !page.extract) return null;
++  return { title: page.title, extract: page.extract, url: page.fullurl, thumb: page.thumbnail?.source || null, disambiguation: !!page.pageprops && 'disambiguation' in page.pageprops };  // the API sends this page property with an empty value
++}
++
++// Pure formatter (tested without network).
++export function wikiText(page, lang) {
++  const out = [`📚 *${page.title}*`, '', clip(page.extract, 750)];
++  if (page.disambiguation) out.push('', `ℹ️ Many things share this name. Be more specific, for example ${PREFIX}wiki ${page.title} (city).`);
++  out.push('', `🔗 ${page.url}`, `_Source: Wikipedia (${lang})_`);
++  return out.join('\n');
++}
++
++async function fetchThumb(url) {
++  try {
++    const u = new URL(url);
++    if (u.protocol !== 'https:' || !/(^|\.)wikimedia\.org$/i.test(u.hostname)) return null; // only Wikipedia's own picture host
++    const res = await fetch(u, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { 'user-agent': UA['user-agent'] } });
++    if (!res.ok || !/^image\//.test(res.headers.get('content-type') || '')) return null;
++    const buf = Buffer.from(await res.arrayBuffer());
++    return buf.length && buf.length <= 3 * 1048576 ? buf : null;
++  } catch { return null; }
++}
++
++const wiki = {
++  name: 'wiki', aliases: ['wikipedia', 'wp'], react: '📚',
++  async run({ sock, msg, jid, sessionId, args, reply }) {
++    const { lang, topic } = parseWiki(args);
++    if (!topic) return reply(`📚 *Wikipedia*\nUsage: ${PREFIX}wiki <topic>\nExample: ${PREFIX}wiki Sigiriya\nOther language: ${PREFIX}wiki -si කොළඹ  (-en, -si, -ta, -hi ...)`);
++    if (tooSoon(`wiki|${who(sessionId, msg, jid)}`)) return reply('⏳ Wait a few seconds before the next look-up.');
++    let page;
++    try {
++      page = await wikiPage(lang, topic);
++    } catch (err) {
++      console.error('wiki error:', err?.message || err);
++      return reply('❌ Wikipedia is not answering right now (or that language does not exist). Try again in a little while.');
++    }
++    if (!page) return reply(`🔍 Nothing found for "${topic.slice(0, 60)}" on Wikipedia (${lang}).\nTry other words${lang === 'en' ? '' : ' or another language with -en'}.`);
++    const text = wikiText(page, lang);
++    const thumb = page.thumb && await fetchThumb(page.thumb);
++    if (thumb) {
++      try { return await sock.sendMessage(jid, { image: thumb, caption: text }, { quoted: msg }); }
++      catch (err) { console.error('wiki picture skipped:', err?.message || err); }
++    }
++    return reply(text);
++  },
++};
++
++export default [define, wiki];
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/commands/media.js rioxmd-main/commands/media.js
+--- a/commands/media.js	2026-11-05 03:38:16.000000000 +0000
++++ b/commands/media.js	2026-11-05 12:30:00.620931443 +0000
+@@ -6,7 +6,7 @@
+   {
+     name: 'media', aliases: ['sticker'],
+     async run({ command, reply }) {
+-        return reply(`🎨 *MEDIA MENU*\n${PREFIX}tosticker — photo → sticker\n${PREFIX}toasticker — video / GIF → animated sticker\n${PREFIX}toimg — sticker → photo\n${PREFIX}tovideo — animated sticker → video\n\nReply to the photo / video / sticker with the command, or send it with the command as the caption.`);
++        return reply(`🎨 *MEDIA MENU*\n${PREFIX}tosticker — photo → sticker\n${PREFIX}toasticker — video / GIF → animated sticker\n${PREFIX}toimg — sticker → photo\n${PREFIX}tovideo — animated sticker → video\n${PREFIX}tomp3 — video / voice note → MP3\n${PREFIX}topdf — photos → PDF (one by one, then ${PREFIX}topdf done)\n${PREFIX}ocr — photo → text (Sinhala / English)\n\nReply to the photo / video / sticker with the command, or send it with the command as the caption.`);
+     },
+   },
+ ];
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/commands/mediatools.js rioxmd-main/commands/mediatools.js
+--- a/commands/mediatools.js	1970-01-01 00:00:00.000000000 +0000
++++ b/commands/mediatools.js	2026-11-05 12:21:26.788797832 +0000
+@@ -0,0 +1,201 @@
++// Media tools.
++//   .tomp3  (aliases .mp3 .toaudio)       video / voice note / audio  -> MP3          (.tomp3 doc = send it as a file)
++//   .topdf  (aliases .pdf .imgtopdf)      photos                      -> one PDF      (add photos one by one, then .topdf done)
++//   .ocr    (aliases .totext .imgtext)    photo with text             -> the text     (.ocr si / en / ta / si+en)
++// Use them by replying to the media, or send the media with the command as its caption.
++// The work is in lib/mediatools.js. Needs ffmpeg (MP3) and tesseract (OCR); both are in the Docker image.
++import { PREFIX } from '../lib/config.js';
++import { say } from '../lib/card.js';
++import { MAX_AUDIO_SECONDS, MAX_INPUT_BYTES, MAX_PDF_PAGES, DEFAULT_OCR_LANGS, OCR_NAMES, buildPdf, downloadMedia, findMedia, imageToPage, ocrImage, parseOcrLang, toMp3 } from '../lib/mediatools.js';
++
++const MB = (n) => Math.round(n / 1048576);
++const sizeOf = (part) => (typeof part?.fileLength?.toNumber === 'function' ? part.fileLength.toNumber() : Number(part?.fileLength || 0));
++
++function failText(err) {
++  if (err?.missing === 'ffmpeg') return '❌ ffmpeg is not installed on the server, so this command cannot work.';
++  if (err?.missing) return `❌ ${err.missing} is not installed on the server, so this command cannot work.`;
++  if (err?.noLang) return `❌ ${err.noLang.map((l) => OCR_NAMES[l] || l).join(' / ')} language data is not installed on this server.`;
++  if (err?.tooBig) return `❌ That file is bigger than ${MB(MAX_INPUT_BYTES)} MB.`;
++  if (err?.download) return '❌ Could not download that file. Forward it again and reply to the new one.';
++  if (err?.noAudio) return '❌ That file has no sound to convert.';
++  if (err?.badImage) return '❌ I could not read that picture. Try another one.';
++  return '❌ Could not convert that file. Try another one.';
++}
++
++// Same person can not start many heavy jobs in a row.
++const lastUse = new Map();
++setInterval(() => { const t = Date.now(); for (const [k, v] of lastUse) if (t - v > 60e3) lastUse.delete(k); }, 5 * 60e3).unref();
++function tooSoon(key, ms) {
++  const now = Date.now();
++  if (now - (lastUse.get(key) || 0) < ms) return true;
++  lastUse.set(key, now);
++  return false;
++}
++const whoKey = (sessionId, jid, msg) => `${sessionId}|${jid}|${msg.key?.fromMe ? 'me' : (msg.key?.participant || '')}`;
++
++/* ---------- .tomp3 ---------- */
++const tomp3 = {
++  name: 'tomp3', aliases: ['mp3', 'toaudio'], react: '🎧',
++  async run({ sock, msg, jid, sessionId, args, reply }) {
++    const usage = `🎧 *Video / Voice → MP3*\nReply to a video, voice note or audio with ${PREFIX}tomp3 (or send it with ${PREFIX}tomp3 as the caption).\n${PREFIX}tomp3 doc = send the MP3 as a file.\nUp to ${Math.round(MAX_AUDIO_SECONDS / 60)} minutes and ${MB(MAX_INPUT_BYTES)} MB.`;
++    const media = findMedia(msg, jid);
++    if (!media) return reply(usage);
++    if (media.kind !== 'video' && media.kind !== 'audio') return reply(`That is not a video or audio.\n${usage}`);
++    if (sizeOf(media.part) > MAX_INPUT_BYTES) return reply(failText({ tooBig: true }));
++    if (tooSoon(`mp3|${whoKey(sessionId, jid, msg)}`, 4000)) return reply('⏳ One at a time please. Try again in a few seconds.');
++    try {
++      const input = await downloadMedia(sock, media);
++      if (input.length > 4 * 1048576) reply('⏳ Converting to MP3…').catch(() => {});
++      const mp3 = await toMp3(input);
++      const asFile = /^(doc|file|document)$/i.test(args[0] || '');
++      if (asFile) {
++        const base = String(media.part.fileName || '').replace(/\.[^.]{1,5}$/, '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 40) || 'RioXMD-audio';
++        return await sock.sendMessage(jid, { document: mp3, mimetype: 'audio/mpeg', fileName: `${base}.mp3` }, { quoted: msg });
++      }
++      return await sock.sendMessage(jid, { audio: mp3, mimetype: 'audio/mpeg', ptt: false }, { quoted: msg });
++    } catch (err) {
++      console.error('tomp3 error:', err?.message || err);
++      return reply(failText(err));
++    }
++  },
++};
++
++/* ---------- .topdf ---------- */
++// WhatsApp commands see one message at a time, so photos are collected per person:
++//   .topdf (with a photo)  adds a page      .topdf done [name]  makes the PDF      .topdf now  = add this photo and make the PDF
++//   .topdf clear           starts again     .topdf status       shows the page count
++// Pages wait in memory for 20 minutes. Limits: pages per PDF (TOPDF_MAX_PAGES, default 20), 20 MB per person, 80 MB for everybody.
++const STACK_TTL_MS = 20 * 60e3;
++const MAX_STACK_BYTES = 20 * 1048576;
++const MAX_ALL_BYTES = 80 * 1048576;
++export const stacks = new Map(); // key -> { pages: [{ jpeg, width, height }], bytes, at }
++setInterval(() => { const t = Date.now(); for (const [k, s] of stacks) if (t - s.at > STACK_TTL_MS) stacks.delete(k); }, 60e3).unref();
++const allBytes = () => { let n = 0; for (const s of stacks.values()) n += s.bytes; return n; };
++
++// Photos from one person are handled in the order their commands arrived.
++const chains = new Map();
++function serial(key, fn) {
++  const next = (chains.get(key) || Promise.resolve()).catch(() => {}).then(fn);
++  chains.set(key, next);
++  next.catch(() => {}).finally(() => { if (chains.get(key) === next) chains.delete(key); });
++  return next;
++}
++
++const DONE = new Set(['done', 'make', 'finish', 'create', 'go', 'send']);
++const CLEAR = new Set(['clear', 'reset', 'cancel', 'stop']);
++const STATUS = new Set(['status', 'list', 'pages', 'count']);
++
++export function pdfName(words) {
++  const base = words.join(' ').replace(/\.pdf$/i, '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().replace(/\s+/g, '_').slice(0, 40);
++  return base || `RioXMD-${new Date().toISOString().slice(0, 10)}`;
++}
++
++const topdf = {
++  name: 'topdf', aliases: ['pdf', 'imgtopdf'], react: '📄',
++  async run({ sock, msg, jid, sessionId, args, reply }) {
++    const key = whoKey(sessionId, jid, msg);
++    const sub = (args[0] || '').toLowerCase();
++    const usage = [
++      '📄 *Photos → PDF*',
++      `1) Reply to a photo with ${PREFIX}topdf (or send the photo with ${PREFIX}topdf as the caption). Do it for each photo, one at a time, up to ${MAX_PDF_PAGES}.`,
++      `2) Send ${PREFIX}topdf done  (or ${PREFIX}topdf done MyNotes to name the file).`,
++      `Only one photo? Use ${PREFIX}topdf now.`,
++      `${PREFIX}topdf clear = start again · ${PREFIX}topdf status = pages so far`,
++    ].join('\n');
++
++    if (CLEAR.has(sub)) {
++      const had = stacks.get(key)?.pages.length || 0;
++      stacks.delete(key);
++      return reply(had ? `🗑️ Cleared ${had} page(s). Start again with a photo.` : 'Nothing to clear. Send a photo with the command to start.');
++    }
++    if (STATUS.has(sub)) {
++      const n = stacks.get(key)?.pages.length || 0;
++      return reply(n ? `📄 ${n} page(s) waiting. Add more, or send ${PREFIX}topdf done` : usage);
++    }
++
++    return serial(key, async () => {
++      const wantsDone = DONE.has(sub);
++      const now = sub === 'now';
++      let media = findMedia(msg, jid);
++      if (wantsDone && stacks.get(key)?.pages.length) media = null; // "done" only finishes: it does not add the photo it replies to
++      const nameWords = args.slice(wantsDone || now ? 1 : 0);
++
++      if (media) {
++        if (media.kind !== 'image') return reply(`🖼️ ${PREFIX}topdf works with photos only.\n${usage}`);
++        if (sizeOf(media.part) > MAX_INPUT_BYTES) return reply(failText({ tooBig: true }));
++        const st = stacks.get(key);
++        if (st && st.pages.length >= MAX_PDF_PAGES) return reply(`📄 That is already ${MAX_PDF_PAGES} pages (the limit). Send ${PREFIX}topdf done to get the PDF.`);
++        if (allBytes() > MAX_ALL_BYTES) return reply('⏳ The server is busy with other PDFs right now. Try again in a few minutes.');
++        let page;
++        try {
++          page = await imageToPage(await downloadMedia(sock, media));
++        } catch (err) {
++          console.error('topdf error:', err?.message || err);
++          return reply(failText(err));
++        }
++        const cur = stacks.get(key) || { pages: [], bytes: 0, at: Date.now() };
++        if (cur.bytes + page.jpeg.length > MAX_STACK_BYTES) return reply(`📄 Those pages are already ${MB(MAX_STACK_BYTES)} MB. Send ${PREFIX}topdf done to get the PDF, then start a new one.`);
++        cur.pages.push(page);
++        cur.bytes += page.jpeg.length;
++        cur.at = Date.now();
++        stacks.set(key, cur);
++        if (!now && !wantsDone) {
++          return reply(`📄 Page *${cur.pages.length}* added.\nSend the next photo with ${PREFIX}topdf, or ${PREFIX}topdf done to get the PDF.`);
++        }
++      }
++
++      const st = stacks.get(key);
++      if (!(wantsDone || now)) return reply(st?.pages.length ? `📄 ${st.pages.length} page(s) waiting. Send a photo with ${PREFIX}topdf to add one, or ${PREFIX}topdf done` : usage);
++      if (!st?.pages.length) return reply(usage);
++
++      try {
++        const name = pdfName(nameWords);
++        const pdf = buildPdf(st.pages, { title: name });
++        await sock.sendMessage(jid, { document: pdf, mimetype: 'application/pdf', fileName: `${name}.pdf`, caption: `📄 PDF ready: ${st.pages.length} page(s)` }, { quoted: msg });
++        stacks.delete(key);
++      } catch (err) {
++        console.error('topdf build error:', err?.message || err);
++        return reply('❌ Could not make the PDF. Your pages are still saved: try again, or ' + `${PREFIX}topdf clear to start over.`);
++      }
++    });
++  },
++};
++
++/* ---------- .ocr ---------- */
++const OCR_MAX_CHARS = Math.max(500, Number(process.env.OCR_MAX_CHARS || 4000));
++const ocr = {
++  name: 'ocr', aliases: ['totext', 'imgtext'], react: '🔠',
++  async run({ sock, msg, jid, sessionId, args, reply }) {
++    const usage = [
++      '🔠 *Photo → Text (OCR)*',
++      `Reply to a photo with ${PREFIX}ocr (or send the photo with ${PREFIX}ocr as the caption).`,
++      `Languages: ${PREFIX}ocr si (Sinhala) · ${PREFIX}ocr en (English) · ${PREFIX}ocr ta (Tamil) · ${PREFIX}ocr si+en. Default is Sinhala + English.`,
++      'Clear, straight, well lit pictures work best. Sinhala is less accurate than English, so check the result.',
++    ].join('\n');
++    let langs = DEFAULT_OCR_LANGS;
++    if (args[0]) {
++      langs = parseOcrLang(args[0]);
++      if (!langs) return reply(`❔ I do not know the language "${args[0].slice(0, 20)}".\n${usage}`);
++    }
++    const media = findMedia(msg, jid);
++    if (!media) return reply(usage);
++    if (media.kind !== 'image') return reply(`🖼️ ${PREFIX}ocr works with photos only.\n${usage}`);
++    if (sizeOf(media.part) > MAX_INPUT_BYTES) return reply(failText({ tooBig: true }));
++    if (tooSoon(`ocr|${whoKey(sessionId, jid, msg)}`, 6000)) return reply('⏳ One at a time please. Try again in a few seconds.');
++    try {
++      const input = await downloadMedia(sock, media);
++      reply('⏳ Reading the text…').catch(() => {});
++      const { text, skipped } = await ocrImage(input, langs);
++      if (skipped.length) await reply(`⚠️ ${skipped.map((l) => OCR_NAMES[l] || l).join(' / ')} language data is not installed on this server, so it was skipped.`).catch(() => {});
++      if (!text) return await reply('🔍 No text found in that picture. Try a clearer, closer photo.');
++      const cut = text.length > OCR_MAX_CHARS;
++      // Sent exactly as read (no bold, no footer) so it can be copied.
++      return await say(sock, jid, cut ? `${text.slice(0, OCR_MAX_CHARS)}\n…` : text, msg, { raw: true });
++    } catch (err) {
++      console.error('ocr error:', err?.message || err);
++      return reply(failText(err));
++    }
++  },
++};
++
++export default [tomp3, topdf, ocr];
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/commands/webtools.js rioxmd-main/commands/webtools.js
+--- a/commands/webtools.js	1970-01-01 00:00:00.000000000 +0000
++++ b/commands/webtools.js	2026-11-05 12:22:12.408800544 +0000
+@@ -0,0 +1,150 @@
++// Web tools.
++//   .short <link>   (aliases .shorten .shorturl)   short link (is.gd, then TinyURL if is.gd is down)
++//   .ss <link>      (aliases .screenshot .ssweb)   screenshot of a web page.  .ss <link> full = the whole page, not only the top
++// Both take the link after the command or from the message that was replied to.
++// The screenshot is made by an outside service (thum.io, then Microlink), so this server never opens the page itself.
++// Optional env: SCREENSHOT_URL = your own screenshot service; write {url} where the encoded page address goes.
++import { PREFIX } from '../lib/config.js';
++import { createLimiter } from '../lib/mediatools.js';
++import { unwrapMessage } from '../lib/text.js';
++
++const TIMEOUT_MS = 15000;
++const SHOT_TIMEOUT_MS = 50000;
++const MAX_SHOT_BYTES = 8 * 1048576;
++const UA = { 'user-agent': 'RIO-X-MD/1.4 (WhatsApp bot)' };
++
++const lastUse = new Map();
++setInterval(() => { const t = Date.now(); for (const [k, v] of lastUse) if (t - v > 120e3) lastUse.delete(k); }, 5 * 60e3).unref();
++function tooSoon(key, ms) {
++  const now = Date.now();
++  if (now - (lastUse.get(key) || 0) < ms) return true;
++  lastUse.set(key, now);
++  return false;
++}
++const who = (sessionId, msg, jid) => `${sessionId}|${msg.key?.participant || jid}`;
++
++/* ---------- reading the link ---------- */
++const PRIVATE_V4 = /^(0\.|10\.|127\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
++
++// "example.com/page" or "https://example.com/page" -> a clean https/http address. Anything else (other schemes, logins inside the
++// link, local / private addresses, no dot in the name) -> null.
++export function normalizeUrl(raw) {
++  let s = String(raw || '').trim().replace(/^[<"'(]+|[>"').,;!?]+$/g, '');
++  if (!s || s.length > 2000) return null;
++  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) {
++    if (!/^[\p{L}\p{N}-]+(\.[\p{L}\p{N}-]+)+(:\d{1,5})?([/?#]|$)/u.test(s)) return null; // a plain word is not a link
++    s = `https://${s}`;
++  }
++  let u;
++  try { u = new URL(s); } catch { return null; }
++  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
++  if (u.username || u.password) return null;
++  const host = u.hostname.toLowerCase();
++  if (!host.includes('.') || host.startsWith('[')) return null; // "localhost", IPv6 and one-word hosts
++  if (/\.(local|localhost|internal|lan|home|corp|test|invalid)$/.test(host)) return null;
++  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && PRIVATE_V4.test(host)) return null;
++  return u.toString();
++}
++
++function quotedText(msg) {
++  const q = unwrapMessage(msg.message).extendedTextMessage?.contextInfo?.quotedMessage;
++  if (!q) return '';
++  const m = unwrapMessage(q);
++  return m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
++}
++
++// The link typed after the command, else the first link in the replied-to message.
++function linkFrom(args, msg) {
++  const typed = args.find((a) => normalizeUrl(a));
++  if (typed) return normalizeUrl(typed);
++  const found = quotedText(msg).match(/(?:https?:\/\/|www\.)[^\s<>"']+/i)?.[0];
++  return found ? normalizeUrl(found) : null;
++}
++
++/* ---------- .short ---------- */
++async function isgd(url) {
++  const res = await fetch(`https://is.gd/create.php?${new URLSearchParams({ format: 'json', url })}`, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: UA });
++  const data = await res.json().catch(() => null);
++  if (data?.shorturl) return String(data.shorturl);
++  throw new Error(`is.gd: ${data?.errormessage || `HTTP ${res.status}`}`);
++}
++async function tinyurl(url) {
++  const res = await fetch(`https://tinyurl.com/api-create.php?${new URLSearchParams({ url })}`, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: UA });
++  const text = (await res.text()).trim();
++  if (res.ok && /^https?:\/\/(www\.)?tinyurl\.com\/\S+$/i.test(text)) return text;
++  throw new Error(`tinyurl: HTTP ${res.status}`);
++}
++export async function shorten(url) {
++  const errors = [];
++  for (const svc of [isgd, tinyurl]) {
++    try { return await svc(url); } catch (err) { errors.push(err?.message || String(err)); }
++  }
++  throw new Error(errors.join(' | '));
++}
++
++const short = {
++  name: 'short', aliases: ['shorten', 'shorturl'], react: '🔗',
++  async run({ msg, jid, sessionId, args, reply }) {
++    const url = linkFrom(args, msg);
++    if (!url) return reply(`🔗 *Link shortener*\nUsage: ${PREFIX}short <link>  (or reply to a message that has a link)\nExample: ${PREFIX}short https://example.com/a/very/long/address`);
++    if (tooSoon(`short|${who(sessionId, msg, jid)}`, 3000)) return reply('⏳ Wait a few seconds before the next one.');
++    try {
++      const link = await shorten(url);
++      return await reply(`🔗 *Short link*\n${link}\n\n📎 ${url.length > 70 ? `${url.slice(0, 67)}...` : url}`);
++    } catch (err) {
++      console.error('short error:', err?.message || err);
++      return reply('❌ The link shortener is not answering right now. Try again in a little while.');
++    }
++  },
++};
++
++/* ---------- .ss ---------- */
++const shotLimit = createLimiter(Math.max(1, Number(process.env.MAX_SS_JOBS || 2)));
++
++// Screenshot services, tried in this order. Each gets the page address and returns the address of the picture.
++const providers = (url, full) => [
++  ...(process.env.SCREENSHOT_URL ? [process.env.SCREENSHOT_URL.replace('{url}', encodeURIComponent(url))] : []),
++  `https://image.thum.io/get/${full ? 'fullpage/' : ''}width/1280/noanimate/${url}`,
++  `https://api.microlink.io/?${new URLSearchParams({ url, screenshot: 'true', meta: 'false', embed: 'screenshot.url', 'viewport.width': '1280', 'viewport.height': '800', ...(full ? { 'screenshot.fullPage': 'true' } : {}) })}`,
++];
++
++const isImage = (b) => b.length > 2048 && (
++  (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) ||                 // PNG
++  (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) ||                                  // JPEG
++  (b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP'));  // WebP
++
++export async function screenshot(url, full = false) {
++  const errors = [];
++  for (const endpoint of providers(url, full)) {
++    try {
++      const res = await fetch(endpoint, { signal: AbortSignal.timeout(SHOT_TIMEOUT_MS), headers: UA, redirect: 'follow' });
++      if (!res.ok) throw new Error(`HTTP ${res.status}`);
++      if (Number(res.headers.get('content-length') || 0) > MAX_SHOT_BYTES) throw new Error('picture too big');
++      const buf = Buffer.from(await res.arrayBuffer());
++      if (buf.length > MAX_SHOT_BYTES) throw new Error('picture too big');
++      if (!isImage(buf)) throw new Error('not a picture');
++      return buf;
++    } catch (err) { errors.push(`${new URL(endpoint).host}: ${err?.message || err}`); }
++  }
++  throw new Error(errors.join(' | '));
++}
++
++const ss = {
++  name: 'ss', aliases: ['screenshot', 'ssweb'], react: '📸',
++  async run({ sock, msg, jid, sessionId, args, reply }) {
++    const full = args.some((a) => /^(full|fullpage)$/i.test(a));
++    const url = linkFrom(args.filter((a) => !/^(full|fullpage)$/i.test(a)), msg);
++    if (!url) return reply(`📸 *Website screenshot*\nUsage: ${PREFIX}ss <link>  (or reply to a message that has a link)\n${PREFIX}ss <link> full = the whole page\nExample: ${PREFIX}ss example.com`);
++    if (tooSoon(`ss|${who(sessionId, msg, jid)}`, 10000)) return reply('⏳ One screenshot at a time please. Try again in a few seconds.');
++    reply('⏳ Taking the screenshot… this can take up to a minute.').catch(() => {});
++    try {
++      const image = await shotLimit(() => screenshot(url, full));
++      return await sock.sendMessage(jid, { image, caption: `📸 ${url.length > 120 ? `${url.slice(0, 117)}...` : url}` }, { quoted: msg });
++    } catch (err) {
++      console.error('ss error:', err?.message || err);
++      return reply('❌ Could not take a screenshot of that page. The site may block screenshots, or the service is busy. Try again later.');
++    }
++  },
++};
++
++export default [short, ss];
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/lib/mediatools.js rioxmd-main/lib/mediatools.js
+--- a/lib/mediatools.js	1970-01-01 00:00:00.000000000 +0000
++++ b/lib/mediatools.js	2026-11-05 12:22:32.766904087 +0000
+@@ -0,0 +1,249 @@
++// Helpers for commands/mediatools.js:  .tomp3  .topdf  .ocr
++//   findMedia(msg, jid)         the photo / video / audio / document in this message, or in the message it replies to
++//   downloadMedia(sock, media)  Buffer of that media (size checked)
++//   toMp3(buf)                  video / audio / voice note -> MP3          (ffmpeg)
++//   imageToPage(buf)            photo -> { jpeg, width, height } ready for a PDF page   (sharp)
++//   buildPdf(pages, { title })  list of pages -> one PDF Buffer             (plain Node, no extra npm package)
++//   ocrImage(buf, langs)        photo -> text                               (tesseract)
++//
++// Needs ffmpeg and tesseract on the server (both are in the Docker image). Nothing here touches WhatsApp except downloadMedia().
++// User input never reaches a command line: ffmpeg / tesseract only get fixed options and file names made here.
++import { execFile } from 'node:child_process';
++import fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++import { downloadMediaMessage } from '@whiskeysockets/baileys';
++import { logger } from './config.js';
++import { unwrapMessage } from './text.js';
++
++export const MAX_INPUT_BYTES = Math.max(1, Number(process.env.MAX_MEDIA_MB || 30)) * 1024 * 1024; // refuse bigger downloads
++export const MAX_AUDIO_SECONDS = Math.max(30, Number(process.env.MAX_MP3_SECONDS || 1200));        // longer audio is cut here (20 min)
++export const MAX_PDF_PAGES = Math.max(1, Number(process.env.TOPDF_MAX_PAGES || 20));
++const PAGE_MAX_PX = 2400;                                    // longest side of a PDF picture (about A4 at 200 dpi)
++const TESSERACT = () => process.env.TESSERACT_PATH || 'tesseract';
++
++/* ---------- limit how many heavy jobs run together ---------- */
++export function createLimiter(max) {
++  let running = 0;
++  const waiting = [];
++  return async (fn) => {
++    if (running >= max) await new Promise((resolve) => waiting.push(resolve));
++    running++;
++    try { return await fn(); } finally { running--; waiting.shift()?.(); }
++  };
++}
++const limited = createLimiter(Math.max(1, Number(process.env.MAX_MEDIA_JOBS || 2)));
++
++function run(cmd, args, { timeout = 120000, env } = {}) {
++  return new Promise((resolve, reject) => {
++    execFile(cmd, args, { timeout, maxBuffer: 16 * 1024 * 1024, ...(env ? { env: { ...process.env, ...env } } : {}) }, (err, stdout, stderr) => {
++      if (!err) return resolve(String(stdout));
++      if (err.code === 'ENOENT') return reject(Object.assign(new Error(`${cmd} is not installed`), { missing: cmd }));
++      reject(Object.assign(new Error(`${cmd} failed: ${String(stderr || err.message).slice(-300)}`), { stderr: String(stderr || '') }));
++    });
++  });
++}
++
++async function withTmp(fn) {
++  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rio-mt-'));
++  try { return await fn(dir); } finally { fs.rm(dir, { recursive: true, force: true }).catch(() => {}); }
++}
++
++/* ---------- find + download the media a command works on ---------- */
++// Tests replace deps.download so no real WhatsApp download is needed.
++export const deps = { download: downloadMediaMessage };
++
++const num = (v) => (typeof v?.toNumber === 'function' ? v.toNumber() : Number(v || 0)); // protobuf sizes can be Long objects
++
++function classify(m) {
++  if (m.imageMessage) return { kind: 'image', part: m.imageMessage };
++  if (m.videoMessage) return { kind: 'video', part: m.videoMessage };
++  if (m.audioMessage) return { kind: 'audio', part: m.audioMessage };
++  if (m.documentMessage) { // a file: photos / videos / audio sent "as a file" keep their real kind
++    const mime = String(m.documentMessage.mimetype || '');
++    const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'document';
++    return { kind, part: m.documentMessage };
++  }
++  return null;
++}
++
++// The message itself (media + caption), or else the message that was replied to. Returns { kind, part, target } or null.
++export function findMedia(msg, jid) {
++  const own = unwrapMessage(msg.message);
++  const hit = classify(own);
++  if (hit) return { ...hit, target: msg };
++  const ctx = own.extendedTextMessage?.contextInfo;
++  const quoted = ctx?.quotedMessage ? unwrapMessage(ctx.quotedMessage) : null;
++  const q = quoted && classify(quoted);
++  if (!q) return null;
++  return { ...q, target: { key: { remoteJid: jid, id: ctx.stanzaId, participant: ctx.participant, fromMe: false }, message: quoted } };
++}
++
++export async function downloadMedia(sock, media, maxBytes = MAX_INPUT_BYTES) {
++  if (num(media.part.fileLength) > maxBytes) throw Object.assign(new Error('file too big'), { tooBig: true });
++  let buf;
++  try {
++    buf = await deps.download(media.target, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
++  } catch (err) {
++    throw Object.assign(new Error(`download failed: ${err?.message || err}`), { download: true });
++  }
++  if (!buf?.length) throw Object.assign(new Error('empty download'), { download: true });
++  if (buf.length > maxBytes) throw Object.assign(new Error('file too big'), { tooBig: true });
++  return buf;
++}
++
++/* ---------- .tomp3 ---------- */
++export function toMp3(input) {
++  return limited(() => withTmp(async (dir) => {
++    const inFile = path.join(dir, 'in.bin');
++    const outFile = path.join(dir, 'out.mp3');
++    await fs.writeFile(inFile, input);
++    try {
++      await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', inFile, '-vn', '-map', '0:a:0', '-map_metadata', '-1',
++        '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '128k', '-t', String(MAX_AUDIO_SECONDS), outFile], { timeout: 240000 });
++    } catch (err) {
++      if (/matches no streams|does not contain any stream|Stream map/i.test(err.stderr || err.message)) throw Object.assign(err, { noAudio: true });
++      throw err;
++    }
++    const out = await fs.readFile(outFile);
++    if (!out.length) throw Object.assign(new Error('empty mp3'), { noAudio: true });
++    return out;
++  }));
++}
++
++/* ---------- .topdf ---------- */
++let sharpMod;
++const getSharp = async () => (sharpMod ||= (await import('sharp')).default);
++
++// Photo -> JPEG (turned upright, transparent parts white, 3 colour channels, at most PAGE_MAX_PX on the long side).
++export function imageToPage(input) {
++  return limited(async () => {
++    const sharp = await getSharp();
++    try {
++      const { data, info } = await sharp(input, { failOn: 'none', limitInputPixels: 80e6 })
++        .rotate()
++        .resize(PAGE_MAX_PX, PAGE_MAX_PX, { fit: 'inside', withoutEnlargement: true })
++        .flatten({ background: '#ffffff' })
++        .toColourspace('srgb')
++        .jpeg({ quality: 85 })
++        .toBuffer({ resolveWithObject: true });
++      return { jpeg: data, width: info.width, height: info.height };
++    } catch (err) {
++      throw Object.assign(new Error(`unreadable image: ${err?.message || err}`), { badImage: true });
++    }
++  });
++}
++
++const A4 = [595.28, 841.89];
++const MARGIN = 24;
++const MAX_PAGE_UNITS = 14400; // PDF viewers refuse pages bigger than this
++
++// Where the picture goes on its page. Normal photos: A4 (upright or sideways), centred with a small margin.
++// Very long / very wide pictures (chat screenshots, banners): the page takes the shape of the picture instead of a tiny strip on A4.
++export function pageLayout(w, h) {
++  const ratio = h / w;
++  if (ratio > 1.9 || ratio < 0.52) {
++    let pw = A4[0];
++    let ph = pw * ratio;
++    if (ph > MAX_PAGE_UNITS) { ph = MAX_PAGE_UNITS; pw = ph / ratio; }
++    return { pw, ph, x: 0, y: 0, dw: pw, dh: ph };
++  }
++  const landscape = w > h;
++  const pw = landscape ? A4[1] : A4[0];
++  const ph = landscape ? A4[0] : A4[1];
++  const s = Math.min((pw - 2 * MARGIN) / w, (ph - 2 * MARGIN) / h);
++  const dw = w * s;
++  const dh = h * s;
++  return { pw, ph, x: (pw - dw) / 2, y: (ph - dh) / 2, dw, dh };
++}
++
++const f2 = (n) => Number(n).toFixed(2);
++
++// One PDF with one picture per page. pages = [{ jpeg: Buffer, width, height }]
++export function buildPdf(pages, { title = '' } = {}) {
++  if (!pages?.length) throw new Error('no pages');
++  const parts = [];
++  const offsets = [];
++  let size = 0;
++  const push = (b) => { const buf = Buffer.isBuffer(b) ? b : Buffer.from(b, 'latin1'); parts.push(buf); size += buf.length; };
++  const obj = (n, body) => { offsets[n] = size; push(`${n} 0 obj\n${body}\nendobj\n`); };
++  const streamObj = (n, dict, data) => {
++    offsets[n] = size;
++    push(`${n} 0 obj\n<< ${dict} /Length ${data.length} >>\nstream\n`);
++    push(data);
++    push('\nendstream\nendobj\n');
++  };
++
++  const kids = pages.map((_, i) => `${4 + 3 * i} 0 R`).join(' ');
++  const safeTitle = String(title).replace(/[^\x20-\x7e]/g, '').replace(/[()\\]/g, '').slice(0, 80);
++  const date = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
++
++  push(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a])); // %PDF-1.4 + binary marker
++  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
++  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
++  obj(3, `<< /Producer (RIO X MD)${safeTitle ? ` /Title (${safeTitle})` : ''} /CreationDate (D:${date}Z) >>`);
++  pages.forEach((p, i) => {
++    if (p.jpeg[0] !== 0xff || p.jpeg[1] !== 0xd8) throw new Error('page is not a JPEG');
++    const L = pageLayout(p.width, p.height);
++    const page = 4 + 3 * i;
++    obj(page, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f2(L.pw)} ${f2(L.ph)}] /Resources << /XObject << /Im0 ${page + 2} 0 R >> >> /Contents ${page + 1} 0 R >>`);
++    streamObj(page + 1, '', Buffer.from(`q ${f2(L.dw)} 0 0 ${f2(L.dh)} ${f2(L.x)} ${f2(L.y)} cm /Im0 Do Q`, 'latin1'));
++    streamObj(page + 2, `/Type /XObject /Subtype /Image /Width ${p.width} /Height ${p.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, p.jpeg);
++  });
++
++  const count = 4 + 3 * pages.length - 1; // objects 1 .. count
++  const xref = size;
++  let table = `xref\n0 ${count + 1}\n0000000000 65535 f \n`;
++  for (let n = 1; n <= count; n++) table += `${String(offsets[n]).padStart(10, '0')} 00000 n \n`;
++  push(`${table}trailer\n<< /Size ${count + 1} /Root 1 0 R /Info 3 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
++  return Buffer.concat(parts);
++}
++
++/* ---------- .ocr ---------- */
++export const DEFAULT_OCR_LANGS = ['sin', 'eng'];
++const OCR_WORDS = { en: 'eng', eng: 'eng', english: 'eng', si: 'sin', sin: 'sin', sinhala: 'sin', ta: 'tam', tam: 'tam', tamil: 'tam' };
++export const OCR_NAMES = { eng: 'English', sin: 'Sinhala', tam: 'Tamil' };
++
++// "si" / "en" / "si+en" -> ['sin'] / ['eng'] / ['sin','eng'].  Anything that is not a language word -> null.
++export function parseOcrLang(word) {
++  const parts = String(word || '').toLowerCase().split(/[+,]/).filter(Boolean);
++  if (!parts.length || parts.some((p) => !OCR_WORDS[p])) return null;
++  return [...new Set(parts.map((p) => OCR_WORDS[p]))];
++}
++
++let langCache = null; // Promise<Set<string>>
++export function ocrLangs() {
++  langCache ||= run(TESSERACT(), ['--list-langs'], { timeout: 15000 })
++    .then((out) => new Set(out.split('\n').slice(1).map((l) => l.trim()).filter(Boolean)))
++    .catch((err) => { langCache = null; throw err; }); // not installed now, maybe later: do not remember a failure
++  return langCache;
++}
++export const resetOcrLangs = () => { langCache = null; };
++
++// Cleans what tesseract printed: no form feeds, no trailing spaces, no more than one empty line in a row.
++export function cleanOcrText(text) {
++  return String(text || '').replace(/\f/g, '').replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
++}
++
++// Returns { text, langs, skipped }. langs = what was used; skipped = wanted languages that are not installed on this server.
++export async function ocrImage(input, wanted = DEFAULT_OCR_LANGS) {
++  const have = await ocrLangs();
++  const langs = wanted.filter((l) => have.has(l));
++  const skipped = wanted.filter((l) => !have.has(l));
++  if (!langs.length) throw Object.assign(new Error('language data missing'), { noLang: skipped });
++  const sharp = await getSharp();
++  return limited(() => withTmp(async (dir) => {
++    const inFile = path.join(dir, 'in.png');
++    try {
++      const meta = await sharp(input, { failOn: 'none', limitInputPixels: 80e6 }).metadata();
++      const width = meta.width || 0;
++      const target = width < 1200 ? 1600 : width > 3200 ? 3200 : width; // tiny photos are enlarged, huge ones shrunk: tesseract likes about 300 dpi
++      await sharp(input, { failOn: 'none', limitInputPixels: 80e6 }).rotate().flatten({ background: '#ffffff' }).grayscale().normalise()
++        .resize({ width: target, withoutEnlargement: false }).png().toFile(inFile);
++    } catch (err) {
++      throw Object.assign(new Error(`unreadable image: ${err?.message || err}`), { badImage: true });
++    }
++    const out = await run(TESSERACT(), [inFile, 'stdout', '-l', langs.join('+'), '--dpi', '300'], { timeout: 120000, env: { OMP_THREAD_LIMIT: '1' } });
++    return { text: cleanOcrText(out), langs, skipped };
++  }));
++}
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/lib/menu.js rioxmd-main/lib/menu.js
+--- a/lib/menu.js	2026-11-05 03:38:16.000000000 +0000
++++ b/lib/menu.js	2026-11-05 12:30:00.618094896 +0000
+@@ -69,6 +69,10 @@
+     `│ ✦ ${p}weather <city>`,
+     `│ ✦ ${p}currency 100 usd lkr`,
+     `│ ✦ ${p}translate <lang> <text> (or reply)`,
++    `│ ✦ ${p}define <word> (dictionary)`,
++    `│ ✦ ${p}wiki <topic> (Wikipedia)`,
++    `│ ✦ ${p}short <link> (short link)`,
++    `│ ✦ ${p}ss <link> (website screenshot)`,
+     '╰──────────────⬣',
+     '',
+     '╭─❮ 📰 *NEWS* ❯',
+@@ -82,6 +86,9 @@
+     `│ ✦ ${p}toimg (sticker → photo)`,
+     `│ ✦ ${p}tovideo (animated sticker → video)`,
+     `│ ✦ ${p}emojimix 😂+😍 (mix 2 emojis)`,
++    `│ ✦ ${p}tomp3 (video / voice → MP3)`,
++    `│ ✦ ${p}topdf (photos → PDF)`,
++    `│ ✦ ${p}ocr (photo → text)`,
+     `│ ✦ ${p}sticker · ${p}media`,
+     '╰──────────────⬣',
+     '',
+@@ -226,6 +233,15 @@
+         row('APK Download', 'Use .apk <app name>', 'apk'),
+         row('Lyrics', 'Use .lyrics <song name>', 'lyrics')
+       ] },
++      { title: '🌍 UTILITIES', rows: [
++        row('Weather', 'Use .weather <city>', 'weather'),
++        row('Currency', 'Use .currency 100 usd lkr', 'currency'),
++        row('Translate', 'Use .translate <lang> <text>', 'translate'),
++        row('Dictionary', 'Use .define <word>', 'define'),
++        row('Wikipedia', 'Use .wiki <topic>', 'wiki'),
++        row('Short Link', 'Use .short <link>', 'short'),
++        row('Screenshot', 'Use .ss <link>', 'ss')
++      ] },
+       { title: '📰 NEWS', rows: [
+         row('News', 'Hiru, Derana, ITN headlines', 'news'),
+         row('Hiru News', 'Latest from Hiru', 'hiru'),
+@@ -238,6 +254,9 @@
+         row('To Image', 'Sticker → photo', 'toimg'),
+         row('To Video', 'Animated sticker → video', 'tovideo'),
+         row('Emoji Mix', 'Mix 2 emojis into a sticker', 'emojimix'),
++        row('To MP3', 'Video / voice → MP3', 'tomp3'),
++        row('To PDF', 'Photos → PDF (add one by one, then .topdf done)', 'topdf'),
++        row('OCR', 'Photo → text (Sinhala / English)', 'ocr'),
+         row('Sticker', 'Sticker help', 'sticker'),
+         row('Media', 'Media command guide', 'media')
+       ] },
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/lib/menucards.js rioxmd-main/lib/menucards.js
+--- a/lib/menucards.js	2026-11-05 03:38:16.000000000 +0000
++++ b/lib/menucards.js	2026-11-05 12:30:00.619036611 +0000
+@@ -35,7 +35,11 @@
+   { icon: '🌍', title: 'UTILITIES', rows: [
+     ['weather', 'Weather', 'Weather of a city', '<city>'],
+     ['currency', 'Currency', 'Convert money', '100 usd lkr'],
+-    ['translate', 'Translate', 'Translate text (or reply to a message)', '<lang> <text>'] ] },
++    ['translate', 'Translate', 'Translate text (or reply to a message)', '<lang> <text>'],
++    ['define', 'Dictionary', 'Meaning of an English word', '<word>'],
++    ['wiki', 'Wikipedia', 'Short summary of a topic', '<topic>'],
++    ['short', 'Short Link', 'Make a short link', '<link>'],
++    ['ss', 'Screenshot', 'Screenshot of a web page', '<link>'] ] },
+   { icon: '📰', title: 'NEWS', rows: [
+     ['news', 'News', 'Hiru, Derana, ITN headlines'],
+     ['hiru', 'Hiru News', 'Latest from Hiru'],
+@@ -47,6 +51,9 @@
+     ['toimg', 'To Image', 'Sticker → photo (reply)'],
+     ['tovideo', 'To Video', 'Animated sticker → video (reply)'],
+     ['emojimix', 'Emoji Mix', 'Mix 2 emojis into a sticker', '😂+😍'],
++    ['tomp3', 'To MP3', 'Video / voice → MP3 (reply)'],
++    ['topdf', 'To PDF', 'Photos → PDF (reply, then done)'],
++    ['ocr', 'OCR', 'Photo → text (reply)'],
+     ['sticker', 'Sticker Help', 'Sticker guide'],
+     ['media', 'Media Help', 'Media command guide'] ] },
+   { icon: '👥', title: 'GROUP', rows: [
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/lib/web.js rioxmd-main/lib/web.js
+--- a/lib/web.js	2026-11-05 03:38:16.000000000 +0000
++++ b/lib/web.js	2026-11-05 12:30:00.620176065 +0000
+@@ -429,7 +429,8 @@
+     ['⚙️ GENERAL', 'menu alive ping runtime about owner status pair'],
+     ['📥 DOWNLOAD', 'tt tts ttdl ttmp3 fb ig tw pin song video ytdl dl apk apkget lyrics'],
+     ['📰 NEWS', 'news hiru derana itn'],
+-    ['🎨 MEDIA', 'tosticker toasticker toimg tovideo emojimix sticker media'],
++    ['🌍 UTILITIES', 'weather currency translate define wiki short ss'],
++    ['🎨 MEDIA', 'tosticker toasticker toimg tovideo emojimix sticker media tomp3 topdf ocr'],
+     ['👥 GROUP', 'groupinfo grouphelp gsettings admins rules tagadmins warnlist poll kick add promote demote warn resetwarn tagall hidetag del group mute unmute antilink welcome goodbye lockinfo unlockinfo requests approveall rejectall setname setdesc setgpp link revoke ephemeral'],
+     ['🎉 FUN', 'funmenu joke fact quote 8ball dice coin rps pick rate ship truth dare wyr hug slap reverse mock clap calc password roast compliment pickup fortune iq slot riddle mathquiz answer guess fancy upside binary unbinary morse base64 b64 unb64 qr random time remind'],
+     ['📲 STATUS & VIEW-ONCE', 'autostatus statusseen statusreact statusemoji statussave viewonce vv vvemoji save'],
+diff -ruN -x node_modules -x sessions -x package-lock.json orig/rioxmd-main/tests/tools.test.js rioxmd-main/tests/tools.test.js
+--- a/tests/tools.test.js	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/tools.test.js	2026-11-05 12:24:02.589742054 +0000
+@@ -0,0 +1,428 @@
++import './setup.js';
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { execFileSync, spawnSync } from 'node:child_process';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import sharp from 'sharp';
++
++const dictionary = await import('../commands/dictionary.js');
++const webtools = await import('../commands/webtools.js');
++const mediatools = await import('../commands/mediatools.js');
++const lib = await import('../lib/mediatools.js');
++const { registry } = await import('../commands/index.js');
++
++const realFetch = globalThis.fetch;
++const realDownload = lib.deps.download;
++test.afterEach(() => { globalThis.fetch = realFetch; lib.deps.download = realDownload; mediatools.stacks.clear(); });
++
++const has = (bin) => spawnSync(bin, ['-version'], { stdio: 'ignore' }).status !== null || spawnSync(bin, ['--version'], { stdio: 'ignore' }).status !== null;
++const HAS_FFMPEG = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
++const HAS_TESSERACT = spawnSync('tesseract', ['--version'], { stdio: 'ignore' }).status === 0;
++const HAS_PDFINFO = spawnSync('pdfinfo', ['-v'], { stdio: 'ignore' }).status !== null;
++
++let counter = 0;
++function ctx(command, args = [], message = { conversation: `.${command}` }, extra = {}) {
++  const out = [];
++  const sid = `t${++counter}`.padEnd(24, 'x');
++  const sock = {
++    user: { id: '94771234567:5@s.whatsapp.net' },
++    sendMessage: async (_j, c) => { out.push(c); return { key: { id: 'x' } }; },
++    profilePictureUrl: async () => { throw new Error('none'); },
++  };
++  return {
++    out,
++    c: {
++      sock, jid: '94770000000@s.whatsapp.net', sessionId: sid, args, command,
++      msg: { key: { remoteJid: '94770000000@s.whatsapp.net', id: `M${counter}`, fromMe: false, participant: `9477${counter}@s.whatsapp.net` }, message },
++      reply: async (t) => { out.push({ reply: t }); return { key: { id: 'r' } }; },
++      ...extra,
++    },
++  };
++}
++const replies = (out) => out.map((o) => o.reply || '').filter(Boolean).join('\n');
++const jsonRes = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)), headers: new Headers() });
++
++/* ---------- registry ---------- */
++test('all new commands are registered with their aliases', () => {
++  for (const n of ['define', 'dict', 'meaning', 'wiki', 'wikipedia', 'wp', 'short', 'shorten', 'shorturl', 'ss', 'screenshot', 'ssweb', 'tomp3', 'mp3', 'toaudio', 'topdf', 'pdf', 'imgtopdf', 'ocr', 'totext', 'imgtext']) {
++    assert.ok(registry.has(n), n);
++  }
++});
++test('every new command shows usage with no argument and no network', async () => {
++  globalThis.fetch = () => { throw new Error('no network expected'); };
++  for (const n of ['define', 'wiki', 'short', 'ss', 'tomp3', 'topdf', 'ocr']) {
++    const { c, out } = ctx(n);
++    await registry.get(n).run(c);
++    assert.ok(replies(out).length > 20, n);
++  }
++});
++
++/* ---------- links ---------- */
++test('normalizeUrl: accepts normal links, refuses dangerous or local ones', () => {
++  const ok = webtools.normalizeUrl;
++  assert.equal(ok('https://example.com/a?b=1'), 'https://example.com/a?b=1');
++  assert.equal(ok('example.com/page'), 'https://example.com/page');
++  assert.equal(ok('www.example.lk.'), 'https://www.example.lk/');
++  assert.equal(ok('<https://example.com>'), 'https://example.com/');
++  for (const bad of ['javascript:alert(1)', 'file:///etc/passwd', 'ftp://example.com', 'http://localhost:3000', 'http://127.0.0.1/', 'http://192.168.1.1/',
++    'http://10.0.0.5/admin', 'http://169.254.169.254/latest', 'http://user:pw@example.com/', 'hello', 'http://[::1]/', 'http://printer.local/', 'http://intranet/', '']) {
++    assert.equal(ok(bad), null, bad);
++  }
++});
++
++/* ---------- .short ---------- */
++test('short: is.gd answer is used', async () => {
++  const urls = [];
++  globalThis.fetch = async (u) => { urls.push(String(u)); return jsonRes({ shorturl: 'https://is.gd/abc123' }); };
++  const { c, out } = ctx('short', ['https://example.com/very/long?x=1&y=2']);
++  await registry.get('short').run(c);
++  assert.match(replies(out), /https:\/\/is\.gd\/abc123/);
++  assert.ok(urls[0].startsWith('https://is.gd/create.php?') && urls[0].includes('example.com%2Fvery%2Flong%3Fx%3D1%26y%3D2'));
++});
++test('short: falls back to TinyURL when is.gd fails; link from the replied message works', async () => {
++  globalThis.fetch = async (u) => (String(u).includes('is.gd') ? jsonRes({ errorcode: 3, errormessage: 'rate limit' }, 200) : { ok: true, status: 200, text: async () => 'https://tinyurl.com/yabc\n' });
++  const { c, out } = ctx('short', [], { extendedTextMessage: { text: '.short', contextInfo: { quotedMessage: { conversation: 'see https://news.example.org/story/42 now' } } } });
++  await registry.get('short').run(c);
++  assert.match(replies(out), /https:\/\/tinyurl\.com\/yabc/);
++});
++test('short: both services down -> friendly error; bad link -> usage', async () => {
++  globalThis.fetch = async () => { throw new Error('boom'); };
++  let r = ctx('short', ['https://example.com']);
++  await registry.get('short').run(r.c);
++  assert.match(replies(r.out), /not answering/);
++  r = ctx('short', ['javascript:alert(1)']);
++  await registry.get('short').run(r.c);
++  assert.match(replies(r.out), /Usage/);
++});
++
++/* ---------- .ss ---------- */
++const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(4000, 1)]);
++const imgRes = (buf, type = 'image/png') => ({ ok: true, status: 200, headers: new Headers({ 'content-type': type }), arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length) });
++test('screenshot: first service fails, second answers; a web page instead of a picture is refused', async () => {
++  const seen = [];
++  globalThis.fetch = async (u) => {
++    seen.push(String(u));
++    if (String(u).includes('thum.io')) return imgRes(Buffer.from('<html>' + 'x'.repeat(3000) + '</html>'), 'text/html');
++    return imgRes(PNG);
++  };
++  const buf = await webtools.screenshot('https://example.com/', true);
++  assert.ok(buf.equals(PNG));
++  assert.ok(seen[0].includes('thum.io/get/fullpage/width/1280') && seen[1].includes('microlink.io'));
++  assert.ok(seen[1].includes('screenshot.fullPage=true'));
++});
++test('ss command: sends the picture with the link; all services failing gives a friendly error', async () => {
++  globalThis.fetch = async () => imgRes(PNG);
++  let r = ctx('ss', ['example.com']);
++  await registry.get('ss').run(r.c);
++  const sent = r.out.find((o) => o.image);
++  assert.ok(sent && /https:\/\/example\.com\//.test(sent.caption));
++  globalThis.fetch = async () => { throw new Error('down'); };
++  r = ctx('ss', ['example.com']);
++  await registry.get('ss').run(r.c);
++  assert.match(replies(r.out), /Could not take a screenshot/);
++});
++test('ss command: private addresses are refused before any network call', async () => {
++  globalThis.fetch = () => { throw new Error('no network expected'); };
++  const { c, out } = ctx('ss', ['http://192.168.1.1/admin']);
++  await registry.get('ss').run(c);
++  assert.match(replies(out), /Usage/);
++});
++
++/* ---------- .define ---------- */
++const ENTRY = [{ word: 'serendipity', phonetic: '/ˌsɛɹənˈdɪpɪti/', meanings: [
++  { partOfSpeech: 'noun', definitions: [{ definition: 'The occurrence of events by chance in a happy way.', example: 'A fortunate serendipity.' }, { definition: 'A second meaning.' }], synonyms: ['luck', 'fortune'] },
++  { partOfSpeech: 'verb', definitions: [{ definition: 'A made-up verb sense.' }] }] }];
++test('defineText: phonetic, parts of speech, example, synonyms and the Sinhala hint', () => {
++  const t = dictionary.defineText(ENTRY);
++  assert.match(t, /\*serendipity\*  \/ˌsɛɹənˈdɪpɪti\//);
++  assert.match(t, /_noun_/); assert.match(t, /_verb_/);
++  assert.match(t, /1\. The occurrence/); assert.match(t, /_e\.g\. A fortunate serendipity\._/);
++  assert.match(t, /luck, fortune/); assert.match(t, /\.tr si serendipity/);
++});
++test('define: finds a word, says so when unknown, explains Sinhala letters, refuses odd input', async () => {
++  const urls = [];
++  globalThis.fetch = async (u) => { urls.push(String(u)); return String(u).endsWith('/nonexistentword') ? { ok: false, status: 404 } : jsonRes(ENTRY); };
++  let r = ctx('define', ['Serendipity']);
++  await registry.get('define').run(r.c);
++  assert.match(replies(r.out), /happy way/);
++  assert.ok(urls[0].endsWith('/entries/en/serendipity'));
++  r = ctx('define', ['nonexistentword']);
++  await registry.get('define').run(r.c);
++  assert.match(replies(r.out), /No meaning found/);
++  r = ctx('define', ['අම්මා']);
++  await registry.get('define').run(r.c);
++  assert.match(replies(r.out), /English words/);
++  r = ctx('define', ['a/b;c']);
++  await registry.get('define').run(r.c);
++  assert.match(replies(r.out), /one English word/);
++  globalThis.fetch = async () => { throw new Error('down'); };
++  r = ctx('define', ['happy']);
++  await registry.get('define').run(r.c);
++  assert.match(replies(r.out), /not answering/);
++});
++
++/* ---------- .wiki ---------- */
++test('parseWiki: language flag, Sinhala / Tamil letters, default English', () => {
++  assert.deepEqual(dictionary.parseWiki(['-si', 'colombo']), { lang: 'si', topic: 'colombo' });
++  assert.deepEqual(dictionary.parseWiki(['කොළඹ']), { lang: 'si', topic: 'කොළඹ' });
++  assert.deepEqual(dictionary.parseWiki(['சென்னை']), { lang: 'ta', topic: 'சென்னை' });
++  assert.deepEqual(dictionary.parseWiki(['id', 'card']), { lang: 'en', topic: 'id card' }); // no flag: "id" is just a word
++  assert.equal(dictionary.parseWiki([]).topic, '');
++});
++test('clip: cuts at a sentence end and never inside a word', () => {
++  const t = 'First sentence here. Second sentence is a little longer than the first one. Third sentence goes on and on without any end in sight';
++  assert.equal(dictionary.clip(t, 80), 'First sentence here. Second sentence is a little longer than the first one.…');
++  assert.equal(dictionary.clip(t, 60), 'First sentence here. Second sentence is a little longer…'); // early sentence end is ignored: cut at a word instead
++  assert.equal(dictionary.clip('short', 60), 'short');
++  assert.ok(!/\s…$/.test(dictionary.clip('word '.repeat(50), 33)));
++});
++const WIKI_PAGE = { title: 'Sigiriya', extract: 'Sigiriya is an ancient rock fortress in Sri Lanka. It is a UNESCO World Heritage Site.', fullurl: 'https://en.wikipedia.org/wiki/Sigiriya', thumbnail: { source: 'https://upload.wikimedia.org/x.jpg' } };
++test('wiki: exact title answers with the picture and the link', async () => {
++  const urls = [];
++  globalThis.fetch = async (u) => {
++    urls.push(String(u));
++    if (String(u).includes('upload.wikimedia.org')) return imgRes(PNG);
++    return jsonRes({ query: { pages: [WIKI_PAGE] } });
++  };
++  const { c, out } = ctx('wiki', ['Sigiriya']);
++  await registry.get('wiki').run(c);
++  const sent = out.find((o) => o.image);
++  assert.ok(sent, 'picture sent');
++  assert.match(sent.caption, /\*Sigiriya\*/); assert.match(sent.caption, /ancient rock fortress/); assert.match(sent.caption, /https:\/\/en\.wikipedia\.org\/wiki\/Sigiriya/);
++  assert.ok(urls[0].startsWith('https://en.wikipedia.org/w/api.php?') && urls[0].includes('titles=Sigiriya'));
++});
++test('wiki: unknown exact title falls back to search; Sinhala letters use si.wikipedia.org; no picture = text reply', async () => {
++  const urls = [];
++  globalThis.fetch = async (u) => {
++    urls.push(String(u));
++    if (/[?&]titles=/.test(String(u))) return jsonRes({ query: { pages: [{ title: 'x', missing: true }] } });
++    return jsonRes({ query: { pages: [{ ...WIKI_PAGE, thumbnail: undefined, fullurl: 'https://si.wikipedia.org/wiki/x' }] } });
++  };
++  const { c, out } = ctx('wiki', ['සීගිරිය']);
++  await registry.get('wiki').run(c);
++  assert.ok(urls[0].startsWith('https://si.wikipedia.org/') && urls[1].includes('generator=search'));
++  assert.match(replies(out), /ancient rock fortress/);
++  assert.ok(!out.some((o) => o.image));
++});
++test('wiki: not found, disambiguation hint, service error', async () => {
++  globalThis.fetch = async () => jsonRes({ batchcomplete: true });
++  let r = ctx('wiki', ['qwertyuiopasdf']);
++  await registry.get('wiki').run(r.c);
++  assert.match(replies(r.out), /Nothing found/);
++  globalThis.fetch = async () => jsonRes({ query: { pages: [{ ...WIKI_PAGE, thumbnail: undefined, pageprops: { disambiguation: '' } }] } });
++  r = ctx('wiki', ['Mercury']);
++  await registry.get('wiki').run(r.c);
++  assert.match(replies(r.out), /Be more specific/);
++  globalThis.fetch = async () => { throw new Error('down'); };
++  r = ctx('wiki', ['Colombo']);
++  await registry.get('wiki').run(r.c);
++  assert.match(replies(r.out), /not answering/);
++});
++test('wiki: only Wikimedia picture hosts are downloaded', async () => {
++  const hit = [];
++  globalThis.fetch = async (u) => {
++    hit.push(String(u));
++    return jsonRes({ query: { pages: [{ ...WIKI_PAGE, thumbnail: { source: 'https://evil.example.com/p.png' } }] } });
++  };
++  const { c, out } = ctx('wiki', ['Sigiriya']);
++  await registry.get('wiki').run(c);
++  assert.ok(!hit.some((u) => u.includes('evil.example.com')));
++  assert.ok(!out.some((o) => o.image));
++});
++
++/* ---------- PDF writer ---------- */
++async function jpegPage(w, h, color = '#336699') {
++  const jpeg = await sharp({ create: { width: w, height: h, channels: 3, background: color } }).jpeg().toBuffer();
++  return { jpeg, width: w, height: h };
++}
++test('pageLayout: A4 portrait / landscape with margins; long screenshots keep their own shape', () => {
++  let L = lib.pageLayout(3000, 4000);
++  assert.ok(Math.abs(L.pw - 595.28) < 0.01 && Math.abs(L.ph - 841.89) < 0.01);
++  assert.ok(L.x >= 24 - 0.01 && L.y >= 24 - 0.01 && L.dw <= L.pw - 47.9 && L.dh <= L.ph - 47.9);
++  L = lib.pageLayout(4000, 3000);
++  assert.ok(L.pw > L.ph);
++  L = lib.pageLayout(1000, 5000); // long chat screenshot
++  assert.ok(Math.abs(L.pw - 595.28) < 0.01 && Math.abs(L.ph - 2976.4) < 0.5 && L.x === 0 && L.y === 0);
++  L = lib.pageLayout(10, 100000);
++  assert.ok(L.ph <= 14400.001);
++});
++test('buildPdf: valid structure, every xref offset points at its object', async () => {
++  const pdf = lib.buildPdf([await jpegPage(300, 400), await jpegPage(400, 300, '#aa3333'), await jpegPage(200, 1200)], { title: 'My Notes (1)' });
++  const text = pdf.toString('latin1');
++  assert.ok(text.startsWith('%PDF-1.4') && text.trimEnd().endsWith('%%EOF'));
++  assert.match(text, /\/Count 3/);
++  assert.match(text, /\/Title \(My Notes 1\)/);
++  const xrefAt = Number(/startxref\n(\d+)\n/.exec(text)[1]);
++  assert.equal(text.slice(xrefAt, xrefAt + 4), 'xref');
++  const entries = text.slice(xrefAt).split('\n').filter((l) => /^\d{10} 00000 n $/.test(l));
++  assert.equal(entries.length, 3 + 9);
++  entries.forEach((e, i) => assert.equal(text.slice(Number(e.slice(0, 10)), Number(e.slice(0, 10)) + `${i + 1} 0 obj`.length), `${i + 1} 0 obj`));
++  assert.throws(() => lib.buildPdf([]), /no pages/);
++  assert.throws(() => lib.buildPdf([{ jpeg: Buffer.from('nope'), width: 1, height: 1 }]), /JPEG/);
++});
++test('buildPdf: poppler reads it (page count, sizes)', { skip: !HAS_PDFINFO }, async () => {
++  const file = path.join(os.tmpdir(), `rio-test-${process.pid}.pdf`);
++  fs.writeFileSync(file, lib.buildPdf([await jpegPage(600, 800), await jpegPage(800, 600)]));
++  try {
++    const info = execFileSync('pdfinfo', ['-f', '1', '-l', '2', file]).toString();
++    assert.match(info, /Pages:\s+2/);
++    assert.match(info, /Page\s+1 size:\s+595\.28 x 841\.89/);
++    assert.match(info, /Page\s+2 size:\s+841\.89 x 595\.28/);
++    const png = execFileSync('pdftoppm', ['-png', '-r', '30', '-f', '1', '-l', '1', file]);
++    assert.ok(png.length > 100); // renders without error
++  } finally { fs.rmSync(file, { force: true }); }
++});
++
++/* ---------- .topdf ---------- */
++async function photo(w = 640, h = 480, color = '#2a7') {
++  return sharp({ create: { width: w, height: h, channels: 3, background: color } }).jpeg().toBuffer();
++}
++const imageMsg = (caption = '.topdf') => ({ imageMessage: { caption, mimetype: 'image/jpeg', fileLength: 1000 } });
++const quotedImage = () => ({ extendedTextMessage: { text: '.topdf', contextInfo: { stanzaId: 'Q1', participant: '94772222222@s.whatsapp.net', quotedMessage: { imageMessage: { mimetype: 'image/jpeg', fileLength: 1000 } } } } });
++
++test('topdf: collect photos one by one, then done makes one PDF and empties the list', async () => {
++  lib.deps.download = async () => photo();
++  const first = ctx('topdf', [], imageMsg());
++  await registry.get('topdf').run(first.c);
++  assert.match(replies(first.out), /Page \*?1\*? added/);
++  const sameUser = (r) => { r.c.sessionId = first.c.sessionId; r.c.msg.key.participant = first.c.msg.key.participant; return r; };
++  const second = sameUser(ctx('topdf', [], quotedImage()));
++  await registry.get('topdf').run(second.c);
++  assert.match(replies(second.out), /Page \*?2\*? added/);
++  const st = sameUser(ctx('topdf', ['status']));
++  await registry.get('topdf').run(st.c);
++  assert.match(replies(st.out), /2 page/);
++  const done = sameUser(ctx('topdf', ['done', 'My', 'Notes']));
++  await registry.get('topdf').run(done.c);
++  const doc = done.out.find((o) => o.document);
++  assert.ok(doc, 'PDF sent');
++  assert.equal(doc.mimetype, 'application/pdf'); assert.equal(doc.fileName, 'My_Notes.pdf'); assert.match(doc.caption, /2 page/);
++  assert.equal(doc.document.toString('latin1', 0, 5), '%PDF-'); assert.match(doc.document.toString('latin1'), /\/Count 2/);
++  assert.equal(mediatools.stacks.size, 0);
++  const again = sameUser(ctx('topdf', ['done']));
++  await registry.get('topdf').run(again.c);
++  assert.match(replies(again.out), /Photos → PDF/); // nothing left: usage
++});
++test('topdf: now = one photo straight to a PDF; clear empties; other people have their own list; video is refused', async () => {
++  lib.deps.download = async () => photo();
++  const one = ctx('topdf', ['now'], imageMsg('.topdf now'));
++  await registry.get('topdf').run(one.c);
++  assert.equal(one.out.filter((o) => o.document).length, 1);
++  assert.match(one.out.find((o) => o.document).fileName, /^RioXMD-\d{4}-\d{2}-\d{2}\.pdf$/);
++
++  const a = ctx('topdf', [], imageMsg()); await registry.get('topdf').run(a.c);
++  const b = ctx('topdf', ['status']); await registry.get('topdf').run(b.c); // different person
++  assert.doesNotMatch(replies(b.out), /1 page/);
++  a.c.args = ['clear']; a.out.length = 0;
++  await registry.get('topdf').run(a.c);
++  assert.match(replies(a.out), /Cleared 1 page/);
++
++  const v = ctx('topdf', [], { videoMessage: { caption: '.topdf', mimetype: 'video/mp4', fileLength: 1000 } });
++  await registry.get('topdf').run(v.c);
++  assert.match(replies(v.out), /photos only/);
++});
++test('topdf: not a picture / file too big give friendly errors', async () => {
++  lib.deps.download = async () => Buffer.from('this is not an image');
++  let r = ctx('topdf', [], imageMsg()); await registry.get('topdf').run(r.c);
++  assert.match(replies(r.out), /could not read that picture/);
++  r = ctx('topdf', [], { imageMessage: { caption: '.topdf', mimetype: 'image/jpeg', fileLength: 500 * 1048576 } });
++  await registry.get('topdf').run(r.c);
++  assert.match(replies(r.out), /bigger than/);
++});
++test('topdf: stops at the page limit', async () => {
++  lib.deps.download = async () => photo(50, 50);
++  const r = ctx('topdf', [], imageMsg());
++  for (let i = 0; i < lib.MAX_PDF_PAGES; i++) { r.out.length = 0; r.c.msg.key.id = `p${i}`; await registry.get('topdf').run(r.c); await new Promise((ok) => setTimeout(ok, 5)); }
++  r.out.length = 0;
++  await registry.get('topdf').run(r.c);
++  assert.match(replies(r.out), /already \d+ pages/);
++});
++test('pdfName: safe file names', () => {
++  assert.equal(mediatools.pdfName(['My', 'Notes.pdf']), 'My_Notes');
++  assert.equal(mediatools.pdfName(['../../etc/passwd']), 'etcpasswd');
++  assert.equal(mediatools.pdfName(['ආයුබෝවන්']).length > 0, true);
++  assert.match(mediatools.pdfName([]), /^RioXMD-/);
++});
++
++/* ---------- .tomp3 (real ffmpeg) ---------- */
++function makeMedia(args) { return execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { maxBuffer: 20 * 1048576 }); }
++test('tomp3: a voice note / audio becomes an MP3, as audio or as a file', { skip: !HAS_FFMPEG }, async () => {
++  const tmp = path.join(os.tmpdir(), `rio-wav-${process.pid}.wav`);
++  makeMedia(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.5', tmp]);
++  const wav = fs.readFileSync(tmp); fs.rmSync(tmp);
++  lib.deps.download = async () => wav;
++  let r = ctx('tomp3', [], { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, fileLength: wav.length } });
++  await registry.get('tomp3').run(r.c);
++  const sent = r.out.find((o) => o.audio);
++  assert.ok(sent, replies(r.out));
++  assert.equal(sent.mimetype, 'audio/mpeg');
++  assert.ok(sent.audio[0] === 0xff || sent.audio.toString('latin1', 0, 3) === 'ID3'); // MP3 frame sync or tag
++  assert.ok(sent.audio.length > 4000);
++  r = ctx('tomp3', ['doc'], { documentMessage: { mimetype: 'audio/wav', fileName: 'my song.wav', fileLength: wav.length } });
++  await registry.get('tomp3').run(r.c);
++  assert.equal(r.out.find((o) => o.document)?.fileName, 'my song.mp3');
++});
++test('tomp3: a video with no sound says so; a photo is refused', { skip: !HAS_FFMPEG }, async () => {
++  const tmp = path.join(os.tmpdir(), `rio-mute-${process.pid}.mp4`);
++  makeMedia(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:d=1', '-pix_fmt', 'yuv420p', tmp]);
++  const mute = fs.readFileSync(tmp); fs.rmSync(tmp);
++  lib.deps.download = async () => mute;
++  let r = ctx('tomp3', [], { videoMessage: { caption: '.tomp3', mimetype: 'video/mp4', fileLength: mute.length } });
++  await registry.get('tomp3').run(r.c);
++  assert.match(replies(r.out), /no sound/);
++  r = ctx('tomp3', [], imageMsg('.tomp3'));
++  await registry.get('tomp3').run(r.c);
++  assert.match(replies(r.out), /not a video or audio/);
++});
++
++/* ---------- .ocr (real tesseract) ---------- */
++test('parseOcrLang / cleanOcrText', () => {
++  assert.deepEqual(lib.parseOcrLang('si'), ['sin']);
++  assert.deepEqual(lib.parseOcrLang('EN'), ['eng']);
++  assert.deepEqual(lib.parseOcrLang('si+en'), ['sin', 'eng']);
++  assert.deepEqual(lib.parseOcrLang('tamil'), ['tam']);
++  assert.equal(lib.parseOcrLang('klingon'), null);
++  assert.equal(lib.parseOcrLang('si+xx'), null);
++  assert.equal(lib.parseOcrLang(''), null);
++  assert.equal(lib.cleanOcrText('a  \n\n\n\nb\f\r\n'), 'a\n\nb');
++});
++async function textImage(text, size = 54) {
++  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260"><rect width="100%" height="100%" fill="white"/><text x="40" y="110" font-family="DejaVu Sans, sans-serif" font-size="${size}" fill="black">${text}</text><text x="40" y="190" font-family="DejaVu Sans, sans-serif" font-size="${size}" fill="black">Second line 12345</text></svg>`;
++  return sharp(Buffer.from(svg)).png().toBuffer();
++}
++test('ocr: reads English text from a picture and sends it as plain text', { skip: !HAS_TESSERACT }, async () => {
++  lib.resetOcrLangs();
++  const img = await textImage('Hello RIO bot reading');
++  lib.deps.download = async () => img;
++  globalThis.fetch = async () => { throw new Error('offline'); }; // the reply card tries to download a picture: not in tests
++  const r = ctx('ocr', ['en'], imageMsg('.ocr en'));
++  await registry.get('ocr').run(r.c);
++  const text = r.out.map((o) => o.text || '').join('\n');
++  assert.match(text, /Hello RIO bot reading/i);
++  assert.match(text, /Second line 12345/);
++});
++test('ocr: missing language data, unknown language and wrong media are explained', { skip: !HAS_TESSERACT }, async () => {
++  lib.resetOcrLangs();
++  lib.deps.download = async () => textImage('Hello');
++  globalThis.fetch = async () => { throw new Error('offline'); };
++  const have = await lib.ocrLangs();
++  let r = ctx('ocr', ['ta'], imageMsg('.ocr ta'));
++  await registry.get('ocr').run(r.c);
++  if (!have.has('tam')) assert.match(replies(r.out), /Tamil language data is not installed/);
++  r = ctx('ocr', ['klingon'], imageMsg('.ocr klingon'));
++  await registry.get('ocr').run(r.c);
++  assert.match(replies(r.out), /do not know the language/);
++  r = ctx('ocr', [], { videoMessage: { caption: '.ocr', mimetype: 'video/mp4', fileLength: 10 } });
++  await registry.get('ocr').run(r.c);
++  assert.match(replies(r.out), /photos only/);
++});
++test('ocr: a picture with no text says so', { skip: !HAS_TESSERACT }, async () => {
++  lib.resetOcrLangs();
++  lib.deps.download = async () => sharp({ create: { width: 800, height: 400, channels: 3, background: '#ffffff' } }).png().toBuffer();
++  globalThis.fetch = async () => { throw new Error('offline'); };
++  const r = ctx('ocr', ['en'], imageMsg('.ocr en'));
++  await registry.get('ocr').run(r.c);
++  assert.match(replies(r.out), /No text found/);
++});
