@@ -99,11 +99,12 @@
       { k: 'autoAnswer', hostOnly: true, type: 'switch', label: 'Reject calls and reply with my saved audio or video' },
       { k: 'callStream', hostOnly: true, type: 'switch', label: 'Answer calls and play my saved clip', hint: 'You can turn it off here. To turn it on, send .callstream on in WhatsApp (one-time device link).' },
       { k: 'callLoop', hostOnly: true, type: 'switch', label: 'Repeat the clip until the caller hangs up' },
-      { k: 'callMsg', hostOnly: true, type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message.' },
+      { k: 'callMsg', type: 'textarea', label: 'Message sent to rejected callers', hint: 'Leave empty to use the default message (shown in grey).' },
+      { k: 'callPic', type: 'picture', api: '/api/me/call-image', flag: 'callHasImg', link: true, label: 'Picture sent with that message', hint: 'Optional. Choose a picture from your gallery or paste a link. Without one, the default picture (if the bot owner set one) is used.' },
     ] },
   ];
   const FLAT = SCHEMA.flatMap((g) => g.items);
-  const BULKABLE = FLAT.filter((i) => !i.hostOnly && !/^(brand|boostOptIn|csong)/.test(i.k)); // name / footer / logo / song look / consent switch are per number, never bulk
+  const BULKABLE = FLAT.filter((i) => !i.hostOnly && !/^(brand|boostOptIn|csong|callPic)/.test(i.k)); // name / footer / logo / song look / call picture / consent switch are per number, never bulk
   const SWITCHES = FLAT.filter((i) => i.type === 'switch').map((i) => i.k);
 
   // premium: true / undefined = branding can be edited (admin sees everything); false = locked for a free number.
@@ -150,7 +151,8 @@
           const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
           const pick = h('button', { class: 'btn alt', type: 'button', disabled: locked }, 'Choose picture');
           const del = h('button', { class: 'btn danger', type: 'button', disabled: locked }, 'Remove');
-          const draw = () => { const has = !!values.csongHasImg; img.hidden = !has; del.hidden = !has; if (has) img.src = `/api/me/csong-image?t=${Date.now()}`; };
+          const api_ = it.api || '/api/me/csong-image', flag = it.flag || 'csongHasImg';
+          const draw = () => { const has = !!values[flag]; img.hidden = !has; del.hidden = !has; if (has) img.src = `${api_}?t=${Date.now()}`; };
           pick.addEventListener('click', () => file.click());
           file.addEventListener('change', async () => {
             const f = file.files[0]; file.value = '';
@@ -159,21 +161,32 @@
             pick.disabled = true;
             try {
               toast('Uploading…');
-              const r = await fetch('/api/me/csong-image', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': f.type || 'image/jpeg', 'x-rio': '1' }, body: f });
+              const r = await fetch(api_, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': f.type || 'image/jpeg', 'x-rio': '1' }, body: f });
               let j = {}; try { j = await r.json(); } catch {}
               if (!r.ok) throw new Error(j.error || 'Upload failed. Try again.');
-              Object.assign(values, j.settings || {}); onChange?.(values); draw(); toast(`Picture saved (${j.kb} KB). Pick "My own picture" above to use it.`);
+              Object.assign(values, j.settings || {}); onChange?.(values); draw(); toast(it.api ? `Picture saved (${j.kb} KB).` : `Picture saved (${j.kb} KB). Pick "My own picture" above to use it.`);
             } catch (e) { toast(e.message, true); } finally { pick.disabled = locked; }
           });
           del.addEventListener('click', async () => {
-            try { const j = await api('POST', '/api/me/csong-image/remove'); Object.assign(values, j.settings || {}); onChange?.(values); draw(); renderSettings(root, values, save, onChange, premium, host); toast('Picture removed.'); }
+            try { const j = await api('POST', `${api_}/remove`); Object.assign(values, j.settings || {}); onChange?.(values); draw(); renderSettings(root, values, save, onChange, premium, host); toast('Picture removed.'); }
             catch (e) { toast(e.message, true); }
           });
           draw();
-          card.append(h('div', { class: 'stack' }, txt, h('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, img, pick, del, file)));
+          const linkBox = !it.link ? null : (() => { // paste a picture link instead of using the gallery
+            const li = h('input', { type: 'url', placeholder: 'https://… picture link', maxlength: 1000, autocomplete: 'off', 'aria-label': 'Picture link' });
+            const lb = h('button', { class: 'btn alt', type: 'button' }, 'Use link');
+            lb.addEventListener('click', async () => {
+              if (!li.value.trim()) return toast('Paste a picture link first.', true);
+              lb.disabled = true;
+              try { toast('Downloading…'); const j = await api('POST', `${api_}/link`, { url: li.value.trim() }); Object.assign(values, j.settings || {}); onChange?.(values); li.value = ''; draw(); toast(`Picture saved (${j.kb} KB).`); }
+              catch (e) { toast(e.message, true); } finally { lb.disabled = false; }
+            });
+            return h('div', { class: 'inline', style: 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap' }, h('div', { class: 'field sm', style: 'flex:1;min-width:200px' }, li), lb);
+          })();
+          card.append(h('div', { class: 'stack' }, txt, h('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, img, pick, del, file), linkBox));
         } else {
           const area = it.type === 'textarea';
-          const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label }) : h('input', { id, type: 'text', maxlength: it.max || 200, placeholder: it.placeholder || '', 'aria-label': it.label });
+          const inp = area ? h('textarea', { id, maxlength: 500, 'aria-label': it.label, placeholder: it.k === 'callMsg' ? (values.callMsgDefault || '') : '' }) : h('input', { id, type: 'text', maxlength: it.max || 200, placeholder: it.placeholder || '', 'aria-label': it.label });
           inp.value = values[it.k] || '';
           if (locked || hostLocked) inp.disabled = true;
           const btn = h('button', { class: 'btn alt', type: 'submit', disabled: locked || hostLocked }, h('span', { class: 'label' }, 'Save'), h('span', { class: 'spin', 'aria-hidden': 'true' }));
