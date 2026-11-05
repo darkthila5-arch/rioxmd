@@ -65,7 +65,9 @@
     ] },
     { title: '👑 Channel song (.chsong)', premiumOnly: true, note: 'How the first post of .chsong looks for your number: a short equalizer animation made from the song thumbnail. Leave a choice on "Default" to use the bot owner\'s look. Premium only.', items: [
       { k: 'csongMode', type: 'select', label: 'Look', options: [['', '↩️ Default'], ['normal', 'Normal thumbnail'], ['equalizer', 'Equalizer animation']] },
-      { k: 'csongEqLayout', type: 'select', label: 'Layout', options: [['', '↩️ Default'], ['circle', '⭕ Round picture with equalizer ring'], ['bars', '📊 Bars along the bottom'], ['wave', '🌊 Smooth wave line']] },
+      { k: 'csongEqLayout', type: 'select', label: 'Layout', options: [['', '↩️ Default'], ['circle', '⭕ Round picture with equalizer ring'], ['bars', '📊 Bars along the bottom'], ['wave', '🌊 Smooth wave line'], ['blob', '🦋 Smooth glowing shape around the picture']] },
+      { k: 'csongBlobShape', type: 'select', label: 'Glowing shape: form (shape layout)', options: [['', '↩️ Default'], ['wings', '🦋 Wings at the top'], ['round', '⭕ Even all round']] },
+      { k: 'csongBlobStyle', type: 'select', label: 'Glowing shape: look (shape layout)', options: [['', '↩️ Default'], ['filled', '🟢 Filled'], ['outline', '⭕ Glowing outline'], ['layers', '🔷 Layers']] },
       { k: 'csongEqStyle', type: 'select', label: 'Equalizer colour', options: [['', '↩️ Default'], ['white', '⚪ White'], ['cyan', '🔵 Cyan'], ['green', '🟢 Green'], ['pink', '🩷 Pink'], ['gold', '🟡 Gold'], ['orange', '🟠 Orange'], ['red', '🔴 Red'], ['blue', '🔷 Blue'], ['purple', '🟣 Purple']] },
       { k: 'csongParticles', type: 'select', label: 'Floating particles', hint: 'Soft glowing dots that float up over the picture. Works with every layout.', options: [['', '↩️ Default'], ['on', '✨ On'], ['off', 'Off']] },
       { k: 'csongParticleStyle', type: 'select', label: 'Particle colour', options: [['', '↩️ Default'], ['match', '🎨 Same as the equalizer'], ['white', '⚪ White'], ['cyan', '🔵 Cyan'], ['green', '🟢 Green'], ['pink', '🩷 Pink'], ['gold', '🟡 Gold'], ['orange', '🟠 Orange'], ['red', '🔴 Red'], ['blue', '🔷 Blue'], ['purple', '🟣 Purple']] },
@@ -988,23 +990,24 @@
     /* ----- .chsong look: normal thumbnail or thumbnail with equalizer animation ----- */
     const CS_LABEL = { white: '⚪ White', cyan: '🔵 Cyan', green: '🟢 Green', pink: '🩷 Pink', gold: '🟡 Gold', orange: '🟠 Orange', red: '🔴 Red', blue: '🔷 Blue', purple: '🟣 Purple' };
     const CS_CENTER = { thumbnail: '🖼️ Middle: the song thumbnail', channel: '📢 Middle: the channel / group logo', custom: '⭐ Middle: my own picture' };
-    const CS_LAYOUT = { circle: '⭕ Round thumbnail with equalizer ring', bars: '📊 Thumbnail with bars along the bottom', wave: '🌊 Thumbnail with a smooth wave line' };
+    const CS_LAYOUT = { circle: '⭕ Round thumbnail with equalizer ring', bars: '📊 Thumbnail with bars along the bottom', wave: '🌊 Thumbnail with a smooth wave line', blob: '🦋 Round thumbnail with a smooth glowing shape (Avee style)' };
     const csongDraw = (c, styles = [], layouts = [], min = 4, max = 30, centers = []) => {
       const st = $('#csongStyle'), ly = $('#csongLayout'), ce = $('#csongCenter');
       if (st && !st.options.length) for (const k of styles) st.append(h('option', { value: k }, CS_LABEL[k] || k));
       if (ly && !ly.options.length) for (const k of layouts) ly.append(h('option', { value: k }, CS_LAYOUT[k] || k));
       if (ce && !ce.options.length) for (const k of centers) ce.append(h('option', { value: k }, CS_CENTER[k] || k));
       const ps = $('#csongPStyle'); if (ps && !ps.options.length) { ps.append(h('option', { value: 'match' }, '🎨 Particle colour: same as the animation')); for (const k of styles) ps.append(h('option', { value: k }, `Particle colour: ${CS_LABEL[k] || k}`)); }
-      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center; if ($('#csongMotion')) $('#csongMotion').value = c.motion; if ($('#csongParticles')) $('#csongParticles').value = c.particles ? 'on' : 'off'; if (ps) ps.value = c.particleStyle;
+      $('#csongMode').value = c.mode; $('#csongSecs').value = c.seconds; $('#csongSecs').min = min; $('#csongSecs').max = max; if (st) st.value = c.style; if (ly) ly.value = c.layout; if (ce) ce.value = c.center; if ($('#csongMotion')) $('#csongMotion').value = c.motion; if ($('#csongParticles')) $('#csongParticles').value = c.particles ? 'on' : 'off'; if (ps) ps.value = c.particleStyle; if ($('#csongBlobShape')) $('#csongBlobShape').value = c.blobShape; if ($('#csongBlobStyle')) $('#csongBlobStyle').value = c.blobStyle;
       if (ps) ps.disabled = !c.particles;
       csongImgDraw(c.hasImage);
       $('#csongEq').hidden = c.mode !== 'equalizer'; csongCenterShow();
-      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : c.layout === 'wave' ? 'smooth wave line' : `round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${{ spin: ', turning', pulse: ', pulsing', both: ', turning and pulsing' }[c.motion] || ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}${c.particles ? `, floating particles (${c.particleStyle === 'match' ? 'same colour' : CS_LABEL[c.particleStyle] || c.particleStyle})` : ''}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
+      $('#csongNote').textContent = c.mode === 'equalizer' ? `Now: equalizer animation (${c.layout === 'bars' ? 'bars along the bottom' : c.layout === 'wave' ? 'smooth wave line' : `${c.layout === 'blob' ? `${c.blobStyle} ${c.blobShape === 'wings' ? 'wings' : 'round shape'} around a ` : ''}round ${{ channel: 'channel logo', custom: 'own picture' }[c.center] || 'thumbnail'}${{ spin: ', turning', pulse: ', pulsing', both: ', turning and pulsing' }[c.motion] || ', not turning'}`}), ${c.seconds} s, ${CS_LABEL[c.style] || c.style}${c.particles ? `, floating particles (${c.particleStyle === 'match' ? 'same colour' : CS_LABEL[c.particleStyle] || c.particleStyle})` : ''}. If the animation cannot be made, the normal thumbnail is posted instead.` : 'Now: normal thumbnail.';
     };
     const csongCenterShow = () => { // the middle picture only exists in the round layout: always visible, greyed out for bars
       const c = $('#csongCenter'), sp = $('#csongMotion'), bars = ['bars', 'wave'].includes($('#csongLayout')?.value);
       for (const el of [c, sp]) if (el) { el.disabled = bars; el.title = bars ? 'Only used by the round layout' : ''; }
       const box = $('#csongImgBox'); if (box) box.hidden = bars || c?.value !== 'custom';
+      const bb = $('#csongBlobBox'); if (bb) bb.hidden = $('#csongLayout')?.value !== 'blob';
     };
     const csongImgDraw = (has) => {
       const im = $('#csongImgPrev'), del = $('#csongImgDel');
@@ -1032,7 +1035,7 @@
     $('#csongParticles')?.addEventListener('change', () => { const ps = $('#csongPStyle'); if (ps) ps.disabled = $('#csongParticles').value !== 'on'; });
     $('#csongMode')?.addEventListener('change', () => { $('#csongEq').hidden = $('#csongMode').value !== 'equalizer'; });
     $('#csongSave')?.addEventListener('click', busy($('#csongSave'), async () => {
-      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value, center: $('#csongCenter').value, motion: $('#csongMotion').value, particles: $('#csongParticles').value === 'on', particleStyle: $('#csongPStyle').value }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers); toast('Saved. The next .chsong post uses it.'); }
+      try { const r = await api('POST', '/api/admin/csong', { mode: $('#csongMode').value, seconds: Number($('#csongSecs').value) || undefined, style: $('#csongStyle').value, layout: $('#csongLayout').value, center: $('#csongCenter').value, motion: $('#csongMotion').value, particles: $('#csongParticles').value === 'on', particleStyle: $('#csongPStyle').value, blobStyle: $('#csongBlobStyle').value, blobShape: $('#csongBlobShape').value }); csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers); toast('Saved. The next .chsong post uses it.'); }
       catch (e) { toast(e.message, true); }
     }));
     api('GET', '/api/admin/csong').then((r) => csongDraw(r.csong, r.styles, r.layouts, r.min, r.max, r.centers)).catch(() => {});
