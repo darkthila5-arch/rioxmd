@@ -295,6 +295,17 @@
           <ul class="slist plain" id="banList"></ul>
         </section>
       </div>
+      <section class="card" id="scCard">
+        <h2>Commands for one number</h2>
+        <p class="note">Pick a number, switch <b>Only allow the ticked commands</b> on, tick what it may use and press <b>Save</b>. Every other command is switched off for <b>that number only</b> and disappears from its menu. Other numbers are not touched. The host admin (OWNER_NUMBER) is never limited.</p>
+        <div class="inline"><div class="field sm"><select id="scNum" aria-label="Number to limit"><option value="">Choose a number…</option></select></div></div>
+        <div id="scBody" hidden>
+          <label class="row" for="scOnly"><span class="txt"><b>Only allow the ticked commands</b><small>Off = this number can use every command that is on for everybody (your ticks are kept).</small></span><input type="checkbox" class="sw" id="scOnly" role="switch" aria-label="Only allow the ticked commands"></label>
+          <div class="toolbar"><div class="field sm"><input id="scq" type="text" placeholder="Search commands" autocomplete="off" aria-label="Search commands for this number"></div></div>
+          <div class="actions"><button class="btn alt sm" id="scTick" type="button">Tick shown</button><button class="btn alt sm" id="scUntick" type="button">Untick shown</button><button class="btn" id="scSave" type="button">Save</button><span class="note" id="scCount"></span></div>
+          <ul class="slist" id="scList"></ul>
+        </div>
+      </section>
       <section class="card">
         <h2>Commands</h2>
         <p class="note">Switch a command off for every number. Switched-off commands also disappear from the menu and its buttons. The host admin (OWNER_NUMBER) can still use them.</p>
@@ -529,7 +540,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="/web.js?v=15"></script>
+<script src="/web.js?v=16"></script>
 <script src="/notices.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
