@@ -61,6 +61,7 @@
       <button class="tab" role="tab" type="button" data-tab="commands" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></svg></span><span>Commands</span></button>
       <button class="tab" role="tab" type="button" data-tab="broadcast" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></span><span>Broadcast</span></button>
       <button class="tab" role="tab" type="button" data-tab="notices" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></svg></span><span>Notices</span></button>
+      <button class="tab" role="tab" type="button" data-tab="botmedia" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg></span><span>Bot media</span></button>
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.2"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg></span><span>Channels</span></button>
       <p class="navgroup">Monitor</p>
       <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span>Insights</span></button>
@@ -356,6 +357,11 @@
       <div id="ntAdmin"></div>
     </section>
 
+    <section class="tabpane" id="pane-botmedia" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Bot media</h1><p>Pictures, the alive voice and video note, and the rejected-call message. Pick a file from your gallery or paste a link.</p></div></header>
+      <div id="bmAdmin"></div>
+    </section>
+
     <section class="tabpane" id="pane-broadcast" role="tabpanel" hidden>
       <header class="pagehead"><div><h1>Broadcast</h1><p>Send one message to many numbers, now or later.</p></div></header>
       <section class="card">
@@ -542,6 +548,7 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="/web.js?v=16"></script>
 <script src="/notices.js?v=1"></script>
+<script src="/botmedia.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>
