@@ -11,10 +11,12 @@ RUN echo "cache-bust-3" && go mod tidy \
 RUN (echo "=== DIAL BUILD v3 ==="; go build -tags dial -trimpath -ldflags="-s -w" -o /out/callbot . ) \
  || (echo "=== DIAL BUILD FAILED, using normal build ==="; go build -trimpath -ldflags="-s -w" -o /out/callbot .)
 
-# Stage 2: the bot itself.
+# Stage 2: the bot itself. (fontconfig + Noto fonts: .topdf text pages and the PDF footer are drawn with them, Sinhala / Tamil / emoji included.)
 FROM node:20-bookworm-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg webp ca-certificates git tesseract-ocr tesseract-ocr-eng tesseract-ocr-sin tesseract-ocr-tam \
+    fontconfig fonts-noto-core fonts-noto-color-emoji \
+ && fc-cache -f \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./
