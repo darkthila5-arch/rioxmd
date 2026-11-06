@@ -15,6 +15,7 @@ const LANG = (process.env.NEWS_LANG || 'si').toLowerCase() === 'en' ? 'en' : 'si
 const POLL_MS = Math.max(1, Number(process.env.NEWS_POLL_MIN || 3)) * 60 * 1000;
 const FULL = (process.env.NEWS_FULL || 'on').toLowerCase() !== 'off';   // send the whole story, not only the first lines (NEWS_FULL=off = headline + short summary)
 const MAX_CHARS = Math.max(500, Number(process.env.NEWS_MAX_CHARS || 3500)); // longest story text that is sent
+const CAPTION_MAX = Math.max(600, Number(process.env.NEWS_CAPTION_MAX || 2000)); // a story with a picture is ONE message: the picture with the whole text as its caption, cut at a sentence end when longer than this
 const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per channel per check
 
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
@@ -256,15 +257,17 @@ async function post(sock, jid, key, item, img) {
     }
     return;
   }
-  // Full story: picture + headline first, then the whole text (long stories are split into a few messages). Link, time and footer come last.
+  // Full story = ONE message: the picture with headline, text, link, time and footer as its caption.
   const head = `${SOURCES[key].icon} *${SOURCES[key].name}*\n\n*${clip(item.title, 220)}*`;
   const tail = `🔗 ${item.link}\n\n${stamp()}\n${FOOTER_LINE}`;
-  const parts = splitText(cutText(body, MAX_CHARS), 3000);
-  let headSent = false;
   if (img) {
-    try { await sock.sendMessage(jid, { image: img, caption: head, [NO_FOOTER]: true }); headSent = true; await sleep(600); }
-    catch { /* picture failed: the headline goes with the text below */ }
+    const room = Math.max(200, CAPTION_MAX - head.length - tail.length - 4);
+    try { await sock.sendMessage(jid, { image: img, caption: `${head}\n\n${cutText(body, room)}\n\n${tail}` }); return; }
+    catch { /* the picture failed: the story goes out as one text message below */ }
   }
+  // No picture: one text message (only a very long story is split into a few messages).
+  const parts = splitText(cutText(body, MAX_CHARS), 3000);
+  const headSent = false;
   for (let i = 0; i < parts.length; i++) {
     const last = i === parts.length - 1;
     const text = [!headSent && i === 0 ? head : '', parts[i], last ? tail : ''].filter(Boolean).join('\n\n');
