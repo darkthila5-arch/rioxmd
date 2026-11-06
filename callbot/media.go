@@ -14,7 +14,8 @@ import (
 const (
 	videoFPS      = 15
 	maxClipSecs   = 180
-	ffmpegTimeout = 3 * time.Minute
+	ffmpegTimeout = 8 * time.Minute // long / HD clips need more than 3 min on a small server
+	videoMaxRate  = "450k"          // bitrate cap: big keyframes (burst) are what made the picture freeze mid-call
 )
 
 // runFFmpeg runs ffmpeg with the given args and returns stderr on failure.
@@ -50,6 +51,7 @@ func convertVideo(in, out string) error {
 		"-vf", fmt.Sprintf("scale=480:-2,fps=%d", videoFPS),
 		"-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p",
 		"-preset", "veryfast", "-tune", "zerolatency", "-g", fmt.Sprint(videoFPS), "-keyint_min", fmt.Sprint(videoFPS), "-bf", "0",
+		"-crf", "27", "-maxrate", videoMaxRate, "-bufsize", videoMaxRate, "-sc_threshold", "0", "-threads", "2",
 		"-x264-params", "aud=1:repeat-headers=1:annexb=1",
 		"-f", "h264", out)
 }
@@ -64,11 +66,18 @@ func saveMedia(dir, kind, uploaded string) error {
 	case "audio":
 		return atomicConvert(filepath.Join(dir, "audio.wav"), func(tmp string) error { return convertAudio(uploaded, tmp) })
 	case "video":
-		if err := atomicConvert(filepath.Join(dir, "video.h264"), func(tmp string) error { return convertVideo(uploaded, tmp) }); err != nil {
-			return err
-		}
+		// picture and sound are converted at the same time (one after the other doubled the wait for long clips)
 		wav := filepath.Join(dir, "video.wav")
-		if err := atomicConvert(wav, func(tmp string) error { return convertAudio(uploaded, tmp) }); err != nil {
+		wavDone := make(chan error, 1)
+		go func() {
+			wavDone <- atomicConvert(wav, func(tmp string) error { return convertAudio(uploaded, tmp) })
+		}()
+		vErr := atomicConvert(filepath.Join(dir, "video.h264"), func(tmp string) error { return convertVideo(uploaded, tmp) })
+		aErr := <-wavDone
+		if vErr != nil {
+			return vErr
+		}
+		if aErr != nil {
 			_ = os.Remove(wav) // the clip simply has no sound track
 		}
 		return nil
@@ -139,6 +148,19 @@ func splitAccessUnits(data []byte) [][]byte {
 		units = append(units, data[begin:])
 	}
 	return units
+}
+
+// isKeyframe reports whether an access unit contains an IDR slice (NAL type 5).
+func isKeyframe(unit []byte) bool {
+	for i := 0; i+3 < len(unit); i++ {
+		if unit[i] == 0 && unit[i+1] == 0 && unit[i+2] == 1 {
+			if unit[i+3]&0x1f == 5 {
+				return true
+			}
+			i += 2
+		}
+	}
+	return false
 }
 
 // lookPath is a variable so it is easy to stub in tests.

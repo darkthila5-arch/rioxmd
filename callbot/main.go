@@ -416,14 +416,20 @@ func playAudio(ctx context.Context, call *meowcaller.Call, path string, loop boo
 
 func sendVideo(ctx context.Context, call *meowcaller.Call, units [][]byte, loop bool, restart *int32) {
 	frame := time.Second / videoFPS
-	t := time.NewTicker(frame)
-	defer t.Stop()
-	i := 0
+	// Frames are paced against the wall clock (not a ticker): a slow send can no longer make the
+	// picture fall further and further behind the sound. If we are more than 1 s late we jump to
+	// the next keyframe instead of freezing.
+	start, n, i := time.Now(), 0, 0
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return
-		case <-t.C:
+		}
+		if wait := time.Until(start.Add(time.Duration(n) * frame)); wait > 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
 		}
 		if atomic.CompareAndSwapInt32(restart, 1, 0) {
 			i = 0 // the clip starts with a keyframe, so the peer can resync
@@ -434,11 +440,24 @@ func sendVideo(ctx context.Context, call *meowcaller.Call, units [][]byte, loop 
 			}
 			i = 0
 		}
+		if late := time.Since(start.Add(time.Duration(n) * frame)); late > time.Second {
+			for i < len(units) && !isKeyframe(units[i]) {
+				i++
+			}
+			if i >= len(units) {
+				if !loop {
+					return
+				}
+				i = 0
+			}
+			start, n = time.Now(), 0
+		}
 		if err := call.SendVideoWithDuration(units[i], frame); err != nil {
 			log.Printf("send video frame: %v", err)
 			return
 		}
 		i++
+		n++
 	}
 }
 
