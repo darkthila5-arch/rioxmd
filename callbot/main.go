@@ -58,6 +58,8 @@ type manager struct {
 	container *sqlstore.Container
 	sessions  map[string]*session
 	saved     map[string]savedSession
+	evMu      sync.Mutex
+	events    []callEvent // finished-call reports, drained by the Node bot (GET /events)
 }
 
 type session struct {
@@ -286,6 +288,36 @@ func (m *manager) remove(id string) {
 
 /* ---------- calls ---------- */
 
+// callEvent is the report of one call, picked up by the Node bot after the call has ended.
+type callEvent struct {
+	Session string `json:"session"`
+	Peer    string `json:"peer"`
+	Video   bool   `json:"video"`
+	Secs    int    `json:"secs"`    // how long the call lasted
+	Result  string `json:"result"`  // finished | caller_hangup | no_clip | answer_failed
+	Reason  string `json:"reason"`  // end reason given by WhatsApp
+}
+
+func (m *manager) pushEvent(e callEvent) {
+	m.evMu.Lock()
+	defer m.evMu.Unlock()
+	m.events = append(m.events, e)
+	if len(m.events) > 100 {
+		m.events = m.events[len(m.events)-100:]
+	}
+}
+
+func (m *manager) drainEvents() []callEvent {
+	m.evMu.Lock()
+	defer m.evMu.Unlock()
+	out := m.events
+	m.events = nil
+	if out == nil {
+		out = []callEvent{}
+	}
+	return out
+}
+
 func (s *session) onCall(call *meowcaller.Call) {
 	cfg := s.m.getCfg(s.id)
 	if !cfg.Enabled {
@@ -320,17 +352,32 @@ func (s *session) onCall(call *meowcaller.Call) {
 	if audioPath == "" && videoPath == "" {
 		log.Printf("[%s] call from %s but no clip is saved, rejecting", s.id, peer)
 		_ = call.Reject()
+		s.m.pushEvent(callEvent{Session: s.id, Peer: peer, Video: call.IsVideo(), Result: "no_clip"})
 		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var restart int32
-	var once sync.Once
+	var restart, finished int32
+	var once, reportOnce sync.Once
+	began := time.Now()
+	isVideo := call.IsVideo()
+	report := func(result, reason string) {
+		reportOnce.Do(func() {
+			if result == "" {
+				result = "caller_hangup"
+				if atomic.LoadInt32(&finished) == 1 {
+					result = "finished"
+				}
+			}
+			s.m.pushEvent(callEvent{Session: s.id, Peer: peer, Video: isVideo, Secs: int(time.Since(began).Seconds()), Result: result, Reason: reason})
+		})
+	}
 	start := func() {
-		once.Do(func() { go s.play(ctx, cancel, call, cfg, audioPath, videoPath, &restart) })
+		once.Do(func() { go s.play(ctx, cancel, call, cfg, audioPath, videoPath, &restart, &finished) })
 	}
 	call.OnEnd(func(reason string) {
 		log.Printf("[%s] call from %s ended (%s)", s.id, peer, reason)
+		report("", reason)
 		cancel()
 	})
 	call.OnVideoKeyframeRequest(func() { atomic.StoreInt32(&restart, 1) })
@@ -339,13 +386,14 @@ func (s *session) onCall(call *meowcaller.Call) {
 	log.Printf("[%s] answering %s call from %s (audio=%v video=%v)", s.id, map[bool]string{true: "video", false: "voice"}[call.IsVideo()], peer, audioPath != "", videoPath != "")
 	if err := call.Answer(); err != nil {
 		log.Printf("[%s] answer failed: %v", s.id, err)
+		report("answer_failed", err.Error())
 		cancel()
 		return
 	}
 	time.AfterFunc(4*time.Second, start) // if OnReady never fires, start anyway
 }
 
-func (s *session) play(ctx context.Context, cancel context.CancelFunc, call *meowcaller.Call, cfg Config, audioPath, videoPath string, restart *int32) {
+func (s *session) play(ctx context.Context, cancel context.CancelFunc, call *meowcaller.Call, cfg Config, audioPath, videoPath string, restart, finished *int32) {
 	var wg sync.WaitGroup
 	if videoPath != "" {
 		data, err := os.ReadFile(videoPath)
@@ -374,6 +422,7 @@ func (s *session) play(ctx context.Context, cancel context.CancelFunc, call *meo
 	go func() { wg.Wait(); close(done) }()
 	select {
 	case <-done:
+		atomic.StoreInt32(finished, 1)
 	case <-ctx.Done():
 		return
 	}
@@ -626,6 +675,10 @@ func (m *manager) routes(secret string) http.Handler {
 			m.remove(id)
 			writeJSON(w, 200, map[string]bool{"ok": true})
 		}
+	})
+
+	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"events": m.drainEvents()})
 	})
 
 	m.packRoutes(mux)

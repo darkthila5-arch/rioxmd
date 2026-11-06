@@ -85,10 +85,10 @@ func (s *session) dialPack(phone, pack string, video bool) error {
 	cfg.Hangup = true // always hang up when the pack has finished
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var restart, ready, accepted, started int32
+	var restart, ready, accepted, started, finished int32
 	var once sync.Once
 	start := func() {
-		once.Do(func() { go s.play(ctx, cancel, call, cfg, audioPath, videoPath, &restart) })
+		once.Do(func() { go s.play(ctx, cancel, call, cfg, audioPath, videoPath, &restart, &finished) })
 	}
 	// start when the other side picked up AND the media path is ready
 	maybeStart := func() {
