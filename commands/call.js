@@ -134,7 +134,7 @@ export default [
           await saveCallMedia(sessionId, kind, buf, { mimetype: part.mimetype, ptt: !!part.ptt, caption: part.caption || '' });
           let streamNote = '';
           if (state.callbotAvailable) {
-            try { await callbotApi('PUT', `/sessions/${sessionId}/media/${kind}`, { body: buf, timeout: 180000 }); streamNote = `\n📞 Ready for real calls too (${PREFIX}callstream on).`; }
+            try { await callbotApi('PUT', `/sessions/${sessionId}/media/${kind}`, { body: buf, timeout: 600000 }); streamNote = `\n📞 Ready for real calls too (${PREFIX}callstream on).`; }
             catch (err) { streamNote = `\n⚠️ The call service could not convert it: ${err?.message || err}`; }
           }
           return reply(`✅ Call ${kind} saved (${(buf.length / 1048576).toFixed(1)} MB).\nTurn it on with ${PREFIX}autoanswer on${streamNote}`);
