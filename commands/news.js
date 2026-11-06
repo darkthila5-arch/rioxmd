@@ -7,12 +7,14 @@
 // Facebook pages cannot be read without Facebook's API, so the same stories are taken from the news sites' own feeds.
 // Env: NEWS_LANG = si (default) | en      NEWS_POLL_MIN = minutes between checks (default 3)
 import { BOT_NAME, PREFIX, TIMEZONE, sessions, sleep } from '../lib/config.js';
-import { FOOTER_LINE } from '../lib/brand.js';
+import { FOOTER_LINE, NO_FOOTER } from '../lib/brand.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const LANG = (process.env.NEWS_LANG || 'si').toLowerCase() === 'en' ? 'en' : 'si';
 const POLL_MS = Math.max(1, Number(process.env.NEWS_POLL_MIN || 3)) * 60 * 1000;
+const FULL = (process.env.NEWS_FULL || 'on').toLowerCase() !== 'off';   // send the whole story, not only the first lines (NEWS_FULL=off = headline + short summary)
+const MAX_CHARS = Math.max(500, Number(process.env.NEWS_MAX_CHARS || 3500)); // longest story text that is sent
 const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per channel per check
 
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
@@ -102,6 +104,52 @@ function parseMd(body, f) {
   return out;
 }
 
+// ---- full story text ----
+// Block tags become line breaks, everything else is dropped, so every paragraph of a page is one line.
+const paras = (h) => dec(num(String(h || '')
+  .replace(/<(script|style|noscript|svg|iframe|form|nav|footer|header|aside|button|select)\b[\s\S]*?<\/\1>/gi, '')
+  .replace(/<\/?(?:br|p|div|li|h[1-6]|tr|section|article|blockquote)\b[^>]*>/gi, '\n')
+  .replace(/<[^>]*>/g, ''))).split('\n').map((l) => l.replace(/\s+/g, ' ').trim());
+// a reader service answers in markdown: drop pictures, keep the words of links, skip headings / lists / tables
+const mdLines = (md) => String(md || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').split('\n')
+  .map((l) => (/^\s*(#|[-*>|]|Title:|URL Source:|Markdown Content:)/.test(l) ? '' : l.replace(/\s+/g, ' ').trim()));
+const JUNK = /most visited website|all rights reserved|©|copyright|powered by|follow us|share this|read more|related (news|posts?)|appeared first on|click here|subscribe|advertisement|facebook|whatsapp|twitter|instagram|youtube|tiktok|බෙදාගන්න|සමාන පුවත්|අපව අනුගමනය/i;
+// The story is the biggest group of long, neighbouring lines. When the page's own description is known, the group that contains it wins.
+function pickCluster(lines, title, desc) {
+  const nt = norm(title).slice(0, 40), nd = norm(desc).slice(0, 30);
+  const clusters = []; let cur = [], gap = 0;
+  const close = () => { if (cur.length) clusters.push(cur); cur = []; gap = 0; };
+  for (const l of lines) {
+    if (!l) continue;
+    if (nt && norm(l).startsWith(nt)) continue;      // the headline itself
+    if (JUNK.test(l)) { close(); continue; }         // share / follow / footer lines end a story
+    if (l.length >= 50) { cur.push(l); gap = 0; }
+    else if (cur.length && l.length >= 20 && gap < 2) { cur.push(l); gap++; } // a short line inside the story
+    else { gap++; if (gap > 2 || !cur.length) close(); }
+  }
+  close();
+  const size = (c) => c.reduce((n, l) => n + l.length, 0);
+  const pick = (nd && clusters.find((c) => c.some((l) => norm(l).includes(nd)))) || [...clusters].sort((a, b) => size(b) - size(a))[0];
+  const text = pick ? [...new Set(pick)].join('\n\n') : '';
+  return text.length >= 100 ? text : '';
+}
+// Cut at a paragraph or sentence end, never in the middle of a word.
+function cutText(t, n) {
+  if (t.length <= n) return t;
+  const head = t.slice(0, n);
+  const at = Math.max(head.lastIndexOf('\n\n'), head.lastIndexOf('. '), head.lastIndexOf('? '), head.lastIndexOf('! '));
+  return `${(at > n * 0.6 ? head.slice(0, at + 1) : head).trim()}…`;
+}
+function splitText(t, n) {
+  const out = []; let cur = '';
+  for (const p of t.split('\n\n')) {
+    if (cur && cur.length + p.length + 2 > n) { out.push(cur); cur = ''; }
+    cur = cur ? `${cur}\n\n${p}` : p;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 function parseFeed(xml, isGoogle) {
   const items = [];
   for (const m of String(xml).matchAll(/<(item|entry)[\s>][\s\S]*?<\/\1>/g)) {
@@ -117,7 +165,9 @@ function parseFeed(xml, isGoogle) {
     let summary = plain(raw);
     if (isGoogle || summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 30))) summary = ''; // Google's "summary" is just the title again
     if (!title || !link) continue;
-    items.push({ id: keyOf(title), title, link, summary, image: /^https?:\/\//i.test(image) ? dec(image) : '' });
+    const encoded = isGoogle ? '' : get('content:encoded');
+    const feedBody = encoded ? pickCluster(paras(encoded), title, summary) : '';
+    items.push({ id: keyOf(title), title, link, summary, body: feedBody, image: /^https?:\/\//i.test(image) ? dec(image) : '' });
   }
   return items;
 }
@@ -148,11 +198,18 @@ const metaOf = (html, name) => {
 };
 // The feed rarely has the picture, so a new story's own page is opened for its og:image and description.
 async function enrich(item) {
-  if ((item.image && item.summary) || item.link.includes('news.google.com')) return item;
-  try {
-    const html = await fetchText(item.link, 8000);
-    return { ...item, image: item.image || metaOf(html, 'og:image'), summary: item.summary || plain(metaOf(html, 'og:description') || metaOf(html, 'description')) };
-  } catch { return item; }
+  if (item.link.includes('news.google.com')) return item;
+  if (item.image && item.body) return item; // the feed already had everything
+  let html = '', md = '';
+  try { html = await fetchText(item.link, 10000); }
+  catch { // the site refuses this server: let a public reader service open the story page instead
+    if (FULL) { try { md = await fetchText(`https://r.jina.ai/${item.link}`, 20000); } catch { /* summary only */ } }
+  }
+  const summary = item.summary || (html ? plain(metaOf(html, 'og:description') || metaOf(html, 'description')) : '');
+  const image = item.image || (html ? metaOf(html, 'og:image') : '');
+  let body = item.body || '';
+  if (FULL && !body) body = html ? pickCluster(paras(html), item.title, summary) : md ? pickCluster(mdLines(md), item.title, summary) : '';
+  return { ...item, image, summary, body };
 }
 async function imageBuffer(url) {
   if (!url) return null;
@@ -188,12 +245,31 @@ const captionOf = (key, it) => [
 ].join('\n');
 
 async function post(sock, jid, key, item, img) {
-  const caption = captionOf(key, item);
-  try {
-    await sock.sendMessage(jid, img ? { image: img, caption } : { text: caption });
-  } catch (err) {
-    if (!img) throw err;
-    await sock.sendMessage(jid, { text: caption }); // the picture failed, still send the story
+  const body = FULL ? String(item.body || '').trim() : '';
+  if (body.length < 120) { // no full text: headline + short summary, as before
+    const caption = captionOf(key, item);
+    try {
+      await sock.sendMessage(jid, img ? { image: img, caption } : { text: caption });
+    } catch (err) {
+      if (!img) throw err;
+      await sock.sendMessage(jid, { text: caption }); // the picture failed, still send the story
+    }
+    return;
+  }
+  // Full story: picture + headline first, then the whole text (long stories are split into a few messages). Link, time and footer come last.
+  const head = `${SOURCES[key].icon} *${SOURCES[key].name}*\n\n*${clip(item.title, 220)}*`;
+  const tail = `🔗 ${item.link}\n\n${stamp()}\n${FOOTER_LINE}`;
+  const parts = splitText(cutText(body, MAX_CHARS), 3000);
+  let headSent = false;
+  if (img) {
+    try { await sock.sendMessage(jid, { image: img, caption: head, [NO_FOOTER]: true }); headSent = true; await sleep(600); }
+    catch { /* picture failed: the headline goes with the text below */ }
+  }
+  for (let i = 0; i < parts.length; i++) {
+    const last = i === parts.length - 1;
+    const text = [!headSent && i === 0 ? head : '', parts[i], last ? tail : ''].filter(Boolean).join('\n\n');
+    await sock.sendMessage(jid, last ? { text } : { text, [NO_FOOTER]: true });
+    if (!last) await sleep(800);
   }
 }
 
