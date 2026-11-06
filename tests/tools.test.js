@@ -21,6 +21,7 @@ const has = (bin) => spawnSync(bin, ['-version'], { stdio: 'ignore' }).status !=
 const HAS_FFMPEG = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 const HAS_TESSERACT = spawnSync('tesseract', ['--version'], { stdio: 'ignore' }).status === 0;
 const HAS_PDFINFO = spawnSync('pdfinfo', ['-v'], { stdio: 'ignore' }).status !== null;
+const HAS_PDFTOTEXT = spawnSync('pdftotext', ['-v'], { stdio: 'ignore' }).status !== null;
 
 let counter = 0;
 function ctx(command, args = [], message = { conversation: `.${command}` }, extra = {}) {
@@ -303,7 +304,7 @@ test('topdf: collect photos one by one, then done makes one PDF and empties the 
   assert.equal(mediatools.stacks.size, 0);
   const again = sameUser(ctx('topdf', ['done']));
   await registry.get('topdf').run(again.c);
-  assert.match(replies(again.out), /Photos → PDF/); // nothing left: usage
+  assert.match(replies(again.out), /Photos & text → PDF/); // nothing left: usage
 });
 test('topdf: now = one photo straight to a PDF; clear empties; other people have their own list; video is refused', async () => {
   lib.deps.download = async () => photo();
@@ -339,6 +340,107 @@ test('topdf: stops at the page limit', async () => {
   await registry.get('topdf').run(r.c);
   assert.match(replies(r.out), /already \d+ pages/);
 });
+test('pageLayout: a footer reserve keeps the picture clear of the bottom band', () => {
+  let L = lib.pageLayout(3000, 4000, lib.FOOTER_RESERVE);
+  assert.ok(L.y >= lib.FOOTER_RESERVE + 24 - 0.01 && L.y + L.dh <= 841.89 - 24 + 0.01);
+  L = lib.pageLayout(1000, 5000, lib.FOOTER_RESERVE); // long screenshot: the page grows by the band, the picture keeps its size
+  assert.ok(Math.abs(L.ph - (2976.4 + lib.FOOTER_RESERVE)) < 0.5 && L.y === lib.FOOTER_RESERVE && Math.abs(L.dh - 2976.4) < 0.5);
+  L = lib.pageLayout(10, 100000, lib.FOOTER_RESERVE);
+  assert.ok(L.ph <= 14400.001);
+});
+test('buildPdf: footer text and "n / total" on every page; valid xref; no footer = old output', { skip: !HAS_PDFINFO || !HAS_PDFTOTEXT }, async () => {
+  const pages = [await jpegPage(600, 800), await jpegPage(800, 600), await jpegPage(200, 1200)];
+  const plain = lib.buildPdf(pages).toString('latin1');
+  assert.doesNotMatch(plain, /Helvetica/);
+  const pdf = lib.buildPdf(pages, { pageNumbers: true, footer: { text: 'Powered by RIO X MD (test)' } }); // no picture: plain Helvetica footer
+  const text = pdf.toString('latin1');
+  const xrefAt = Number(/startxref\n(\d+)\n/.exec(text)[1]);
+  const entries = text.slice(xrefAt).split('\n').filter((l) => /^\d{10} 00000 n $/.test(l));
+  assert.equal(entries.length, 3 + 9 + 1);
+  entries.forEach((e, i) => assert.equal(text.slice(Number(e.slice(0, 10)), Number(e.slice(0, 10)) + `${i + 1} 0 obj`.length), `${i + 1} 0 obj`));
+  const file = path.join(os.tmpdir(), `rio-test-foot-${process.pid}.pdf`);
+  fs.writeFileSync(file, pdf);
+  try {
+    const out = execFileSync('pdftotext', [file, '-']).toString();
+    for (const n of [1, 2, 3]) assert.match(out, new RegExp(`${n}\\s*/\\s*3`));
+    assert.equal((out.match(/Powered by RIO X MD/g) || []).length, 3);
+    assert.match(execFileSync('pdfinfo', [file]).toString(), /Pages:\s+3/);
+  } finally { fs.rmSync(file, { force: true }); }
+  const withPic = lib.buildPdf(pages, { pageNumbers: true, footer: { text: 'x', image: { ...(await jpegPage(400, 40, '#ffffff')), dpi: 300 } } });
+  assert.match(withPic.toString('latin1'), /\/Ft \d+ 0 R/);
+});
+test('splitRows: pages are cut in the gaps between lines and never taller than the page', () => {
+  const ink = new Uint32Array(400);
+  for (let l = 0; l < 10; l++) for (let r = 0; r < 20; r++) ink[l * 40 + r + 5] = 3; // 10 lines of 20 rows, gaps of 20 rows
+  const ranges = lib.splitRows(ink, 150);
+  assert.ok(ranges.length >= 3);
+  for (const [a, b] of ranges) { assert.ok(b - a <= 150); assert.equal(ink[b - 1], 0); }
+  assert.equal(ranges.at(-1)[1], 400);
+  const solid = lib.splitRows(new Uint32Array(1000).fill(5), 300); // no gap anywhere: still finishes
+  assert.ok(solid.every(([a, b]) => b - a <= 300) && solid.at(-1)[1] === 1000);
+  assert.deepEqual(lib.splitRows(new Uint32Array(50), 300), []);
+});
+test('prepText: cleans the text and caps it', () => {
+  assert.equal(lib.prepText('a\r\n\r\n\r\n\r\nb\t<x>&  \n').text, 'a\n\nb    <x>&');
+  const long = lib.prepText('x'.repeat(lib.MAX_TEXT_CHARS + 500));
+  assert.equal(long.text.length, lib.MAX_TEXT_CHARS); assert.ok(long.truncated);
+  assert.equal(lib.prepText('l\n'.repeat(400)).text.split('\n').length, 250);
+  assert.equal(lib.prepText('  \n ').text, '');
+});
+test('renderTextPages: text (with markup characters and Sinhala) becomes JPEG pages; long text goes on more pages', async () => {
+  await assert.rejects(() => lib.renderTextPages('   '), (e) => e.noText === true);
+  const one = await lib.renderTextPages('Hello <b>world</b> & friends\nආයුබෝවන්');
+  assert.equal(one.pages.length, 1);
+  assert.equal(one.pages[0].jpeg[0], 0xff); assert.equal(one.pages[0].jpeg[1], 0xd8);
+  const many = await lib.renderTextPages(Array.from({ length: 120 }, (_, i) => `Line number ${i + 1} of the long text`).join('\n'));
+  assert.ok(many.pages.length >= 2 && many.pages.length <= 5);
+  const capped = await lib.renderTextPages(Array.from({ length: 120 }, (_, i) => `Line ${i}`).join('\n'), { maxPages: 1 });
+  assert.equal(capped.pages.length, 1); assert.equal(capped.truncated, true);
+  const f = await lib.renderFooterImage('© Powered by RIO X MD');
+  assert.ok(f === null || (f.jpeg[0] === 0xff && f.width > 20 && f.height > 5 && f.dpi === 300));
+});
+test('topdf text: text pages mixed with photos, quoted text, plain reply, empty text, then done adds footer + page numbers', async () => {
+  lib.deps.download = async () => photo();
+  const first = ctx('topdf', ['text', 'Hello', 'world'], { conversation: '.topdf text Hello world\nsecond line <b> & more' });
+  await registry.get('topdf').run(first.c);
+  assert.match(replies(first.out), /Page \*1\* added \(text\)/);
+  const sameUser = (r) => { r.c.sessionId = first.c.sessionId; r.c.msg.key.participant = first.c.msg.key.participant; return r; };
+  const photoAdd = sameUser(ctx('topdf', [], imageMsg()));
+  await registry.get('topdf').run(photoAdd.c);
+  assert.match(replies(photoAdd.out), /Page \*?2\*? added/);
+  const quoted = sameUser(ctx('topdf', ['text'], { extendedTextMessage: { text: '.topdf text', contextInfo: { stanzaId: 'Q9', participant: '94772222222@s.whatsapp.net', quotedMessage: { conversation: 'Quoted words' } } } }));
+  await registry.get('topdf').run(quoted.c);
+  assert.match(replies(quoted.out), /Page \*3\* added \(text\)/);
+  const plain = sameUser(ctx('topdf', [], { extendedTextMessage: { text: '.topdf', contextInfo: { stanzaId: 'Q8', participant: '94772222222@s.whatsapp.net', quotedMessage: { conversation: 'Another quoted text' } } } }));
+  await registry.get('topdf').run(plain.c);
+  assert.match(replies(plain.out), /Page \*4\* added \(text\)/);
+  const empty = sameUser(ctx('topdf', ['text'], { conversation: '.topdf text' }));
+  await registry.get('topdf').run(empty.c);
+  assert.match(replies(empty.out), /Photos & text → PDF/);
+  const done = sameUser(ctx('topdf', ['done', 'Mixed']));
+  await registry.get('topdf').run(done.c);
+  const doc = done.out.find((o) => o.document);
+  assert.ok(doc, 'PDF sent');
+  assert.match(doc.caption, /4 page/);
+  const pdf = doc.document.toString('latin1');
+  assert.match(pdf, /\/Count 4/);
+  assert.match(pdf, /Helvetica/); // page numbers are real text
+  if (HAS_PDFTOTEXT) {
+    const file = path.join(os.tmpdir(), `rio-test-mixed-${process.pid}.pdf`);
+    fs.writeFileSync(file, doc.document);
+    try { const out = execFileSync('pdftotext', [file, '-']).toString(); for (const n of [1, 2, 3, 4]) assert.match(out, new RegExp(`${n}\\s*/\\s*4`)); } finally { fs.rmSync(file, { force: true }); }
+  }
+});
+test('topdf text: long text is split over pages, too-long text is cut with a warning, page limit is respected', async () => {
+  const lines = Array.from({ length: 120 }, (_, i) => `Line number ${i + 1} of the long text`).join('\n');
+  const a = ctx('topdf', ['text'], { conversation: `.topdf text ${lines}` });
+  await registry.get('topdf').run(a.c);
+  assert.match(replies(a.out), /Pages \*1–\d+\* added \(text\)/);
+  const b = ctx('topdf', ['text'], { conversation: `.topdf text ${'word '.repeat(3000)}` });
+  await registry.get('topdf').run(b.c);
+  assert.match(replies(b.out), /too long/);
+});
+
 test('pdfName: safe file names', () => {
   assert.equal(mediatools.pdfName(['My', 'Notes.pdf']), 'My_Notes');
   assert.equal(mediatools.pdfName(['../../etc/passwd']), 'etcpasswd');
