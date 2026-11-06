@@ -49,6 +49,21 @@ const bold = alpha(0x1D400, 0x1D41A, 0x1D7CE);
 const boldScript = alpha(0x1D4D0, 0x1D4EA);
 const boldFrak = alpha(0x1D56C, 0x1D586);
 
+
+const asian = table(ABC, 'ᗩᗷᑕᗪᕮᖴǤᕼᓰᒍᛕᒪᗰᑎᗝᑭᑫᖇᔕ丅ᑌᐯᗯ᙭Ƴᘔ');
+const currency = table(ABC, '₳฿₵ĐɆ₣₲ⱧłJ₭Ⱡ₥₦Ø₱QɌ₴₮ɄVӾӾɎⱫ'.replace('ӾӾ', '₩Ӿ'));
+const rockDots = table(ABC, 'ÄḄĊḊËḞĠḦÏJḲḶṀṄÖṖQṚṠṪÜṾẄẌŸŻ');
+const glitch = (s) => {
+  const up = ['̍', '̎', '̄', '̅', '̿', '̑', '̆', '̐', '͒', '͗', '͑', '̇', '̈', '̊', '͂'];
+  const down = ['̖', '̗', '̘', '̙', '̜', '̝', '̞', '̟', '̠', '̤', '̥', '̦', '̩', '̪', '̫'];
+  const r = (a) => a[Math.floor(Math.random() * a.length)];
+  return [...s].map((ch) => (ch === ' ' ? ch : ch + r(up) + r(up) + r(down) + r(down))).join('');
+};
+const deco = (l, r, fn = (x) => x) => (s) => `${l}${fn(s)}${r}`;
+const dotted = (s) => [...s].join('·');
+const underBold = (s) => combine('̲')(bold(s));
+const strikeBold = (s) => combine('̶')(bold(s));
+
 export const STYLES = [
   ['Bold', bold],
   ['Italic', italicS],
@@ -92,7 +107,28 @@ export const STYLES = [
   ['Sparkle', (s) => `✨ ${scriptS(s)} ✨`],
   ['Hearts', (s) => `♡ ${italicS(s)} ♡`],
   ['Dots', (s) => `•°•° ${smallCaps(s)} °•°•`],
-  ['Arrow', (s) => `➳ ${alpha(0x1D5D4, 0x1D5EE, 0x1D7EC)(s)} ➳`]
+  ['Arrow', (s) => `➳ ${alpha(0x1D5D4, 0x1D5EE, 0x1D7EC)(s)} ➳`],
+  ['Asian', asian],
+  ['Currency', currency],
+  ['Rock Dots', rockDots],
+  ['Glitch', glitch],
+  ['Dot Spaced', dotted],
+  ['Bold Underline', underBold],
+  ['Bold Strike', strikeBold],
+  ['Snow', deco('❄️ ', ' ❄️', boldScript)],
+  ['Flower', deco('🌸 ', ' 🌸', italicS)],
+  ['Lightning', deco('⚡ ', ' ⚡', bold)],
+  ['Skull', deco('💀 ', ' 💀', boldFrak)],
+  ['Royal', deco('👑 ', ' 👑', boldScript)],
+  ['Diamond', deco('💎 ', ' 💎', smallCaps)],
+  ['Moon', deco('🌙 ', ' 🌙', italicS)],
+  ['Swords', deco('⚔️ ', ' ⚔️', bold)],
+  ['Heart Line', deco('❥ ', ' ❥', boldScript)],
+  ['Bars', deco('▁▂▃▄▅ ', ' ▅▄▃▂▁', bold)],
+  ['Blocks', deco('░▒▓█ ', ' █▓▒░', bold)],
+  ['Lines', deco('━━━ ༺ ', ' ༻ ━━━', boldScript)],
+  ['Flowers', deco('✿ ', ' ✿', italicS)],
+  ['Box', deco('╰☆☆ ', ' ☆☆╮', boldScript)]
 ];
 
 export function renderStyle(n, text) {
