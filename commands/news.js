@@ -115,6 +115,7 @@ const paras = (h) => dec(num(String(h || '')
 const mdLines = (md) => String(md || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').split('\n')
   .map((l) => (/^\s*(#|[-*>|]|Title:|URL Source:|Markdown Content:)/.test(l) ? '' : l.replace(/\s+/g, ' ').trim()));
 const JUNK = /most visited website|all rights reserved|©|copyright|powered by|follow us|share this|read more|related (news|posts?)|appeared first on|click here|subscribe|advertisement|facebook|whatsapp|twitter|instagram|youtube|tiktok|බෙදාගන්න|සමාන පුවත්|අපව අනුගමනය/i;
+const ENDS = /[.?!…”"'’)\]»:]\s*$/;
 // The story is the biggest group of long, neighbouring lines. When the page's own description is known, the group that contains it wins.
 function pickCluster(lines, title, desc) {
   const nt = norm(title).slice(0, 40), nd = norm(desc).slice(0, 30);
@@ -124,6 +125,8 @@ function pickCluster(lines, title, desc) {
     if (!l) continue;
     if (nt && norm(l).startsWith(nt)) continue;      // the headline itself
     if (JUNK.test(l)) { close(); continue; }         // share / follow / footer lines end a story
+    // A story paragraph ends like a sentence. The list of other headlines under a story (sidebar / "latest news") does not, so it ends the story.
+    if (cur.length && l.length >= 20 && !ENDS.test(l)) { close(); }
     if (l.length >= 50) { cur.push(l); gap = 0; }
     else if (cur.length && l.length >= 20 && gap < 2) { cur.push(l); gap++; } // a short line inside the story
     else { gap++; if (gap > 2 || !cur.length) close(); }
