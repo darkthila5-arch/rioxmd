@@ -18,6 +18,8 @@ const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per cha
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
 const gnews = (site) => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
 const html = (page, re) => ({ html: page, re }); // fallback: read the site's own home page and pick the story links
+const wpjson = (url) => ({ json: url });              // fallback: the site's WordPress REST API (title, link, picture)
+const reader = (page, host) => ({ md: `https://r.jina.ai/${page}`, host }); // last resort: a public "reader" service opens the page for us and returns it as markdown
 const SOURCES = {
   hiru: { name: 'HIRU NEWS', icon: '🔴', feeds: [
     'https://www.hirunews.lk/rss', 'https://www.hirunews.lk/feed', 'https://www.hirunews.lk/rss.xml',
@@ -26,7 +28,10 @@ const SOURCES = {
   derana: { name: 'ADA DERANA', icon: '🔵', feeds: [LANG === 'si' ? 'https://sinhala.adaderana.lk/rss.php' : 'https://www.adaderana.lk/rss.php', gnews('adaderana.lk')] },
   itn: { name: 'ITN NEWS', icon: '🟢', feeds: [
     'https://www.itnnews.lk/feed/', 'https://itnnews.lk/feed/', 'https://www.itnnews.lk/?feed=rss2',
+    'https://www.itnnews.lk/latest-news/feed/', 'https://www.itnnews.lk/breaking-news/feed/',
+    wpjson('https://www.itnnews.lk/wp-json/wp/v2/posts?per_page=15&_embed=wp:featuredmedia&_fields=title,link,excerpt,_links,_embedded'),
     html('https://www.itnnews.lk/', /<a[^>]+href=["'](https?:\/\/(?:www\.)?itnnews\.lk\/\d{4}\/\d{2}\/\d{2}\/[^"']+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+    reader('https://www.itnnews.lk/', 'itnnews\\.lk'),
     gnews('itnnews.lk')] }
 };
 const ALL = Object.keys(SOURCES);
@@ -65,6 +70,38 @@ function parseHtml(page, f) {
   return out;
 }
 
+// WordPress REST API: [{ title: { rendered }, link, excerpt: { rendered }, _embedded: { 'wp:featuredmedia': [{ source_url }] } }]
+const num = (t) => String(t || '').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)));
+function parseJson(body) {
+  let arr;
+  try { arr = JSON.parse(body); } catch { return []; }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const p of arr) {
+    const title = plain(num(p?.title?.rendered));
+    const link = String(p?.link || '');
+    if (!title || !/^https?:\/\//i.test(link)) continue;
+    const img = p?._embedded?.['wp:featuredmedia']?.[0]?.source_url || p?.jetpack_featured_media_url || '';
+    out.push({ id: keyOf(title), title, link, summary: plain(num(p?.excerpt?.rendered)), image: /^https?:\/\//i.test(img) ? img : '' });
+  }
+  return out;
+}
+// Markdown from a reader service: "### [Headline](https://site/2026/11/06/123/)" and "[![](picture)](https://site/2026/11/06/123/ "Headline")"
+function parseMd(body, f) {
+  const text = String(body);
+  const link = `https?:\\/\\/(?:www\\.)?${f.host}\\/\\d{4}\\/\\d{2}\\/\\d{2}\\/\\d+\\/?`;
+  const pics = new Map();
+  for (const m of text.matchAll(new RegExp(`\\[!\\[[^\\]]*\\]\\((https?:\\/\\/[^)\\s]+)\\)\\]\\((${link})`, 'g'))) if (!pics.has(m[2])) pics.set(m[2], m[1]);
+  const out = [], seen = new Set();
+  for (const m of text.matchAll(new RegExp(`\\[([^\\[\\]]{15,300}?)\\]\\((${link})(?:\\s+"[^"]*")?\\)`, 'g'))) {
+    const title = plain(m[1]), url = m[2];
+    if (title.length < 15 || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ id: keyOf(title), title, link: url, summary: '', image: pics.get(url) || '' });
+  }
+  return out;
+}
+
 function parseFeed(xml, isGoogle) {
   const items = [];
   for (const m of String(xml).matchAll(/<(item|entry)[\s>][\s\S]*?<\/\1>/g)) {
@@ -87,7 +124,7 @@ function parseFeed(xml, isGoogle) {
 
 const working = {}; // source -> index of the feed that last worked
 const warned = new Set();
-const feedUrl = (f) => (typeof f === 'string' ? f : f.html);
+const feedUrl = (f) => (typeof f === 'string' ? f : (f.html || f.json || f.md));
 async function latest(key) {
   const feeds = SOURCES[key].feeds;
   const order = [...new Set([working[key] ?? 0, ...feeds.keys()])];
@@ -96,7 +133,7 @@ async function latest(key) {
     const f = feeds[i], url = feedUrl(f);
     try {
       const body = await fetchText(url);
-      const items = typeof f === 'string' ? parseFeed(body, url.includes('news.google.com')) : parseHtml(body, f);
+      const items = typeof f === 'string' ? parseFeed(body, url.includes('news.google.com')) : f.json ? parseJson(body) : f.md ? parseMd(body, f) : parseHtml(body, f);
       if (items.length) { if (working[key] !== i) { working[key] = i; console.log(`News: ${key} uses ${url}`); } return items.slice(0, 15); }
       errs.push(`${url}: no stories`);
     } catch (err) { errs.push(`${url}: ${err?.message || err}`); }
@@ -219,12 +256,15 @@ if (!globalThis.__rioNewsTimer) {
 }
 
 /* ---------- commands ---------- */
-async function headlines(reply, keys, n) {
+async function headlines(reply, keys, n, showWhy = false) {
   const parts = await Promise.all(keys.map(async (k) => {
     try {
       const items = (await latest(k)).slice(0, n);
       return [`${SOURCES[k].icon} *${SOURCES[k].name}*`, ...items.map((i, x) => `${x + 1}. ${clip(i.title, 120)}\n   ${i.link}`)].join('\n');
-    } catch { return `${SOURCES[k].icon} *${SOURCES[k].name}*\n❌ Could not load right now.`; }
+    } catch (err) {
+      const why = showWhy ? `\n_${clip(String(err?.message || err).replace(/https?:\/\/(www\.)?/g, '').split(' | ').map((x) => clip(x, 70)).join('\n'), 500)}_` : ''; // owner only: which address failed and why
+      return `${SOURCES[k].icon} *${SOURCES[k].name}*\n❌ Could not load right now.${why}`;
+    }
   }));
   return reply(`📰 *Latest news*\n\n${parts.join('\n\n')}`);
 }
@@ -240,13 +280,13 @@ const one = (key) => ({
       if (cur.size) setTarget(sessionId, jid, [...cur]); else removeTarget(sessionId, jid);
       return reply(`${SOURCES[key].icon} ${SOURCES[key].name} auto news is ${sw.toUpperCase()} for this chat.${cur.size ? `\n📰 Now on: ${[...cur].map((k) => SOURCES[k].name).join(', ')}` : ''}`);
     }
-    return headlines(reply, [key], 6);
+    return headlines(reply, [key], 6, isOwner);
   }
 });
 const names = (keys) => keys.map((k) => SOURCES[k].name).join(', ');
 
 export default [
-  { name: 'news', aliases: ['lknews'], react: '📰', async run({ reply, args }) { const ks = args.length ? pickKeys(args) : ALL; return headlines(reply, ks, ks.length === 1 ? 6 : 3); } },
+  { name: 'news', aliases: ['lknews'], react: '📰', async run({ reply, args, isOwner }) { const ks = args.length ? pickKeys(args) : ALL; return headlines(reply, ks, ks.length === 1 ? 6 : 3, isOwner); } },
   one('hiru'), one('derana'), one('itn'),
   {
     name: 'newson', adminOnly: true, aliases: ['autonews'], owner: true, react: '📰',
