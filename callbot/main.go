@@ -481,7 +481,20 @@ func sendVideo(ctx context.Context, call *meowcaller.Call, units [][]byte, loop 
 			}
 		}
 		if atomic.CompareAndSwapInt32(restart, 1, 0) {
-			i = 0 // the clip starts with a keyframe, so the peer can resync
+			// The other side lost the picture and wants a keyframe. Do NOT jump back to the start of the clip
+			// (that looked like the video "restarting / sticking" in the middle): continue on the same time line
+			// at the next keyframe, so picture and sound stay together.
+			j := i
+			for j < len(units) && !isKeyframe(units[j]) {
+				j++
+			}
+			if j < len(units) {
+				n += j - i
+				i = j
+			} else if loop {
+				n += len(units) - i
+				i = 0
+			}
 		}
 		if i >= len(units) {
 			if !loop {

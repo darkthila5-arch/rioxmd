@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -15,8 +16,27 @@ const (
 	videoFPS      = 15
 	maxClipSecs   = 180
 	ffmpegTimeout = 8 * time.Minute // long / HD clips need more than 3 min on a small server
-	videoMaxRate  = "450k"          // bitrate cap: big keyframes (burst) are what made the picture freeze mid-call
 )
+
+// Picture quality of the call video. Lower both numbers if the picture still stutters on a weak server / network.
+//   CALL_VIDEO_WIDTH  picture width in pixels   (default 480, allowed 240-720)
+//   CALL_VIDEO_KBPS   bitrate cap in kbit/s     (default 450, allowed 150-1500)
+func envInt(name string, def, min, max int) int {
+	v, err := strconv.Atoi(os.Getenv(name))
+	if err != nil {
+		return def
+	}
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+func videoWidth() int   { return envInt("CALL_VIDEO_WIDTH", 480, 240, 720) &^ 1 }
+func videoMaxRate() string { return fmt.Sprintf("%dk", envInt("CALL_VIDEO_KBPS", 450, 150, 1500)) }
 
 // runFFmpeg runs ffmpeg with the given args and returns stderr on failure.
 func runFFmpeg(args ...string) error {
@@ -48,10 +68,10 @@ func convertAudio(in, out string) error {
 // SPS/PPS repeated on every keyframe and an access-unit delimiter in front of every frame).
 func convertVideo(in, out string) error {
 	return runFFmpeg("-i", in, "-an", "-t", fmt.Sprint(maxClipSecs),
-		"-vf", fmt.Sprintf("scale=480:-2,fps=%d", videoFPS),
+		"-vf", fmt.Sprintf("scale=%d:-2,fps=%d", videoWidth(), videoFPS),
 		"-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p",
 		"-preset", "veryfast", "-tune", "zerolatency", "-g", fmt.Sprint(videoFPS), "-keyint_min", fmt.Sprint(videoFPS), "-bf", "0",
-		"-crf", "27", "-maxrate", videoMaxRate, "-bufsize", videoMaxRate, "-sc_threshold", "0", "-threads", "2",
+		"-crf", "27", "-maxrate", videoMaxRate(), "-bufsize", videoMaxRate(), "-sc_threshold", "0", "-threads", "2",
 		"-x264-params", "aud=1:repeat-headers=1:annexb=1",
 		"-f", "h264", out)
 }
