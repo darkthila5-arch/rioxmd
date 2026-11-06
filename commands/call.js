@@ -76,11 +76,18 @@ export default [
             '',
             `${PREFIX}callstream on / off`,
             `${PREFIX}callstream loop on / off`,
+            `${PREFIX}callstream report on / off — result message after every call (now: ${getSetting(sessionId, 'callReport', true) ? 'ON' : 'OFF'})`,
             `${PREFIX}callstream unlink — remove the linked call device`,
             `${PREFIX}setcallaudio / ${PREFIX}setcallvideo — choose what is played (voice call → audio, video call → video)`
           ].join('\n'));
         }
         if (sub === 'off') { setSetting(sessionId, 'callStream', false); await syncCallbot(sessionId, sock); return reply('✅ Real call answering: *OFF*'); }
+        if (sub === 'report') {
+          const rv = parseToggle(args[1]);
+          if (rv === null) return reply(`Call report is *${getSetting(sessionId, 'callReport', true) ? 'ON' : 'OFF'}*.\nUse ${PREFIX}callstream report on  or  ${PREFIX}callstream report off`);
+          setSetting(sessionId, 'callReport', rv);
+          return reply(`✅ Call report: *${rv ? 'ON' : 'OFF'}* (${rv ? 'you get a result message in your own chat after every call' : 'no message after calls'})`);
+        }
         if (sub === 'loop') {
           const lv = parseToggle(args[1]);
           if (lv === null) return reply(`Use ${PREFIX}callstream loop on  or  ${PREFIX}callstream loop off`);
@@ -92,7 +99,7 @@ export default [
           try { await callbotApi('DELETE', `/sessions/${sessionId}`); } catch (err) { return reply(`❌ ${err?.message || err}`); }
           return reply('✅ Call device unlinked and real call answering turned OFF.');
         }
-        if (sub !== 'on') return reply(`Use ${PREFIX}callstream on / off / loop / unlink`);
+        if (sub !== 'on') return reply(`Use ${PREFIX}callstream on / off / loop / report / unlink`);
   
         setSetting(sessionId, 'callStream', true);
         if (st.linked) {
