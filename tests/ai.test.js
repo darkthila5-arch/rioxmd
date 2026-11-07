@@ -15,11 +15,12 @@ function ctx(args = [], extra = {}) {
 const res = (body, status = 200) => ({ ok: status < 400, status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
 
 test('AI commands are registered with aliases', () => {
-  for (const x of ['gpt4', 'nexagpt', 'blackbox', 'blackboxai', 'claudeai', 'claude', 'googleans', 'gans', 'addai', 'delai']) assert.ok(registry.has(x), x);
+  for (const x of ['gpt4', 'nexagpt', 'googleans', 'gans', 'addai', 'delai']) assert.ok(registry.has(x), x);
+  for (const x of ['blackbox', 'blackboxai', 'claudeai', 'claude']) assert.ok(!registry.has(x), `${x} should be removed`);
 });
 test('chat commands show usage with no question and make no request', async () => {
   globalThis.fetch = () => { throw new Error('no network expected'); };
-  for (const x of ['gpt4', 'blackbox', 'claudeai', 'googleans']) {
+  for (const x of ['gpt4', 'googleans']) {
     const { c, out } = ctx();
     await registry.get(x).run(c);
     assert.match(out[0], /Usage/);
@@ -36,14 +37,6 @@ test('askAI sends the question in the right parameter and returns the answer', a
   globalThis.fetch = async (url) => { seen.push(String(url)); return res({ result: 'hello' }); };
   assert.equal(await ai.askAI('gpt4', 'hi there'), 'hello');
   assert.match(seen[0], /[?&]q=hi\+there/);
-  await ai.askAI('blackbox', 'x'); assert.match(seen[1], /[?&]query=x/);
-  await ai.askAI('claude', 'x'); assert.match(seen[2], /[?&]prompt=x/);
-});
-test('askAI does not retry a claude request on 503', async () => {
-  let calls = 0;
-  globalThis.fetch = async () => { calls++; return res('down', 503); };
-  await assert.rejects(ai.askAI('claude', 'x'));
-  assert.equal(calls, 1);
 });
 test('the command answers, and a second question right away is refused', async () => {
   globalThis.fetch = async () => res({ answer: 'forty two' });
@@ -56,7 +49,7 @@ test('the command answers, and a second question right away is refused', async (
 test('a failing API gives a friendly message, not the raw error', async () => {
   globalThis.fetch = async () => res('boom', 500);
   const { c, out } = ctx(['x'], {});
-  await registry.get('claudeai').run(c);
+  await registry.get('gpt4').run(c);
   assert.match(out[0], /could not answer/);
   assert.doesNotMatch(out[0], /boom|HTTP/);
 });
