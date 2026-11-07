@@ -12,7 +12,7 @@ Multi-session WhatsApp bot (Baileys) with a modern pairing website (pair code or
 | Menu | `.menu` image + buttons, `.alive`, emoji reaction on every command, bot DP link-preview card on every reply. |
 | Downloaders | TikTok, Facebook, Pinterest, YouTube song / video. |
 | Look-up & file tools | `.define` dictionary, `.wiki` Wikipedia, `.short` short links, `.ss` website screenshot, `.tomp3` video / voice to MP3, `.topdf` photos and text to one PDF (bot footer + page number on every page), `.ocr` text from a photo (Sinhala / English / Tamil). See *Look-up, web and file tools*. |
-| AI & search | `.gpt4`, `.blackbox`, `.claudeai` answer a question (or reply to a message); `.googleans` gives a direct answer + top results; `.addai` / `.delai` add / remove Meta AI in a group (admins). The AI commands use free third-party APIs (URLs in `commands/ai.js`, override with `AI_GPT4_URL`, `AI_BLACKBOX_URL`, `AI_CLAUDE_URL`); what users type is sent to them. |
+| AI & search | `.gpt4` answers a question (or reply to a message); `.googleans` gives a direct answer + top results; `.addai` / `.delai` add / remove Meta AI in a group (admins). The AI commands use free third-party APIs (URL in `commands/ai.js`, override with `AI_GPT4_URL`); what users type is sent to them. |
 | TikTok search | `.tts <words>` shows results as swipeable cards with **VIDEO / AUDIO / MORE** buttons. |
 | Sri Lanka news | `.news`, `.hiru`, `.derana`, `.itn` and **auto posting** of new headlines to the groups and channels you add. |
 | Status tools | Auto view, auto react (your own emojis), auto save, view-once recovery. |
