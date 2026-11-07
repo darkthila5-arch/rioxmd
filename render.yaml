@@ -29,6 +29,8 @@ services:
         sync: false
       - key: BUTTONS
         value: on
+      - key: AUDD_API_TOKEN
+        sync: false           # token from dashboard.audd.io, needed for .shazam
       - key: MAX_SESSIONS
         value: 20
       - key: SESSION_DIR
