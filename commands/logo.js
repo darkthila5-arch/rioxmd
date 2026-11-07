@@ -1,5 +1,5 @@
 // .logo <name>    ->  the name made into 10 different logo styles, shown as swipeable cards (HD FILE + MORE STYLES buttons)
-// .logo2 <name>   ->  10 more styles (20 in total)
+// .logo2 <name> / .logo3 <name>  ->  10 more styles each (30 in total; page 3 = nature: clouds, feathers, flowers, birds, wings ...)
 // .logohd <style> <name>  ->  one logo as a big 2048 px PNG file (this is what the HD FILE button sends)
 // The logos are drawn by the bot itself (lib/logomaker.js), no web API. MAX_LOGO_JOBS (default 2) = pictures drawn at the same time.
 import { FOOTER_LINE } from '../lib/brand.js';
@@ -19,6 +19,7 @@ async function slot(fn) { // at most MAX_JOBS pictures are drawn at once, the re
 
 const pageOf = (page) => STYLES.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 const pages = Math.ceil(STYLES.length / PAGE_SIZE);
+const CMDS = ['logo', 'logo2', 'logo3']; // command of each page
 const fileSafe = (s) => String(s).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'logo';
 
 function usage(cmd) {
@@ -36,7 +37,8 @@ async function sendPage({ sock, msg, jid, args, reply }, page, cmd) {
     console.error('Logo error:', err?.message || err);
     return reply('❌ Could not make the logos right now. Try again in a few seconds.\n\nලෝගෝ හදන්න බැරි වුණා බං, ආයෙ ට්‍රයි කරපන් 😒');
   }
-  const more = page + 1 < pages ? qr('➡️ MORE STYLES', `${PREFIX}logo2 ${name}`) : qr('⬅️ FIRST STYLES', `${PREFIX}logo ${name}`);
+  const next = CMDS[(page + 1) % pages];
+  const more = page + 1 < pages ? qr('➡️ MORE STYLES', `${PREFIX}${next} ${name}`) : qr('⬅️ FIRST STYLES', `${PREFIX}${next} ${name}`);
   if (USE_BUTTONS) { // same swipe cards as .tts / .song
     try {
       return await sendCards(sock, jid, {
@@ -55,7 +57,7 @@ async function sendPage({ sock, msg, jid, args, reply }, page, cmd) {
     await sock.sendMessage(jid, { image: img, caption: `🎨 *${st.title}*\n👤 ${name}\n\nHD file: ${PREFIX}logohd ${st.key} ${name}` }, { quoted: msg });
     await sleep(500);
   }
-  return reply(`${page + 1 < pages ? `➡️ More styles: ${PREFIX}logo2 ${name}` : `⬅️ First styles: ${PREFIX}logo ${name}`}\n\n${FOOTER_LINE}`);
+  return reply(`${page + 1 < pages ? '➡️ More styles' : '⬅️ First styles'}: ${PREFIX}${next} ${name}\n\n${FOOTER_LINE}`);
 }
 
 export default [
@@ -66,6 +68,10 @@ export default [
   {
     name: 'logo2', aliases: ['logomore'], react: '🎨',
     async run(ctx) { return sendPage(ctx, 1, 'logo2'); },
+  },
+  {
+    name: 'logo3', aliases: ['logonature'], react: '🎨',
+    async run(ctx) { return sendPage(ctx, 2, 'logo3'); },
   },
   {
     name: 'logohd', aliases: ['logofile'], react: '📥',
