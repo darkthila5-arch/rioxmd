@@ -6,9 +6,9 @@ const { registry } = await import('../commands/index.js');
 let hasSharp = true;
 try { await import('sharp'); } catch { hasSharp = false; }
 
-test('20 styles with unique keys, 2 pages of 10', () => {
-  assert.equal(STYLES.length, 20);
-  assert.equal(new Set(STYLES.map((s) => s.key)).size, 20);
+test('30 styles with unique keys, 3 pages of 10', () => {
+  assert.equal(STYLES.length, 30);
+  assert.equal(new Set(STYLES.map((s) => s.key)).size, 30);
   assert.equal(PAGE_SIZE, 10);
 });
 test('cleanName: trims, collapses spaces, cuts long names, drops tags', () => {
@@ -42,7 +42,7 @@ test('.logo with no name asks for one; .logohd with a wrong style explains', asy
   assert.match(sent[0], /Type a name/);
   await registry.get('logohd').run({ ...base, args: ['nope', 'Rio'] });
   assert.match(sent[1], /Styles: neon/);
-  assert.ok(registry.get('logo2') && registry.get('mklogo') === registry.get('logo'));
+  assert.ok(registry.get('logo2') && registry.get('logo3') && registry.get('mklogo') === registry.get('logo'));
 });
 test('renders real pictures (jpeg card + png HD)', { skip: !hasSharp }, async () => {
   const jpg = await renderLogo('gold', 'Rio X', { px: 360, format: 'jpeg' });
