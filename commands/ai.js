@@ -1,14 +1,12 @@
 // AI and search commands.
 //   .gpt4 <question>        (alias .nexagpt)              GPT-4 style answer
-//   .blackbox <question>    (alias .blackboxai)           Blackbox AI answer
-//   .claudeai <question>    (alias .claude)               Claude-style answer
 //   .googleans <question>   (alias .gans)                 Google direct answer + top results (DuckDuckGo fallback)
 //   .addai / .delai         (group admins)                add / remove Meta AI in a group
-// For the three chat commands you can also reply to a message instead of typing the question.
-// They call free public AI APIs (no key). Those APIs are run by third parties and can go down or change at any time:
-// change the URLs in PROVIDERS below (or set AI_GPT4_URL / AI_BLACKBOX_URL / AI_CLAUDE_URL) if one stops working.
+// For .gpt4 you can also reply to a message instead of typing the question.
+// It calls a free public AI API (no key). That API is run by a third party and can go down or change at any time:
+// change the URL in PROVIDERS below (or set AI_GPT4_URL) if it stops working.
 // Everything a user types is sent to that third party, so tell users not to send private information.
-// Adapted from the Kaguya MD plugins by Dhanz (blackbox, claude, gpt4, googleans) and the add-ai plugin.
+// Adapted from the Kaguya MD plugins by Dhanz (gpt4, googleans) and the add-ai plugin.
 import { PREFIX } from '../lib/config.js';
 import { adminGuard } from '../lib/groups.js';
 import { unwrapMessage } from '../lib/text.js';
@@ -21,9 +19,7 @@ const META_AI = '867051314767696@bot';
 
 // param = name of the query parameter that carries the question
 export const PROVIDERS = {
-  gpt4:     { title: 'GPT-4',    url: process.env.AI_GPT4_URL || 'https://api.nexadev.my.id/ai/gpt4', param: 'q', retries: 2, timeout: 30000 },
-  blackbox: { title: 'Blackbox', url: process.env.AI_BLACKBOX_URL || 'https://apiii-xrina.my.id/ai/blackbox-ai', param: 'query', retries: 2, timeout: 30000 },
-  claude:   { title: 'Claude',   url: process.env.AI_CLAUDE_URL || 'https://v2.api-varhad.my.id/ai/claude', param: 'prompt', retries: 0, timeout: 25000 },
+  gpt4: { title: 'GPT-4', url: process.env.AI_GPT4_URL || 'https://api.nexadev.my.id/ai/gpt4', param: 'q', retries: 2, timeout: 30000 },
 };
 
 // A user can not ask many times in a row (these free APIs have limits, and a slow answer should not be asked twice).
@@ -59,25 +55,26 @@ export function clip(text, max = MAX_ANSWER) {
   return `${stop > max * 0.5 ? cut.slice(0, stop + 1) : cut.replace(/\s+\S*$/, '')}…`;
 }
 
-export async function askAI(provider, question) {
+export async function askAI(provider, question, opts = {}) {
   const p = PROVIDERS[provider];
+  const retries = opts.retries ?? p.retries;
   const url = new URL(p.url);
   url.searchParams.set(p.param, question);
   let last;
-  for (let attempt = 0; attempt <= p.retries; attempt++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': UA }, signal: AbortSignal.timeout(p.timeout) });
       const raw = await res.text();
       let data = null;
       try { data = JSON.parse(raw); } catch { /* plain text answer */ }
-      if (RETRYABLE.has(res.status) && attempt < p.retries) { await sleep(1500 * 2 ** attempt); continue; }
+      if (RETRYABLE.has(res.status) && attempt < retries) { await sleep(1500 * 2 ** attempt); continue; }
       if (!res.ok) throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
       const answer = pickAnswer(data ?? raw).trim();
       if (!answer) throw new Error('The AI sent no answer.');
       return answer;
     } catch (err) {
       last = err;
-      if (attempt < p.retries) await sleep(1500 * 2 ** attempt);
+      if (attempt < retries) await sleep(1500 * 2 ** attempt);
     }
   }
   throw last || new Error('The AI request failed.');
@@ -176,8 +173,6 @@ export function googleText(query, { answer, results }) {
 
 export default [
   chatCommand('gpt4', 'gpt4', ['nexagpt'], 'write a short poem about rain'),
-  chatCommand('blackbox', 'blackbox', ['blackboxai'], 'explain what an API is'),
-  chatCommand('claude', 'claudeai', ['claude'], 'how does blockchain work'),
   {
     name: 'googleans', aliases: ['gans'], react: '🔎',
     async run(c) {
