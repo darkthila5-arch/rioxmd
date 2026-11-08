@@ -5,9 +5,11 @@
 //   .newsoff   .newsdel <target>   .newslist
 // The bot checks the news sites every few minutes and posts every NEW headline (picture + text + link) to the chats you added.
 // Facebook pages cannot be read without Facebook's API, so the same stories are taken from the news sites' own feeds.
+// Admin site (/admin -> News): add groups / channels with a number of days. News stops by itself when the days are over. Footer per target: bot | channel | both | custom.
 // Env: NEWS_LANG = si (default) | en      NEWS_POLL_MIN = minutes between checks (default 3)
+import crypto from 'node:crypto';
 import { BOT_NAME, PREFIX, TIMEZONE, sessions, sleep } from '../lib/config.js';
-import { FOOTER_LINE, NO_FOOTER } from '../lib/brand.js';
+import { FOOTER_LINE, NO_FOOTER, cleanBrandText } from '../lib/brand.js';
 import { getSetting, setSetting } from '../lib/storage.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -239,33 +241,46 @@ function stamp(now = new Date()) {
   const time = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TIMEZONE }).format(now);
   return `📅 ${date}  •  🕒 ${time}`;
 }
-const captionOf = (key, it) => [
+const captionOf = (key, it, footer = FOOTER_LINE) => [
   `${SOURCES[key].icon} *${SOURCES[key].name}*`, '',
   `*${clip(it.title, 220)}*`,
   cleanSummary(it.title, it.summary) ? `\n${clip(cleanSummary(it.title, it.summary), 380)}` : '',
   `\n🔗 ${it.link}`,
   `\n${stamp()}`,
-  `${FOOTER_LINE}`
+  `${footer}`
 ].join('\n');
 
-async function post(sock, jid, key, item, img) {
+// Footer under a news post. mode: bot (default) | channel (the group / channel name) | both (bot footer + name) | custom (own text).
+// `own` = the footer is not the bot footer, so the automatic bot footer must not be added on top (NO_FOOTER).
+function footerOf(t) {
+  const f = t?.footer || {};
+  const name = cleanBrandText(t?.name || '', 80), custom = cleanBrandText(f.custom || '', 120);
+  const line = (x) => `> *${x}*`;
+  if (f.mode === 'channel' && name) return { text: line(name), own: true };
+  if (f.mode === 'both' && name) return { text: `${FOOTER_LINE}\n${line(name)}`, own: false };
+  if (f.mode === 'custom' && custom) return { text: line(custom), own: true };
+  return { text: FOOTER_LINE, own: false };
+}
+
+async function post(sock, jid, key, item, img, fo = footerOf(null)) {
+  const own = (c) => (fo.own ? { ...c, [NO_FOOTER]: true } : c);
   const body = FULL ? String(item.body || '').trim() : '';
   if (body.length < 120) { // no full text: headline + short summary, as before
-    const caption = captionOf(key, item);
+    const caption = captionOf(key, item, fo.text);
     try {
-      await sock.sendMessage(jid, img ? { image: img, caption } : { text: caption });
+      await sock.sendMessage(jid, own(img ? { image: img, caption } : { text: caption }));
     } catch (err) {
       if (!img) throw err;
-      await sock.sendMessage(jid, { text: caption }); // the picture failed, still send the story
+      await sock.sendMessage(jid, own({ text: caption })); // the picture failed, still send the story
     }
     return;
   }
   // Full story = ONE message: the picture with headline, text, link, time and footer as its caption.
   const head = `${SOURCES[key].icon} *${SOURCES[key].name}*\n\n*${clip(item.title, 220)}*`;
-  const tail = `🔗 ${item.link}\n\n${stamp()}\n${FOOTER_LINE}`;
+  const tail = `🔗 ${item.link}\n\n${stamp()}\n${fo.text}`;
   if (img) {
     const room = Math.max(200, CAPTION_MAX - head.length - tail.length - 4);
-    try { await sock.sendMessage(jid, { image: img, caption: `${head}\n\n${cutText(body, room)}\n\n${tail}` }); return; }
+    try { await sock.sendMessage(jid, own({ image: img, caption: `${head}\n\n${cutText(body, room)}\n\n${tail}` })); return; }
     catch { /* the picture failed: the story goes out as one text message below */ }
   }
   // No picture: one text message (only a very long story is split into a few messages).
@@ -274,7 +289,7 @@ async function post(sock, jid, key, item, img) {
   for (let i = 0; i < parts.length; i++) {
     const last = i === parts.length - 1;
     const text = [!headSent && i === 0 ? head : '', parts[i], last ? tail : ''].filter(Boolean).join('\n\n');
-    await sock.sendMessage(jid, last ? { text } : { text, [NO_FOOTER]: true });
+    await sock.sendMessage(jid, last ? own({ text }) : { text, [NO_FOOTER]: true });
     if (!last) await sleep(800);
   }
 }
@@ -295,16 +310,115 @@ async function resolveTarget(sock, raw) {
   return null;
 }
 
+/* ---------- admin targets (/admin -> News): a group or channel + the sources + a number of days + a footer ---------- */
+// Saved once for the whole bot (not per number). Each entry: { id, jid, kind, name, sid (the number that posts), sources, footer: { mode, custom }, days, until (0 = no end), addedAt }
+const DAY = 86400000;
+const FOOTER_MODES = ['bot', 'channel', 'both', 'custom'];
+const adminList = () => { const v = getSetting('_news', 'adminTargets', []); return Array.isArray(v) ? v : []; };
+const saveAdmin = (list) => setSetting('_news', 'adminTargets', list);
+const isExpired = (t, now = Date.now()) => Number(t.until) > 0 && Number(t.until) <= now;
+
+async function resolveInfo(sock, raw) {
+  const t = String(raw || '').trim();
+  const nameOf = (m) => String(m?.name || m?.thread_metadata?.name?.text || '').slice(0, 80);
+  if (/@newsletter$/.test(t)) { let name = ''; try { name = nameOf(await sock.newsletterMetadata('jid', t)); } catch { /* name stays empty */ } return { jid: t, kind: 'channel', name }; }
+  if (/@g\.us$/.test(t)) { let name = ''; try { name = String((await sock.groupMetadata(t)).subject || '').slice(0, 80); } catch { /* name stays empty */ } return { jid: t, kind: 'group', name }; }
+  const ch = t.match(/whatsapp\.com\/channel\/([\w-]+)/i);
+  if (ch) { const m = await sock.newsletterMetadata('invite', ch[1]); return { jid: m.id, kind: 'channel', name: nameOf(m) }; }
+  const gr = t.match(/chat\.whatsapp\.com\/([\w-]+)/i);
+  if (gr) { const m = await sock.groupGetInviteInfo(gr[1]); return { jid: m.id, kind: 'group', name: String(m.subject || '').slice(0, 80) }; }
+  return null;
+}
+function cleanSources(v) {
+  const ks = (Array.isArray(v) ? v : []).map((x) => String(x).toLowerCase()).filter((x) => SOURCES[x]);
+  if (!ks.length) throw new Error('Pick at least one news channel (Hiru, Derana or ITN).');
+  return [...new Set(ks)];
+}
+function cleanFooter(mode, custom, name) {
+  const m = FOOTER_MODES.includes(mode) ? mode : 'bot';
+  const c = cleanBrandText(custom || '', 120);
+  if (m === 'custom' && !c) throw new Error('Type the custom footer text.');
+  if ((m === 'channel' || m === 'both') && !name) throw new Error('The name of this group / channel could not be read, so it cannot be used as the footer. Choose "Bot footer" or "Custom footer".');
+  return { mode: m, custom: c };
+}
+function cleanDays(v) {
+  if (v == null || v === '' || Number(v) === 0) return 0; // no end date
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 1 || n > 3650) throw new Error('Days must be a whole number from 1 to 3650 (leave empty for no end).');
+  return n;
+}
+const untilOf = (days) => (days ? Date.now() + days * DAY : 0);
+
+export function adminNewsView() {
+  const now = Date.now();
+  return {
+    ok: true, now,
+    sources: ALL.map((k) => ({ key: k, name: SOURCES[k].name, icon: SOURCES[k].icon })),
+    items: adminList().map((t) => {
+      const rec = sessions.get(t.sid);
+      return { id: t.id, jid: t.jid, kind: t.kind, name: t.name || '', sid: t.sid, phone: rec?.phone || '', online: rec?.status === 'connected', sources: t.sources, footer: t.footer, days: t.days || 0, until: t.until || 0, expired: isExpired(t, now), addedAt: t.addedAt };
+    })
+  };
+}
+export async function adminNewsAdd(b = {}) {
+  const sid = String(b.sid || '');
+  const rec = sessions.get(sid);
+  if (!rec?.sock || rec.status !== 'connected') throw new Error('Choose a linked number that is online. That number posts the news.');
+  const raw = String(b.link || '').trim().slice(0, 300);
+  if (!raw) throw new Error('Paste a WhatsApp group link, a channel link, or a jid.');
+  let info = null;
+  try { info = await resolveInfo(rec.sock, raw); } catch (err) { console.error('News admin resolve error:', err?.message || err); }
+  if (!info) throw new Error('I could not read that. Use a WhatsApp group link, a channel link, or a jid ending in @g.us / @newsletter.');
+  const sources = cleanSources(b.sources);
+  const footer = cleanFooter(b.footer, b.custom, info.name);
+  const days = cleanDays(b.days);
+  const list = adminList();
+  const old = list.find((t) => t.jid === info.jid && t.sid === sid); // same chat + same number: replace it (renew)
+  const entry = { id: old?.id || crypto.randomBytes(5).toString('hex'), jid: info.jid, kind: info.kind, name: info.name, sid, sources, footer, days, until: untilOf(days), addedAt: Date.now() };
+  saveAdmin(old ? list.map((t) => (t === old ? entry : t)) : [...list, entry]);
+  return { entry, renewed: !!old };
+}
+export function adminNewsUpdate(id, b = {}) {
+  const list = adminList();
+  const t = list.find((x) => x.id === String(id));
+  if (!t) throw new Error('That chat is not in the list any more.');
+  const next = { ...t };
+  if (b.sources !== undefined) next.sources = cleanSources(b.sources);
+  if (b.footer !== undefined) next.footer = cleanFooter(b.footer, b.custom ?? t.footer?.custom, t.name);
+  if (b.days !== undefined) { next.days = cleanDays(b.days); next.until = untilOf(next.days); } // days counted from today
+  saveAdmin(list.map((x) => (x === t ? next : x)));
+  return next;
+}
+export function adminNewsRemove(id) {
+  const list = adminList();
+  const t = list.find((x) => x.id === String(id));
+  if (!t) return null;
+  saveAdmin(list.filter((x) => x !== t));
+  return t;
+}
+
 /* ---------- the auto poster ---------- */
 let busy = false;
 async function poll() {
   if (busy) return;
   busy = true;
   try {
-    const wants = {}; // source -> [{ sock, jid }]
+    const wants = {}; // source -> [{ sock, jid, t }]   (t = the admin target, with its footer; none for chats added by command)
+    const taken = new Set();
+    const now = Date.now();
+    for (const t of adminList()) { // added in /admin -> News; stops by itself when the days are over
+      if (isExpired(t, now)) continue;
+      const rec = sessions.get(t.sid);
+      if (!rec?.sock || rec.status !== 'connected') continue;
+      taken.add(`${t.sid}|${t.jid}`);
+      for (const k of t.sources || []) if (SOURCES[k]) (wants[k] ||= []).push({ sock: rec.sock, jid: t.jid, t });
+    }
     for (const [sid, rec] of sessions) {
       if (!rec?.sock || rec.status !== 'connected') continue;
-      for (const [jid, keys] of Object.entries(getTargets(sid))) for (const k of keys) (wants[k] ||= []).push({ sock: rec.sock, jid });
+      for (const [jid, keys] of Object.entries(getTargets(sid))) {
+        if (taken.has(`${sid}|${jid}`)) continue;
+        for (const k of keys) (wants[k] ||= []).push({ sock: rec.sock, jid });
+      }
     }
     const seenAll = { ...getSetting('_news', 'seen', {}) };
     let changed = false;
@@ -323,7 +437,7 @@ async function poll() {
         const full = await enrich(item);
         const img = await imageBuffer(full.image);
         for (const t of wants[key]) {
-          try { await post(t.sock, t.jid, key, full, img); } catch (err) { console.error(`News post to ${t.jid} failed:`, err?.message || err); }
+          try { await post(t.sock, t.jid, key, full, img, footerOf(t.t)); } catch (err) { console.error(`News post to ${t.jid} failed:`, err?.message || err); }
           await sleep(1500); // slow and steady: bulk posting is what gets numbers banned
         }
       }
@@ -332,6 +446,7 @@ async function poll() {
   } catch (err) { console.error('News poll error:', err?.message || err); }
   finally { busy = false; }
 }
+export const newsPollOnce = poll; // used by the tests
 if (!globalThis.__rioNewsTimer) {
   globalThis.__rioNewsTimer = true;
   setTimeout(() => { poll(); setInterval(poll, POLL_MS).unref?.(); }, 2 * 60 * 1000).unref?.(); // wait 2 min after start so saved settings are loaded first

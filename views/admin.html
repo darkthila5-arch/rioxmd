@@ -64,6 +64,7 @@
       <button class="tab" role="tab" type="button" data-tab="botmedia" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg></span><span>Bot media</span></button>
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.2"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg></span><span>Channels</span></button>
       <p class="navgroup">Monitor</p>
+      <button class="tab" role="tab" type="button" data-tab="news" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2M7.5 9h6M7.5 12.5h6M7.5 16h3"/></svg></span><span>News</span></button>
       <button class="tab" role="tab" type="button" data-tab="insights" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span>Insights</span></button>
       <button class="tab" role="tab" type="button" data-tab="analytics" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg></span><span>Analytics</span></button>
       <button class="tab" role="tab" type="button" data-tab="server" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></span><span>Server</span></button>
@@ -245,6 +246,34 @@
         </div>
         <ul class="slist plain" id="boostList"></ul>
         <pre id="boostDiag" class="note" style="white-space:pre-wrap;word-break:break-word;font-size:.78rem;max-height:320px;overflow:auto" hidden></pre>
+      </section>
+    </section>
+
+    <!-- NEWS -->
+    <section class="tabpane" id="pane-news" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>News</h1><p>Auto post Sri Lanka news to groups and channels, for a number of days.</p></div></header>
+      <section class="card">
+        <h2>Add a group or channel</h2>
+        <p class="note">New headlines (Hiru, Derana, ITN) are posted by the number you choose. When the days are over, the news stops by itself. The number must be a member of the group, or an admin / owner of the channel.</p>
+        <div class="stack">
+          <div class="field sm"><input id="nwLink" type="text" placeholder="Group link, channel link or jid (…@g.us / …@newsletter)" autocomplete="off" aria-label="Group or channel link"></div>
+          <div class="field sm"><select id="nwNum" aria-label="Number that posts the news"></select></div>
+          <div class="chips" id="nwSrc" role="group" aria-label="News channels"></div>
+          <div class="field sm"><input id="nwDays" type="number" inputmode="numeric" min="1" max="3650" step="1" placeholder="For how many days? (empty = no end date)" aria-label="Number of days"></div>
+          <div class="field sm"><select id="nwFooter" aria-label="Footer under every news post">
+            <option value="bot">Footer: bot footer</option>
+            <option value="channel">Footer: channel / group name</option>
+            <option value="both">Footer: bot footer + channel / group name</option>
+            <option value="custom">Footer: custom text</option>
+          </select></div>
+          <div class="field sm" id="nwCustomBox" hidden><input id="nwCustom" type="text" maxlength="120" placeholder="Your own footer text" autocomplete="off" aria-label="Custom footer text"></div>
+          <div class="actions"><button class="btn" id="nwAdd" type="button"><span class="label">Add</span><span class="spin" aria-hidden="true"></span></button></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Chats getting news</h2>
+        <p class="note">Checked every few minutes. Chats whose days are over stay here as <b>Ended</b>: set new days to start them again, or remove them.</p>
+        <ul class="slist plain" id="nwList"></ul>
       </section>
     </section>
 

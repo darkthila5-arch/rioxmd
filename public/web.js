@@ -527,6 +527,7 @@
       if (name === 'analytics') drawAnalytics();
       if (name === 'activity') loadAudit(true);
       if (name === 'broadcast') loadBroadcast();
+      if (name === 'news') loadNews();
       if (name === 'security') loadSecurity();
       if (name === 'logs') startLogs(); else stopLogs();
       if (name === 'server') startSys(); else stopSys();
@@ -804,6 +805,89 @@
       } catch (e) { toast(e.message, true); }
     }));
 
+    /* ----- auto news for groups / channels (days, sources, footer) ----- */
+    const NW_FOOTERS = { bot: 'Bot footer', channel: 'Channel / group name', both: 'Bot footer + channel / group name', custom: 'Custom footer' };
+    let nwSources = [], nwPicked = new Set();
+    const nwChips = (box, picked, list) => { // the three news channels as on / off chips
+      box.replaceChildren(...list.map((s) => {
+        const b = h('button', { class: 'chip', type: 'button', 'aria-pressed': String(picked.has(s.key)) }, `${s.icon} ${s.name}`);
+        b.addEventListener('click', () => { if (picked.has(s.key)) picked.delete(s.key); else picked.add(s.key); b.setAttribute('aria-pressed', String(picked.has(s.key))); });
+        return b;
+      }));
+    };
+    const nwFillNumbers = () => {
+      const sel = $('#nwNum'), keep = sel.value;
+      const linked = all.filter((s) => s.linked);
+      sel.replaceChildren(...(linked.length ? linked : [{ id: '', phone: '' }]).map((s) => h('option', { value: s.id }, s.id ? `Posts from +${s.phone}${isOnline(s) ? '' : ' (offline)'}` : 'No linked number yet')));
+      if (keep && linked.some((s) => s.id === keep)) sel.value = keep;
+      else { const on = linked.find(isOnline); if (on) sel.value = on.id; }
+    };
+    const nwLeft = (it, now) => {
+      if (!it.until) return ['No end date', 'on'];
+      const ms = it.until - now;
+      if (ms <= 0) return [`Ended ${new Date(it.until).toLocaleDateString()}`, 'warn'];
+      const d = Math.floor(ms / 86400000), hrs = Math.floor((ms % 86400000) / 3600000);
+      return [`${d ? `${d} day${d === 1 ? '' : 's'}` : `${hrs} h`} left (until ${new Date(it.until).toLocaleDateString()})`, 'on'];
+    };
+    const drawNews = (d) => {
+      nwSources = d.sources;
+      if (!nwPicked.size && !$('#nwSrc').childElementCount) nwPicked = new Set(d.sources.map((s) => s.key));
+      if (!$('#nwSrc').childElementCount) nwChips($('#nwSrc'), nwPicked, d.sources);
+      nwFillNumbers();
+      const ul = $('#nwList'); ul.replaceChildren();
+      if (!d.items.length) ul.append(emptyLi('No group or channel added yet.'));
+      const run = async (fn, okText) => { try { drawNews(await fn()); if (okText) toast(okText); } catch (e) { toast(e.message, true); } };
+      for (const it of d.items) {
+        const [left, tone] = nwLeft(it, d.now);
+        const names = it.sources.map((k) => (d.sources.find((s) => s.key === k) || { name: k }).name).join(', ');
+        const who = it.phone ? `+${it.phone}${it.online ? '' : ' (offline)'}` : 'number removed';
+        const li = h('li', { class: 'nwitem', style: 'flex-direction:column;align-items:stretch;gap:8px;padding:12px 0' });
+        const top = h('div', { style: 'display:flex;align-items:center;justify-content:space-between;gap:12px' },
+          h('span', { class: 'txt' }, h('b', {}, `${it.kind === 'channel' ? '📢' : '👥'} ${it.name || it.jid}`), h('small', {}, `${names} · ${NW_FOOTERS[it.footer.mode] || 'Bot footer'}${it.footer.mode === 'custom' && it.footer.custom ? `: ${it.footer.custom}` : ''} · ${who}`)),
+          h('span', { class: `pill ${tone}` }, it.expired ? 'Ended' : 'On'));
+        const status = h('small', { class: 'meta' }, left);
+        // editor (hidden until "Edit")
+        const picked = new Set(it.sources);
+        const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'News channels' });
+        nwChips(chips, picked, d.sources);
+        const foot = h('select', { 'aria-label': 'Footer' }, ...Object.entries(NW_FOOTERS).map(([v, t]) => h('option', { value: v }, `Footer: ${t}`)));
+        foot.value = it.footer.mode;
+        const custom = h('input', { type: 'text', maxlength: '120', placeholder: 'Your own footer text', value: it.footer.custom || '', 'aria-label': 'Custom footer text' });
+        const cbox = h('div', { class: 'field sm' }, custom); cbox.hidden = foot.value !== 'custom';
+        foot.addEventListener('change', () => { cbox.hidden = foot.value !== 'custom'; });
+        const days = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '3650', step: '1', placeholder: 'New number of days from today (empty = keep, 0 = no end)', 'aria-label': 'Days from today' });
+        const save = h('button', { class: 'btn sm', type: 'button' }, 'Save');
+        const editor = h('div', { class: 'stack', hidden: true }, chips, h('div', { class: 'field sm' }, foot), cbox, h('div', { class: 'field sm' }, days), h('div', { class: 'actions' }, save));
+        save.addEventListener('click', busy(save, () => run(() => {
+          const body = { sources: [...picked], footer: foot.value, custom: custom.value };
+          if (days.value.trim() !== '') body.days = Number(days.value);
+          return api('PATCH', `/api/admin/news/${it.id}`, body);
+        }, 'Saved.')));
+        const edit = h('button', { class: 'btn alt sm', type: 'button' }, 'Edit');
+        edit.addEventListener('click', () => { editor.hidden = !editor.hidden; });
+        const del = h('button', { class: 'btn danger sm', type: 'button' }, 'Remove');
+        del.addEventListener('click', busy(del, async () => {
+          if (!(await ask({ title: 'Remove this chat?', body: `${it.name || it.jid} stops getting news right away.`, ok: 'Remove', danger: true }))) return;
+          await run(() => api('DELETE', `/api/admin/news/${it.id}`), 'Removed.');
+        }));
+        li.append(top, status, h('div', { class: 'actions', style: 'display:flex;gap:8px;flex-wrap:wrap' }, edit, del), editor);
+        ul.append(li);
+      }
+    };
+    async function loadNews() { try { if (!all.length) await refresh(); drawNews(await api('GET', '/api/admin/news')); } catch (e) { toast(e.message, true); } }
+    $('#nwFooter').addEventListener('change', () => { $('#nwCustomBox').hidden = $('#nwFooter').value !== 'custom'; });
+    $('#nwAdd').addEventListener('click', busy($('#nwAdd'), async () => {
+      const link = $('#nwLink').value.trim();
+      if (!link) { toast('Paste the group link, channel link or jid first.', true); return; }
+      if (!nwPicked.size) { toast('Pick at least one news channel.', true); return; }
+      try {
+        const r = await api('POST', '/api/admin/news', { link, sid: $('#nwNum').value, sources: [...nwPicked], days: $('#nwDays').value.trim() === '' ? null : Number($('#nwDays').value), footer: $('#nwFooter').value, custom: $('#nwCustom').value });
+        toast(r.renewed ? 'Already in the list: updated and started again.' : 'Added. New headlines are posted there.');
+        $('#nwLink').value = ''; $('#nwDays').value = '';
+        drawNews(r);
+      } catch (e) { toast(e.message, true); }
+    }));
+
     /* ----- live logs ----- */
     let logSince = 0, logLevel = 'all', logPaused = false, logTimer = null, logDebounce, logBusy = false;
     const LOG_MAX_NODES = 700;
@@ -890,7 +974,7 @@
 
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
     const fromHash = location.hash.slice(1);
-    if (['overview', 'numbers', 'channels', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics', 'server', 'notices'].includes(fromHash)) showTab(fromHash);
+    if (['overview', 'numbers', 'channels', 'news', 'activity', 'broadcast', 'logs', 'security', 'backup', 'insights', 'commands', 'analytics', 'server', 'notices'].includes(fromHash)) showTab(fromHash);
     $('#detailClose').addEventListener('click', closeDetail);
     $('#scrim').addEventListener('click', closeDetail);
     $('#bbActions').addEventListener('click', () => { $('#bulk').hidden = false; lock(); });
