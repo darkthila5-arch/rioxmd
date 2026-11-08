@@ -22,9 +22,16 @@ const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per cha
 
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
 const gnews = (site, when = '') => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}${when ? ` when:${when}` : ''}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
-const html = (page, re) => ({ html: page, re }); // fallback: read the site's own home page and pick the story links
+const html = (page, re, clean) => ({ html: page, re, clean }); // fallback: read the site's own home page and pick the story links
 const wpjson = (url) => ({ json: url });              // fallback: the site's WordPress REST API (title, link, picture)
 const reader = (page, host, path) => ({ md: `https://r.jina.ai/${page}`, host, path }); // last resort: a public "reader" service opens the page for us and returns it as markdown
+// newsfirst.lk list anchors hold: headline, headline again, "COLOMBO(News1st) - first lines", date and a "more" label. Keep one headline.
+const nfTitle = (t) => {
+  let x = String(t).replace(/\s*COLOMBO\s*\(.*$/i, '').replace(/\s*\d{2}-\d{2}-\d{4}\b.*$/, '').trim();
+  const w = x.split(' ');
+  if (w.length % 2 === 0 && w.length > 1 && w.slice(0, w.length / 2).join(' ') === w.slice(w.length / 2).join(' ')) x = w.slice(0, w.length / 2).join(' ');
+  return x;
+};
 const SOURCES = {
   hiru: { name: 'HIRU NEWS', icon: '🔴', feeds: [
     'https://www.hirunews.lk/rss', 'https://www.hirunews.lk/feed', 'https://www.hirunews.lk/rss.xml',
@@ -38,22 +45,16 @@ const SOURCES = {
     html('https://www.itnnews.lk/', /<a[^>]+href=["'](https?:\/\/(?:www\.)?itnnews\.lk\/\d{4}\/\d{2}\/\d{2}\/[^"']+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
     reader('https://www.itnnews.lk/', 'itnnews\\.lk'),
     gnews('itnnews.lk')] },
-  swarna: { name: 'SWARNAVAHINI NEWS', icon: '🟡',
-    skip: /watch (all )?episodes?|^[A-Z0-9 '’.&-]+ \([\u0D80-\u0DFF][^)]*\)$|\|/i, // teledrama / section pages that Google lists for the site
-    feeds: [
-      'https://www.swarnavahini.lk/feed/', 'https://swarnavahini.lk/feed/', 'https://www.swarnavahini.lk/rss',
-      html('https://www.swarnavahini.lk/news/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
-      html('https://www.swarnavahini.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
-      reader('https://www.swarnavahini.lk/news/', 'swarnavahini\\.lk', 'news\\/[^)\\s"]{8,}'),
-      gnews('swarnavahini.lk', '2d')] },
+  swarna: { name: 'SWARNAVAHINI NEWS', icon: '🟡', feeds: [
+    'https://swarnavahininews.lk/feed/',
+    wpjson('https://swarnavahininews.lk/wp-json/wp/v2/posts?per_page=15&_embed=wp:featuredmedia&_fields=title,link,excerpt,_links,_embedded'),
+    html('https://swarnavahininews.lk/', /<a[^>]+href=["'](https?:\/\/swarnavahininews\.lk\/\?p=\d+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+    gnews('swarnavahininews.lk', '2d')] },
   sirasa: { name: 'SIRASA NEWS', icon: '🟠',
     skip: /\barchives?\b|about-?us|latest (breaking )?news|top stories|\||^ministry of [a-z ]+$/i, // section pages that Google lists for the site
     feeds: [
-      LANG === 'si' ? 'https://sinhala.newsfirst.lk/feed' : 'https://english.newsfirst.lk/feed',
-      'https://newsfirst.lk/feed', 'https://sinhala.newsfirst.lk/feed/', 'https://english.newsfirst.lk/feed/',
-      html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
-      html('https://newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
-      reader(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', '(?:[a-z]+\\.)?newsfirst\\.lk', '\\d{4}\\/\\d{1,2}\\/\\d{1,2}\\/[^)\\s"]+'),
+      html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,2500}?)<\/a>/gi, nfTitle),
+      html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/latest-news' : 'https://english.newsfirst.lk/latest-news', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,2500}?)<\/a>/gi, nfTitle),
       gnews('newsfirst.lk', '2d')] }
 };
 const ALL = Object.keys(SOURCES);
@@ -84,7 +85,7 @@ function parseHtml(page, f) {
   for (const m of String(page).matchAll(f.re)) {
     let link = dec(m[1]).trim();
     if (link.startsWith('/')) link = new URL(link, f.html).toString();
-    const title = plain(m[2]);
+    const title = f.clean ? f.clean(plain(m[2])) : plain(m[2]);
     if (title.length < 15 || seen.has(link)) continue; // short anchors are menu items, not headlines
     seen.add(link);
     out.push({ id: keyOf(title), title, link, summary: '', image: '' });
