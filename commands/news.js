@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { BOT_NAME, PREFIX, TIMEZONE, sessions, sleep } from '../lib/config.js';
 import { FOOTER_LINE, NO_FOOTER, cleanBrandText } from '../lib/brand.js';
 import { getSetting, setSetting } from '../lib/storage.js';
+import { shorten } from './webtools.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const LANG = (process.env.NEWS_LANG || 'si').toLowerCase() === 'en' ? 'en' : 'si';
@@ -281,7 +282,21 @@ function footerOf(t) {
   return { text: FOOTER_LINE, own: false };
 }
 
+// Long links (newsfirst.lk has the whole Sinhala headline percent-encoded in the address, Google News links are even longer) are shortened with the same service as .short.
+// Short links (like swarnavahininews.lk/?p=123) stay as they are. If the shortener is down the original link is used. Results are remembered.
+const shortCache = new Map();
+async function shortLink(url) {
+  const u = String(url || '');
+  if (u.length <= 70) return u;
+  if (shortCache.has(u)) return shortCache.get(u);
+  let out = u;
+  try { out = await shorten(u); } catch { /* keep the long link */ }
+  if (out !== u) { if (shortCache.size > 500) shortCache.delete(shortCache.keys().next().value); shortCache.set(u, out); }
+  return out;
+}
+
 async function post(sock, jid, key, item, img, fo = footerOf(null)) {
+  item = { ...item, link: await shortLink(item.link) };
   const own = (c) => (fo.own ? { ...c, [NO_FOOTER]: true } : c);
   const body = FULL ? String(item.body || '').trim() : '';
   if (body.length < 120) { // no full text: headline + short summary, as before
@@ -556,7 +571,7 @@ if (!globalThis.__rioNewsTimer) {
 async function headlines(reply, keys, n, showWhy = false) {
   const parts = await Promise.all(keys.map(async (k) => {
     try {
-      const items = (await latest(k)).slice(0, n);
+      const items = await Promise.all((await latest(k)).slice(0, n).map(async (i) => ({ ...i, link: await shortLink(i.link) })));
       return [`${SOURCES[k].icon} *${SOURCES[k].name}*`, ...items.map((i, x) => `${x + 1}. ${clip(i.title, 120)}\n   ${i.link}`)].join('\n');
     } catch (err) {
       const why = showWhy ? `\n_${clip(String(err?.message || err).replace(/https?:\/\/(www\.)?/g, '').split(' | ').map((x) => clip(x, 70)).join('\n'), 500)}_` : ''; // owner only: which address failed and why
