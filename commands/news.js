@@ -282,7 +282,8 @@ function footerOf(t) {
   return { text: FOOTER_LINE, own: false };
 }
 
-// Long links (newsfirst.lk has the whole Sinhala headline percent-encoded in the address, Google News links are even longer) are shortened with the same service as .short.
+// Used ONLY for the headline lists (.news .sirasa ...): long links (newsfirst.lk has the whole Sinhala headline percent-encoded in the address) are shortened with the same service as .short.
+// Auto posts to groups / channels keep the original link (free shorteners can make WhatsApp suspicious when many chats get them).
 // Short links (like swarnavahininews.lk/?p=123) stay as they are. If the shortener is down the original link is used. Results are remembered.
 const shortCache = new Map();
 async function shortLink(url) {
@@ -296,7 +297,6 @@ async function shortLink(url) {
 }
 
 async function post(sock, jid, key, item, img, fo = footerOf(null)) {
-  item = { ...item, link: await shortLink(item.link) };
   const own = (c) => (fo.own ? { ...c, [NO_FOOTER]: true } : c);
   const body = FULL ? String(item.body || '').trim() : '';
   if (body.length < 120) { // no full text: headline + short summary, as before
