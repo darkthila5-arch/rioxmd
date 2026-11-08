@@ -1,6 +1,6 @@
-// Sri Lanka news: Hiru, Derana, ITN.
-//   .news [hiru|derana|itn]     latest headlines          (.hiru  .derana  .itn  do the same for one channel)
-//   .newson [hiru derana itn]   auto-post new headlines to THIS chat (owner only; run it inside a group)
+// Sri Lanka news: Hiru, Derana, ITN, Swarnavahini, Sirasa.
+//   .news [hiru|derana|itn|swarna|sirasa]     latest headlines          (.hiru  .derana  .itn  .swarna  .sirasa  do the same for one channel)
+//   .newson [hiru derana itn swarna sirasa]   auto-post new headlines to THIS chat (owner only; run it inside a group)
 //   .newsadd <group/channel link or jid> [sources]    add a group or WhatsApp channel from anywhere
 //   .newsoff   .newsdel <target>   .newslist
 // The bot checks the news sites every few minutes and posts every NEW headline (picture + text + link) to the chats you added.
@@ -37,7 +37,14 @@ const SOURCES = {
     wpjson('https://www.itnnews.lk/wp-json/wp/v2/posts?per_page=15&_embed=wp:featuredmedia&_fields=title,link,excerpt,_links,_embedded'),
     html('https://www.itnnews.lk/', /<a[^>]+href=["'](https?:\/\/(?:www\.)?itnnews\.lk\/\d{4}\/\d{2}\/\d{2}\/[^"']+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
     reader('https://www.itnnews.lk/', 'itnnews\\.lk'),
-    gnews('itnnews.lk')] }
+    gnews('itnnews.lk')] },
+  swarna: { name: 'SWARNAVAHINI NEWS', icon: '🟡', feeds: [
+    'https://www.swarnavahini.lk/feed/', 'https://swarnavahini.lk/feed/', 'https://www.swarnavahini.lk/rss',
+    gnews('swarnavahini.lk')] },
+  sirasa: { name: 'SIRASA NEWS', icon: '🟠', feeds: [
+    LANG === 'si' ? 'https://sinhala.newsfirst.lk/feed' : 'https://www.newsfirst.lk/feed',
+    'https://www.newsfirst.lk/feed/', 'https://sinhala.newsfirst.lk/feed/',
+    gnews('newsfirst.lk')] }
 };
 const ALL = Object.keys(SOURCES);
 
@@ -356,7 +363,7 @@ async function resolveInfo(sock, raw) {
 }
 function cleanSources(v) {
   const ks = (Array.isArray(v) ? v : []).map((x) => String(x).toLowerCase()).filter((x) => SOURCES[x]);
-  if (!ks.length) throw new Error('Pick at least one news channel (Hiru, Derana or ITN).');
+  if (!ks.length) throw new Error('Pick at least one news channel (Hiru, Derana, ITN, Swarnavahini or Sirasa).');
   return [...new Set(ks)];
 }
 function cleanFooter(mode, custom, name) {
@@ -565,7 +572,7 @@ const names = (keys) => keys.map((k) => SOURCES[k].name).join(', ');
 
 export default [
   { name: 'news', aliases: ['lknews'], react: '📰', async run({ reply, args, isOwner }) { const ks = args.length ? pickKeys(args) : ALL; return headlines(reply, ks, ks.length === 1 ? 6 : 3, isOwner); } },
-  one('hiru'), one('derana'), one('itn'),
+  one('hiru'), one('derana'), one('itn'), one('swarna'), one('sirasa'),
   {
     name: 'newson', adminOnly: true, aliases: ['autonews'], owner: true, react: '📰',
     async run({ sock, reply, sessionId, jid, args }) {
@@ -577,7 +584,7 @@ export default [
   {
     name: 'newsadd', adminOnly: true, owner: true, react: '➕',
     async run({ sock, reply, sessionId, args }) {
-      if (!args[0]) return reply(`Usage: ${PREFIX}newsadd <group link | channel link | jid> [hiru derana itn]\nExample: ${PREFIX}newsadd https://whatsapp.com/channel/xxxx hiru derana`);
+      if (!args[0]) return reply(`Usage: ${PREFIX}newsadd <group link | channel link | jid> [hiru derana itn swarna sirasa]\nExample: ${PREFIX}newsadd https://whatsapp.com/channel/xxxx hiru derana`);
       let info = null;
       try { info = await resolveInfo(sock, args[0]); } catch (err) { console.error('newsadd resolve error:', err?.message || err); }
       if (!info) return reply('❌ I could not read that. Send a WhatsApp group link, a channel link, or a jid ending in @g.us / @newsletter.');
