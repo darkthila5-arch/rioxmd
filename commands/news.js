@@ -24,7 +24,7 @@ const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per cha
 const gnews = (site, when = '') => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}${when ? ` when:${when}` : ''}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
 const html = (page, re) => ({ html: page, re }); // fallback: read the site's own home page and pick the story links
 const wpjson = (url) => ({ json: url });              // fallback: the site's WordPress REST API (title, link, picture)
-const reader = (page, host) => ({ md: `https://r.jina.ai/${page}`, host }); // last resort: a public "reader" service opens the page for us and returns it as markdown
+const reader = (page, host, path) => ({ md: `https://r.jina.ai/${page}`, host, path }); // last resort: a public "reader" service opens the page for us and returns it as markdown
 const SOURCES = {
   hiru: { name: 'HIRU NEWS', icon: '🔴', feeds: [
     'https://www.hirunews.lk/rss', 'https://www.hirunews.lk/feed', 'https://www.hirunews.lk/rss.xml',
@@ -44,6 +44,7 @@ const SOURCES = {
       'https://www.swarnavahini.lk/feed/', 'https://swarnavahini.lk/feed/', 'https://www.swarnavahini.lk/rss',
       html('https://www.swarnavahini.lk/news/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
       html('https://www.swarnavahini.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      reader('https://www.swarnavahini.lk/news/', 'swarnavahini\\.lk', 'news\\/[^)\\s"]{8,}'),
       gnews('swarnavahini.lk', '2d')] },
   sirasa: { name: 'SIRASA NEWS', icon: '🟠',
     skip: /\barchives?\b|about-?us|latest (breaking )?news|top stories|\||^ministry of [a-z ]+$/i, // section pages that Google lists for the site
@@ -52,6 +53,7 @@ const SOURCES = {
       'https://newsfirst.lk/feed', 'https://sinhala.newsfirst.lk/feed/', 'https://english.newsfirst.lk/feed/',
       html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
       html('https://newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      reader(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', '(?:[a-z]+\\.)?newsfirst\\.lk', '\\d{4}\\/\\d{1,2}\\/\\d{1,2}\\/[^)\\s"]+'),
       gnews('newsfirst.lk', '2d')] }
 };
 const ALL = Object.keys(SOURCES);
@@ -109,7 +111,7 @@ function parseJson(body) {
 // Markdown from a reader service: "### [Headline](https://site/2026/11/06/123/)" and "[![](picture)](https://site/2026/11/06/123/ "Headline")"
 function parseMd(body, f) {
   const text = String(body);
-  const link = `https?:\\/\\/(?:www\\.)?${f.host}\\/\\d{4}\\/\\d{2}\\/\\d{2}\\/\\d+\\/?`;
+  const link = `https?:\\/\\/(?:www\\.)?${f.host}\\/${f.path || '\\d{4}\\/\\d{2}\\/\\d{2}\\/\\d+\\/?'}`;
   const pics = new Map();
   for (const m of text.matchAll(new RegExp(`\\[!\\[[^\\]]*\\]\\((https?:\\/\\/[^)\\s]+)\\)\\]\\((${link})`, 'g'))) if (!pics.has(m[2])) pics.set(m[2], m[1]);
   const out = [], seen = new Set();
