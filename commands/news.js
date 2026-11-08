@@ -50,7 +50,7 @@ const SOURCES = {
     wpjson('https://swarnavahininews.lk/wp-json/wp/v2/posts?per_page=15&_embed=wp:featuredmedia&_fields=title,link,excerpt,_links,_embedded'),
     html('https://swarnavahininews.lk/', /<a[^>]+href=["'](https?:\/\/swarnavahininews\.lk\/\?p=\d+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
     gnews('swarnavahininews.lk', '2d')] },
-  sirasa: { name: 'SIRASA NEWS', icon: '🟠',
+  sirasa: { name: 'SIRASA NEWS', icon: '🟣',
     skip: /\barchives?\b|about-?us|latest (breaking )?news|top stories|\||^ministry of [a-z ]+$/i, // section pages that Google lists for the site
     feeds: [
       html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,2500}?)<\/a>/gi, nfTitle),
