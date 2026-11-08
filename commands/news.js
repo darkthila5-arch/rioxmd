@@ -21,7 +21,7 @@ const CAPTION_MAX = Math.max(600, Number(process.env.NEWS_CAPTION_MAX || 2000));
 const MAX_PER_CYCLE = 3; // never flood the chats: at most 3 new stories per channel per check
 
 // Google News is the safety net: it lists the newest stories of any site, so a source still works when its own feed is missing.
-const gnews = (site) => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
+const gnews = (site, when = '') => `https://news.google.com/rss/search?q=${encodeURIComponent(`site:${site}${when ? ` when:${when}` : ''}`)}&hl=${LANG}&gl=LK&ceid=LK:${LANG}`;
 const html = (page, re) => ({ html: page, re }); // fallback: read the site's own home page and pick the story links
 const wpjson = (url) => ({ json: url });              // fallback: the site's WordPress REST API (title, link, picture)
 const reader = (page, host) => ({ md: `https://r.jina.ai/${page}`, host }); // last resort: a public "reader" service opens the page for us and returns it as markdown
@@ -38,13 +38,21 @@ const SOURCES = {
     html('https://www.itnnews.lk/', /<a[^>]+href=["'](https?:\/\/(?:www\.)?itnnews\.lk\/\d{4}\/\d{2}\/\d{2}\/[^"']+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
     reader('https://www.itnnews.lk/', 'itnnews\\.lk'),
     gnews('itnnews.lk')] },
-  swarna: { name: 'SWARNAVAHINI NEWS', icon: '🟡', feeds: [
-    'https://www.swarnavahini.lk/feed/', 'https://swarnavahini.lk/feed/', 'https://www.swarnavahini.lk/rss',
-    gnews('swarnavahini.lk')] },
-  sirasa: { name: 'SIRASA NEWS', icon: '🟠', feeds: [
-    LANG === 'si' ? 'https://sinhala.newsfirst.lk/feed' : 'https://www.newsfirst.lk/feed',
-    'https://www.newsfirst.lk/feed/', 'https://sinhala.newsfirst.lk/feed/',
-    gnews('newsfirst.lk')] }
+  swarna: { name: 'SWARNAVAHINI NEWS', icon: '🟡',
+    skip: /watch (all )?episodes?|^[A-Z0-9 '’.&-]+ \([\u0D80-\u0DFF][^)]*\)$|\|/i, // teledrama / section pages that Google lists for the site
+    feeds: [
+      'https://www.swarnavahini.lk/feed/', 'https://swarnavahini.lk/feed/', 'https://www.swarnavahini.lk/rss',
+      html('https://www.swarnavahini.lk/news/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      html('https://www.swarnavahini.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:www\.)?swarnavahini\.lk)?\/news\/[^"'?#]{8,})["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      gnews('swarnavahini.lk', '2d')] },
+  sirasa: { name: 'SIRASA NEWS', icon: '🟠',
+    skip: /\barchives?\b|about-?us|latest (breaking )?news|top stories|\||^ministry of [a-z ]+$/i, // section pages that Google lists for the site
+    feeds: [
+      LANG === 'si' ? 'https://sinhala.newsfirst.lk/feed' : 'https://english.newsfirst.lk/feed',
+      'https://newsfirst.lk/feed', 'https://sinhala.newsfirst.lk/feed/', 'https://english.newsfirst.lk/feed/',
+      html(LANG === 'si' ? 'https://sinhala.newsfirst.lk/' : 'https://english.newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      html('https://newsfirst.lk/', /<a[^>]+href=["']((?:https?:\/\/(?:[a-z]+\.)?newsfirst\.lk)?\/\d{4}\/\d{1,2}\/\d{1,2}\/[^"'?#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi),
+      gnews('newsfirst.lk', '2d')] }
 };
 const ALL = Object.keys(SOURCES);
 
@@ -197,7 +205,8 @@ async function latest(key) {
     try {
       const body = await fetchText(url);
       const items = typeof f === 'string' ? parseFeed(body, url.includes('news.google.com')) : f.json ? parseJson(body) : f.md ? parseMd(body, f) : parseHtml(body, f);
-      if (items.length) { if (working[key] !== i) { working[key] = i; console.log(`News: ${key} uses ${url}`); } return items.slice(0, 15); }
+      const ok = SOURCES[key].skip ? items.filter((x) => !SOURCES[key].skip.test(x.title)) : items;
+      if (ok.length) { if (working[key] !== i) { working[key] = i; console.log(`News: ${key} uses ${url}`); } return ok.slice(0, 15); }
       errs.push(`${url}: no stories`);
     } catch (err) { errs.push(`${url}: ${err?.message || err}`); }
     if (!warned.has(url)) { warned.add(url); console.log(`News: ${key} source skipped - ${errs[errs.length - 1]}`); } // logged once per source
