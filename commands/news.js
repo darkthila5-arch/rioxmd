@@ -296,8 +296,16 @@ async function post(sock, jid, key, item, img, fo = footerOf(null)) {
 
 /* ---------- targets (per linked WhatsApp number, saved with the other settings) ---------- */
 const getTargets = (sid) => getSetting(sid, 'newsTargets', {});
-function setTarget(sid, jid, keys) { setSetting(sid, 'newsTargets', { ...getTargets(sid), [jid]: keys }); }
-function removeTarget(sid, jid) { const t = { ...getTargets(sid) }; const had = jid in t; delete t[jid]; setSetting(sid, 'newsTargets', t); return had; }
+function setTarget(sid, jid, keys, meta) { // meta = { name } of the chat, kept so the web page can show it
+  setSetting(sid, 'newsTargets', { ...getTargets(sid), [jid]: keys });
+  const all = getSetting(sid, 'newsMeta', {}), old = all[jid] || {};
+  setSetting(sid, 'newsMeta', { ...all, [jid]: { name: meta?.name || old.name || '', addedAt: old.addedAt || Date.now() } });
+}
+function removeTarget(sid, jid) {
+  const t = { ...getTargets(sid) }; const had = jid in t; delete t[jid]; setSetting(sid, 'newsTargets', t);
+  if (had) { const m = { ...getSetting(sid, 'newsMeta', {}) }; delete m[jid]; setSetting(sid, 'newsMeta', m); dropStats(sid, jid); }
+  return had;
+}
 const pickKeys = (args) => { const ks = args.map((a) => a.toLowerCase()).filter((a) => SOURCES[a]); return ks.length ? [...new Set(ks)] : ALL; };
 
 async function resolveTarget(sock, raw) {
@@ -309,6 +317,23 @@ async function resolveTarget(sock, raw) {
   if (gr) return (await sock.groupGetInviteInfo(gr[1])).id;
   return null;
 }
+
+/* ---------- live numbers: how many news were posted to each chat (shown live on /admin -> News) ---------- */
+const statKey = (sid, jid) => `${sid}|${jid}`;
+const dayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const getStats = () => getSetting('_news', 'stats', {});
+function dropStats(sid, jid) { const all = { ...getStats() }; if (delete all[statKey(sid, jid)]) setSetting('_news', 'stats', all); }
+function noteStat(sid, jid, ok, text) { // ok = a story was posted; otherwise text is the error
+  const all = { ...getStats() }, k = statKey(sid, jid), s = { ...(all[k] || {}) }, d = dayKey();
+  if (ok) { s.total = (s.total || 0) + 1; s.today = s.day === d ? (s.today || 0) + 1 : 1; s.day = d; s.last = Date.now(); s.title = clip(text, 100); s.err = ''; }
+  else { s.err = clip(text, 140); s.errAt = Date.now(); }
+  all[k] = s; setSetting('_news', 'stats', all);
+}
+function statView(sid, jid) {
+  const s = getStats()[statKey(sid, jid)] || {};
+  return { total: s.total || 0, today: s.day === dayKey() ? s.today || 0 : 0, last: s.last || 0, lastTitle: s.title || '', err: s.err || '', errAt: s.errAt || 0 };
+}
+let lastPollAt = 0;
 
 /* ---------- admin targets (/admin -> News): a group or channel + the sources + a number of days + a footer ---------- */
 // Saved once for the whole bot (not per number). Each entry: { id, jid, kind, name, sid (the number that posts), sources, footer: { mode, custom }, days, until (0 = no end), addedAt }
@@ -349,15 +374,54 @@ function cleanDays(v) {
 }
 const untilOf = (days) => (days ? Date.now() + days * DAY : 0);
 
+// Every chat that gets news: the ones added on the web page and the ones the owner added with .newson / .newsadd / .hiru on ...
+function allTargets() {
+  const now = Date.now(), out = adminList().map((t) => ({ ...t, origin: 'web', expired: isExpired(t, now) }));
+  const taken = new Set(out.map((t) => statKey(t.sid, t.jid)));
+  for (const sid of sessions.keys()) {
+    const meta = getSetting(sid, 'newsMeta', {});
+    for (const [jid, keys] of Object.entries(getTargets(sid))) {
+      if (taken.has(statKey(sid, jid))) continue;
+      out.push({ id: `c:${sid}:${jid}`, jid, kind: jid.endsWith('@newsletter') ? 'channel' : 'group', name: meta[jid]?.name || '', sid, sources: keys, footer: { mode: 'bot', custom: '' }, days: 0, until: 0, addedAt: meta[jid]?.addedAt || 0, origin: 'command', expired: false });
+    }
+  }
+  return out;
+}
+async function chatMeta(sock, jid) { // the name of the chat the command was used in
+  try {
+    if (jid.endsWith('@newsletter')) { const m = await sock.newsletterMetadata('jid', jid); return { name: String(m?.name || m?.thread_metadata?.name?.text || '').slice(0, 80) }; }
+    if (jid.endsWith('@g.us')) return { name: String((await sock.groupMetadata(jid)).subject || '').slice(0, 80) };
+  } catch { /* no name: the web page shows the id */ }
+  return { name: '' };
+}
+// Sent INTO the chat that was just added: says news is on, for how long, and which other chats get news too.
+async function announce(sock, e) {
+  const names = (keys) => keys.map((k) => SOURCES[k]?.name || k).join(', ');
+  const seen = new Set([e.jid]);
+  const others = allTargets().filter((t) => !t.expired && !seen.has(t.jid) && seen.add(t.jid));
+  const ends = e.until ? `⏳ ${e.days} day${e.days === 1 ? '' : 's'} (until ${new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TIMEZONE }).format(new Date(e.until))})` : '⏳ No end date';
+  const lines = ['✅ *Auto news is ON for this chat*', '', `📰 ${names(e.sources)}`, ends, 'New headlines are posted here by themselves.'];
+  if (others.length) {
+    lines.push('', `📋 *Other chats getting news (${others.length})*`);
+    others.slice(0, 15).forEach((t, i) => lines.push(`${i + 1}. ${t.kind === 'channel' ? '📢' : '👥'} ${t.name || (t.kind === 'channel' ? 'Channel' : 'Group')} - ${names(t.sources)}`));
+    if (others.length > 15) lines.push(`…and ${others.length - 15} more`);
+  }
+  const fo = footerOf(e);
+  const text = `${lines.join('\n')}\n\n${fo.text}`;
+  await sock.sendMessage(e.jid, fo.own ? { text, [NO_FOOTER]: true } : { text });
+}
+
 export function adminNewsView() {
   const now = Date.now();
+  const items = allTargets().map((t) => {
+    const rec = sessions.get(t.sid);
+    return { id: t.id, origin: t.origin, jid: t.jid, kind: t.kind, name: t.name || '', sid: t.sid, phone: rec?.phone || '', online: rec?.status === 'connected', sources: t.sources, footer: t.footer, days: t.days || 0, until: t.until || 0, expired: t.expired, addedAt: t.addedAt, stats: statView(t.sid, t.jid) };
+  });
   return {
-    ok: true, now,
+    ok: true, now, poll: { everyMin: Math.round(POLL_MS / 60000), last: lastPollAt },
+    totals: { today: items.reduce((n, i) => n + i.stats.today, 0), total: items.reduce((n, i) => n + i.stats.total, 0) },
     sources: ALL.map((k) => ({ key: k, name: SOURCES[k].name, icon: SOURCES[k].icon })),
-    items: adminList().map((t) => {
-      const rec = sessions.get(t.sid);
-      return { id: t.id, jid: t.jid, kind: t.kind, name: t.name || '', sid: t.sid, phone: rec?.phone || '', online: rec?.status === 'connected', sources: t.sources, footer: t.footer, days: t.days || 0, until: t.until || 0, expired: isExpired(t, now), addedAt: t.addedAt };
-    })
+    items
   };
 }
 export async function adminNewsAdd(b = {}) {
@@ -376,9 +440,21 @@ export async function adminNewsAdd(b = {}) {
   const old = list.find((t) => t.jid === info.jid && t.sid === sid); // same chat + same number: replace it (renew)
   const entry = { id: old?.id || crypto.randomBytes(5).toString('hex'), jid: info.jid, kind: info.kind, name: info.name, sid, sources, footer, days, until: untilOf(days), addedAt: Date.now() };
   saveAdmin(old ? list.map((t) => (t === old ? entry : t)) : [...list, entry]);
-  return { entry, renewed: !!old };
+  dropStats(sid, info.jid); // a fresh start: the live counter begins at 0
+  let notified = true, notifyError = '';
+  try { await announce(rec.sock, entry); } catch (err) { notified = false; notifyError = clip(err?.message || err, 120); console.error('News admin announce error:', err?.message || err); }
+  return { entry, renewed: !!old, notified, notifyError };
 }
+const parseCmdId = (id) => { const m = String(id).match(/^c:([\w-]{1,60}):(.+)$/); return m ? { sid: m[1], jid: m[2] } : null; };
 export function adminNewsUpdate(id, b = {}) {
+  const c = parseCmdId(id);
+  if (c) { // added with a command: only the news channels can be changed here
+    if (!(c.jid in getTargets(c.sid))) throw new Error('That chat is not in the list any more.');
+    if (b.footer !== undefined || b.days !== undefined) throw new Error('Footer and days are for chats added on this page. Remove this chat and add it here to use them.');
+    const keys = b.sources !== undefined ? cleanSources(b.sources) : getTargets(c.sid)[c.jid];
+    setTarget(c.sid, c.jid, keys);
+    return { jid: c.jid, name: getSetting(c.sid, 'newsMeta', {})[c.jid]?.name || '', sources: keys, days: 0, footer: { mode: 'bot' } };
+  }
   const list = adminList();
   const t = list.find((x) => x.id === String(id));
   if (!t) throw new Error('That chat is not in the list any more.');
@@ -390,10 +466,16 @@ export function adminNewsUpdate(id, b = {}) {
   return next;
 }
 export function adminNewsRemove(id) {
+  const c = parseCmdId(id);
+  if (c) {
+    const name = getSetting(c.sid, 'newsMeta', {})[c.jid]?.name || '';
+    return removeTarget(c.sid, c.jid) ? { jid: c.jid, name } : null;
+  }
   const list = adminList();
   const t = list.find((x) => x.id === String(id));
   if (!t) return null;
   saveAdmin(list.filter((x) => x !== t));
+  dropStats(t.sid, t.jid);
   return t;
 }
 
@@ -411,13 +493,13 @@ async function poll() {
       const rec = sessions.get(t.sid);
       if (!rec?.sock || rec.status !== 'connected') continue;
       taken.add(`${t.sid}|${t.jid}`);
-      for (const k of t.sources || []) if (SOURCES[k]) (wants[k] ||= []).push({ sock: rec.sock, jid: t.jid, t });
+      for (const k of t.sources || []) if (SOURCES[k]) (wants[k] ||= []).push({ sock: rec.sock, sid: t.sid, jid: t.jid, t });
     }
     for (const [sid, rec] of sessions) {
       if (!rec?.sock || rec.status !== 'connected') continue;
       for (const [jid, keys] of Object.entries(getTargets(sid))) {
         if (taken.has(`${sid}|${jid}`)) continue;
-        for (const k of keys) (wants[k] ||= []).push({ sock: rec.sock, jid });
+        for (const k of keys) (wants[k] ||= []).push({ sock: rec.sock, sid, jid });
       }
     }
     const seenAll = { ...getSetting('_news', 'seen', {}) };
@@ -437,14 +519,14 @@ async function poll() {
         const full = await enrich(item);
         const img = await imageBuffer(full.image);
         for (const t of wants[key]) {
-          try { await post(t.sock, t.jid, key, full, img, footerOf(t.t)); } catch (err) { console.error(`News post to ${t.jid} failed:`, err?.message || err); }
+          try { await post(t.sock, t.jid, key, full, img, footerOf(t.t)); noteStat(t.sid, t.jid, true, full.title); } catch (err) { console.error(`News post to ${t.jid} failed:`, err?.message || err); noteStat(t.sid, t.jid, false, err?.message || 'could not post'); }
           await sleep(1500); // slow and steady: bulk posting is what gets numbers banned
         }
       }
     }
     if (changed) setSetting('_news', 'seen', seenAll);
   } catch (err) { console.error('News poll error:', err?.message || err); }
-  finally { busy = false; }
+  finally { busy = false; lastPollAt = Date.now(); }
 }
 export const newsPollOnce = poll; // used by the tests
 if (!globalThis.__rioNewsTimer) {
@@ -468,13 +550,13 @@ async function headlines(reply, keys, n, showWhy = false) {
 // .hiru            latest headlines        .hiru on / .hiru off   switch this one channel on or off for THIS chat (owner only)
 const one = (key) => ({
   name: key, aliases: [`${key}news`], react: SOURCES[key].icon,
-  async run({ reply, args, sessionId, jid, isOwner }) {
+  async run({ sock, reply, args, sessionId, jid, isOwner }) {
     const sw = (args[0] || '').toLowerCase();
     if (sw === 'on' || sw === 'off') {
       if (!isOwner) return reply('🚫 Only the bot owner can change auto news.');
       const cur = new Set(getTargets(sessionId)[jid] || []);
       if (sw === 'on') cur.add(key); else cur.delete(key);
-      if (cur.size) setTarget(sessionId, jid, [...cur]); else removeTarget(sessionId, jid);
+      if (cur.size) setTarget(sessionId, jid, [...cur], sw === 'on' ? await chatMeta(sock, jid) : undefined); else removeTarget(sessionId, jid);
       return reply(`${SOURCES[key].icon} ${SOURCES[key].name} auto news is ${sw.toUpperCase()} for this chat.${cur.size ? `\n📰 Now on: ${[...cur].map((k) => SOURCES[k].name).join(', ')}` : ''}`);
     }
     return headlines(reply, [key], 6, isOwner);
@@ -487,9 +569,9 @@ export default [
   one('hiru'), one('derana'), one('itn'),
   {
     name: 'newson', adminOnly: true, aliases: ['autonews'], owner: true, react: '📰',
-    async run({ reply, sessionId, jid, args }) {
+    async run({ sock, reply, sessionId, jid, args }) {
       const keys = pickKeys(args);
-      setTarget(sessionId, jid, keys);
+      setTarget(sessionId, jid, keys, await chatMeta(sock, jid));
       return reply(`✅ Auto news is ON for this chat.\n📰 ${names(keys)}\nNew headlines are posted here by themselves (checked every ${Math.round(POLL_MS / 60000)} min).\nTurn off: ${PREFIX}newsoff`);
     }
   },
@@ -497,12 +579,14 @@ export default [
     name: 'newsadd', adminOnly: true, owner: true, react: '➕',
     async run({ sock, reply, sessionId, args }) {
       if (!args[0]) return reply(`Usage: ${PREFIX}newsadd <group link | channel link | jid> [hiru derana itn]\nExample: ${PREFIX}newsadd https://whatsapp.com/channel/xxxx hiru derana`);
-      let target = null;
-      try { target = await resolveTarget(sock, args[0]); } catch (err) { console.error('newsadd resolve error:', err?.message || err); }
-      if (!target) return reply('❌ I could not read that. Send a WhatsApp group link, a channel link, or a jid ending in @g.us / @newsletter.');
-      const keys = pickKeys(args.slice(1));
-      setTarget(sessionId, target, keys);
-      return reply(`✅ Added ${target.endsWith('@newsletter') ? 'channel' : 'group'}:\n${target}\n📰 ${names(keys)}\n\nThe linked number must be a member (groups) or an admin/owner (channels), otherwise WhatsApp will not let the bot post there.`);
+      let info = null;
+      try { info = await resolveInfo(sock, args[0]); } catch (err) { console.error('newsadd resolve error:', err?.message || err); }
+      if (!info) return reply('❌ I could not read that. Send a WhatsApp group link, a channel link, or a jid ending in @g.us / @newsletter.');
+      const target = info.jid, keys = pickKeys(args.slice(1));
+      setTarget(sessionId, target, keys, { name: info.name });
+      let told = true; // tell the chat itself that news is now on (and which other chats get news)
+      try { await announce(sock, { jid: target, kind: info.kind, name: info.name, sources: keys, footer: { mode: 'bot' }, days: 0, until: 0 }); } catch (err) { told = false; console.error('newsadd announce error:', err?.message || err); }
+      return reply(`✅ Added ${info.kind}${info.name ? ` *${info.name}*` : ''}:\n${target}\n📰 ${names(keys)}\n${told ? '📨 The chat was told that news is on.' : '⚠️ I could not send a message there. Check that this number is a member (groups) or an admin/owner (channels).'}\n\nThe linked number must be a member (groups) or an admin/owner (channels), otherwise WhatsApp will not let the bot post there.`);
     }
   },
   {

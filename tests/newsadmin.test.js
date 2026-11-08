@@ -10,7 +10,7 @@ const sent = [];
 sessions.set('s1', {
   status: 'connected', phone: '94771234567',
   sock: {
-    sendMessage: async (jid, content) => { sent.push({ jid, content }); },
+    sendMessage: async (jid, content) => { if (jid === '444@g.us') throw new Error('forbidden'); sent.push({ jid, content }); },
     groupGetInviteInfo: async () => ({ id: '111@g.us', subject: 'My Group' }),
     newsletterMetadata: async () => ({ id: '222@newsletter', name: 'My Channel' }),
     groupMetadata: async () => ({ subject: 'My Group' }),
@@ -92,6 +92,49 @@ test('remove', async () => {
   const id = news.adminNewsView().items[0].id;
   assert.ok(news.adminNewsRemove(id));
   assert.equal(news.adminNewsRemove(id), null);
+  assert.equal(news.adminNewsView().items.length, 0);
+});
+
+
+test('adding tells the chat, lists the other chats, and counts the posts live', async () => {
+  sent.length = 0;
+  const a = await news.adminNewsAdd({ ...base, days: 4, footer: 'custom', custom: 'X' });
+  assert.equal(a.notified, true);
+  assert.equal(sent.length, 1); assert.equal(sent[0].jid, '111@g.us');
+  assert.match(sent[0].content.text, /Auto news is ON/); assert.match(sent[0].content.text, /4 days/); assert.ok(!/Other chats/.test(sent[0].content.text));
+  sent.length = 0;
+  const b = await news.adminNewsAdd({ ...base, link: 'https://whatsapp.com/channel/0029VaAAA', sources: ['hiru', 'itn'], days: '' });
+  assert.equal(sent[0].jid, '222@newsletter');
+  assert.match(sent[0].content.text, /Other chats getting news \(1\)/); assert.match(sent[0].content.text, /My Group/); assert.match(sent[0].content.text, /No end date/);
+  // numbers start at 0 and go up with every posted story
+  assert.deepEqual(news.adminNewsView().items.map((i) => i.stats.total), [0, 0]);
+  await cycle(['Seed story alpha here', 'Back again story here']);
+  await cycle(['Live story beta here', 'Seed story alpha here']);
+  const v = news.adminNewsView();
+  const g = v.items.find((i) => i.jid === '111@g.us'), c = v.items.find((i) => i.jid === '222@newsletter');
+  assert.equal(g.stats.total, 2); assert.equal(g.stats.today, 2); assert.match(g.stats.lastTitle, /Live story beta/);
+  assert.equal(c.stats.total, 4); // Hiru + ITN, two cycles
+  assert.equal(v.totals.total, 6); assert.equal(v.totals.today, 6); assert.ok(v.poll.last > 0);
+  void b;
+});
+
+test('chats added by command show up too and can be changed / removed', async () => {
+  setSetting('s1', 'newsTargets', { '333@g.us': ['hiru'] });
+  setSetting('s1', 'newsMeta', { '333@g.us': { name: 'Owner Group', addedAt: Date.now() } });
+  let it = news.adminNewsView().items.find((i) => i.jid === '333@g.us');
+  assert.equal(it.origin, 'command'); assert.equal(it.name, 'Owner Group'); assert.equal(it.id, 'c:s1:333@g.us'); assert.deepEqual(it.sources, ['hiru']);
+  news.adminNewsUpdate(it.id, { sources: ['derana', 'itn'] });
+  assert.deepEqual(news.adminNewsView().items.find((i) => i.jid === '333@g.us').sources, ['derana', 'itn']);
+  assert.throws(() => news.adminNewsUpdate(it.id, { days: 3 }), /added on this page/);
+  assert.ok(news.adminNewsRemove(it.id));
+  assert.equal(news.adminNewsView().items.some((i) => i.jid === '333@g.us'), false);
+});
+
+test('if the chat cannot be told, it is still added and the problem is reported', async () => {
+  const r = await news.adminNewsAdd({ ...base, link: '444@g.us' });
+  assert.equal(r.notified, false); assert.match(r.notifyError, /forbidden/);
+  assert.ok(news.adminNewsView().items.some((i) => i.jid === '444@g.us'));
+  for (const i of news.adminNewsView().items) news.adminNewsRemove(i.id); // clean for the next test
   assert.equal(news.adminNewsView().items.length, 0);
 });
 
