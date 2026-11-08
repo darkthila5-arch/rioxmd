@@ -96,16 +96,20 @@ test('remove', async () => {
 });
 
 
-test('adding tells the chat, lists the other chats, and counts the posts live', async () => {
+test('adding tells the chat (its own details only), and counts the posts live', async () => {
   sent.length = 0;
   const a = await news.adminNewsAdd({ ...base, days: 4, footer: 'custom', custom: 'X' });
   assert.equal(a.notified, true);
   assert.equal(sent.length, 1); assert.equal(sent[0].jid, '111@g.us');
-  assert.match(sent[0].content.text, /Auto news is ON/); assert.match(sent[0].content.text, /4 days/); assert.ok(!/Other chats/.test(sent[0].content.text));
+  const t1 = sent[0].content.text;
+  assert.match(t1, /Auto news is ON/); assert.match(t1, /DERANA/); assert.match(t1, /Start: /); assert.match(t1, /End: .*\(4 days\)/);
+  assert.ok(!/Other chats/.test(t1)); assert.ok(!/HIRU/.test(t1)); // only about this chat
   sent.length = 0;
   const b = await news.adminNewsAdd({ ...base, link: 'https://whatsapp.com/channel/0029VaAAA', sources: ['hiru', 'itn'], days: '' });
   assert.equal(sent[0].jid, '222@newsletter');
-  assert.match(sent[0].content.text, /Other chats getting news \(1\)/); assert.match(sent[0].content.text, /My Group/); assert.match(sent[0].content.text, /No end date/);
+  const t2 = sent[0].content.text;
+  assert.ok(!/Other chats/.test(t2)); assert.ok(!/My Group/.test(t2)); // never lists the other chats
+  assert.match(t2, /HIRU NEWS, ITN NEWS/); assert.match(t2, /Start: /); assert.match(t2, /End: No end date/);
   // numbers start at 0 and go up with every posted story
   assert.deepEqual(news.adminNewsView().items.map((i) => i.stats.total), [0, 0]);
   await cycle(['Seed story alpha here', 'Back again story here']);

@@ -394,20 +394,19 @@ async function chatMeta(sock, jid) { // the name of the chat the command was use
   } catch { /* no name: the web page shows the id */ }
   return { name: '' };
 }
-// Sent INTO the chat that was just added: says news is on, for how long, and which other chats get news too.
+// Sent INTO the chat that was just added: news is on, which channels, start date and end date. Only about THIS chat.
 async function announce(sock, e) {
-  const names = (keys) => keys.map((k) => SOURCES[k]?.name || k).join(', ');
-  const seen = new Set([e.jid]);
-  const others = allTargets().filter((t) => !t.expired && !seen.has(t.jid) && seen.add(t.jid));
-  const ends = e.until ? `⏳ ${e.days} day${e.days === 1 ? '' : 's'} (until ${new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TIMEZONE }).format(new Date(e.until))})` : '⏳ No end date';
-  const lines = ['✅ *Auto news is ON for this chat*', '', `📰 ${names(e.sources)}`, ends, 'New headlines are posted here by themselves.'];
-  if (others.length) {
-    lines.push('', `📋 *Other chats getting news (${others.length})*`);
-    others.slice(0, 15).forEach((t, i) => lines.push(`${i + 1}. ${t.kind === 'channel' ? '📢' : '👥'} ${t.name || (t.kind === 'channel' ? 'Channel' : 'Group')} - ${names(t.sources)}`));
-    if (others.length > 15) lines.push(`…and ${others.length - 15} more`);
-  }
+  const names = e.sources.map((k) => SOURCES[k]?.name || k).join(', ');
+  const when = (ts) => {
+    const d = new Date(ts);
+    const date = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: TIMEZONE }).format(d);
+    const time = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TIMEZONE }).format(d);
+    return `${date}  •  ${time}`;
+  };
+  const start = e.addedAt || Date.now();
+  const end = e.until ? `${when(e.until)} (${e.days} day${e.days === 1 ? '' : 's'})` : 'No end date';
   const fo = footerOf(e);
-  const text = `${lines.join('\n')}\n\n${fo.text}`;
+  const text = ['✅ *Auto news is ON*', '', `📰 ${names}`, `🟢 Start: ${when(start)}`, `🔴 End: ${end}`, '', 'New headlines are posted here by themselves.', '', fo.text].join('\n');
   await sock.sendMessage(e.jid, fo.own ? { text, [NO_FOOTER]: true } : { text });
 }
 
@@ -585,7 +584,7 @@ export default [
       const target = info.jid, keys = pickKeys(args.slice(1));
       setTarget(sessionId, target, keys, { name: info.name });
       let told = true; // tell the chat itself that news is now on (and which other chats get news)
-      try { await announce(sock, { jid: target, kind: info.kind, name: info.name, sources: keys, footer: { mode: 'bot' }, days: 0, until: 0 }); } catch (err) { told = false; console.error('newsadd announce error:', err?.message || err); }
+      try { await announce(sock, { jid: target, kind: info.kind, name: info.name, sources: keys, footer: { mode: 'bot' }, days: 0, until: 0, addedAt: Date.now() }); } catch (err) { told = false; console.error('newsadd announce error:', err?.message || err); }
       return reply(`✅ Added ${info.kind}${info.name ? ` *${info.name}*` : ''}:\n${target}\n📰 ${names(keys)}\n${told ? '📨 The chat was told that news is on.' : '⚠️ I could not send a message there. Check that this number is a member (groups) or an admin/owner (channels).'}\n\nThe linked number must be a member (groups) or an admin/owner (channels), otherwise WhatsApp will not let the bot post there.`);
     }
   },
