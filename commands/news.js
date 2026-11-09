@@ -481,12 +481,21 @@ export async function adminNewsAdd(b = {}) {
 const parseCmdId = (id) => { const m = String(id).match(/^c:([\w-]{1,60}):(.+)$/); return m ? { sid: m[1], jid: m[2] } : null; };
 export function adminNewsUpdate(id, b = {}) {
   const c = parseCmdId(id);
-  if (c) { // added with a command: only the news channels can be changed here
+  if (c) { // added with a command (.newson / .newsadd / .hiru on ...)
     if (!(c.jid in getTargets(c.sid))) throw new Error('That chat is not in the list any more.');
-    if (b.footer !== undefined || b.days !== undefined) throw new Error('Footer and days are for chats added on this page. Remove this chat and add it here to use them.');
     const keys = b.sources !== undefined ? cleanSources(b.sources) : getTargets(c.sid)[c.jid];
-    setTarget(c.sid, c.jid, keys);
-    return { jid: c.jid, name: getSetting(c.sid, 'newsMeta', {})[c.jid]?.name || '', sources: keys, days: 0, footer: { mode: 'bot' } };
+    if (b.footer === undefined && b.days === undefined) { // only the news channels changed: stays a command chat
+      setTarget(c.sid, c.jid, keys);
+      return { jid: c.jid, name: getSetting(c.sid, 'newsMeta', {})[c.jid]?.name || '', sources: keys, days: 0, footer: { mode: 'bot' } };
+    }
+    // A footer or days was set: the chat becomes a normal admin chat (same number, same live counter) so the footer is really used.
+    const name = getSetting(c.sid, 'newsMeta', {})[c.jid]?.name || '';
+    const days = b.days !== undefined ? cleanDays(b.days) : 0;
+    const footer = b.footer !== undefined ? cleanFooter(b.footer, b.custom, name) : { mode: 'bot', custom: '' };
+    const entry = { id: crypto.randomBytes(5).toString('hex'), jid: c.jid, kind: c.jid.endsWith('@newsletter') ? 'channel' : 'group', name, sid: c.sid, sources: keys, footer, days, until: untilOf(days), addedAt: getSetting(c.sid, 'newsMeta', {})[c.jid]?.addedAt || Date.now() };
+    saveAdmin([...adminList().filter((t) => !(t.jid === c.jid && t.sid === c.sid)), entry]);
+    const t = { ...getTargets(c.sid) }; delete t[c.jid]; setSetting(c.sid, 'newsTargets', t); // the admin entry replaces it (stats are kept)
+    return entry;
   }
   const list = adminList();
   const t = list.find((x) => x.id === String(id));

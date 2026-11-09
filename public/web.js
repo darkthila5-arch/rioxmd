@@ -863,13 +863,13 @@
         const who = it.phone ? `+${it.phone}${it.online ? '' : ' (offline)'}` : 'number removed';
         const li = h('li', { class: 'nwitem', style: 'flex-direction:column;align-items:stretch;gap:8px;padding:12px 0' });
         const top = h('div', { style: 'display:flex;align-items:center;justify-content:space-between;gap:12px' },
-          h('span', { class: 'txt' }, h('b', {}, `${it.kind === 'channel' ? '📢' : '👥'} ${it.name || it.jid}`), h('small', {}, `${names} · ${cmd ? 'Bot footer' : (NW_FOOTERS[it.footer.mode] || 'Bot footer')}${!cmd && it.footer.mode === 'custom' && it.footer.custom ? `: ${it.footer.custom}` : ''} · ${who}`)),
+          h('span', { class: 'txt' }, h('b', {}, `${it.kind === 'channel' ? '📢' : '👥'} ${it.name || it.jid}`), h('small', {}, `${names} · ${NW_FOOTERS[it.footer.mode] || 'Bot footer'}${it.footer.mode === 'custom' && it.footer.custom ? `: ${it.footer.custom}` : ''} · ${who}`)),
           h('span', { class: `pill ${tone}` }, it.expired ? 'Ended' : cmd ? 'Command' : 'On'));
         const leftEl = h('small', { class: 'meta' }, left);
         const statEl = h('small', { class: 'meta' }, nwStat(it));
         const errEl = h('small', { class: 'meta', style: 'color:var(--bad,#e5484d)' }, it.stats.err ? `⚠️ Last post failed (${new Date(it.stats.errAt).toLocaleTimeString()}): ${it.stats.err}` : ''); errEl.hidden = !it.stats.err;
         nwRefs.set(it.id, { stat: statEl, err: errEl, left: leftEl });
-        // editor (hidden until "Edit"). Chats added by command can only change their news channels here.
+        // editor (hidden until "Edit"). Chats added by command become normal admin chats when a footer / days is saved.
         const picked = new Set(it.sources);
         const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'News channels' });
         nwChips(chips, picked, d.sources);
@@ -880,10 +880,11 @@
         foot.addEventListener('change', () => { cbox.hidden = foot.value !== 'custom'; });
         const days = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '3650', step: '1', placeholder: 'New number of days from today (empty = keep, 0 = no end)', 'aria-label': 'Days from today' });
         const save = h('button', { class: 'btn sm', type: 'button' }, 'Save');
-        const editor = h('div', { class: 'stack nwedit', hidden: true }, chips, ...(cmd ? [] : [h('div', { class: 'field sm' }, foot), cbox, h('div', { class: 'field sm' }, days)]), h('div', { class: 'actions' }, save));
+        const editor = h('div', { class: 'stack nwedit', hidden: true }, chips, h('div', { class: 'field sm' }, foot), cbox, h('div', { class: 'field sm' }, days), h('div', { class: 'actions' }, save));
         save.addEventListener('click', busy(save, () => run(() => {
           const body = { sources: [...picked] };
-          if (!cmd) { body.footer = foot.value; body.custom = custom.value; if (days.value.trim() !== '') body.days = Number(days.value); }
+          if (!cmd || foot.value !== (it.footer.mode || 'bot') || (foot.value === 'custom' && custom.value !== (it.footer.custom || ''))) { body.footer = foot.value; body.custom = custom.value; }
+          if (days.value.trim() !== '') body.days = Number(days.value);
           return api('PATCH', `/api/admin/news/${encodeURIComponent(it.id)}`, body);
         }, 'Saved.')));
         const edit = h('button', { class: 'btn alt sm', type: 'button' }, 'Edit');

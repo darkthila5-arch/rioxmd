@@ -129,9 +129,25 @@ test('chats added by command show up too and can be changed / removed', async ()
   assert.equal(it.origin, 'command'); assert.equal(it.name, 'Owner Group'); assert.equal(it.id, 'c:s1:333@g.us'); assert.deepEqual(it.sources, ['hiru']);
   news.adminNewsUpdate(it.id, { sources: ['derana', 'itn'] });
   assert.deepEqual(news.adminNewsView().items.find((i) => i.jid === '333@g.us').sources, ['derana', 'itn']);
-  assert.throws(() => news.adminNewsUpdate(it.id, { days: 3 }), /added on this page/);
   assert.ok(news.adminNewsRemove(it.id));
   assert.equal(news.adminNewsView().items.some((i) => i.jid === '333@g.us'), false);
+});
+
+test('a chat added by command gets its own footer after saving one in /admin', async () => {
+  setSetting('s1', 'newsTargets', { '555@g.us': ['hiru'] });
+  setSetting('s1', 'newsMeta', { '555@g.us': { name: 'Cmd Group', addedAt: Date.now() } });
+  const it = news.adminNewsView().items.find((i) => i.jid === '555@g.us');
+  assert.equal(it.origin, 'command');
+  news.adminNewsUpdate(it.id, { footer: 'custom', custom: 'My own footer' });
+  const now = news.adminNewsView().items.filter((i) => i.jid === '555@g.us');
+  assert.equal(now.length, 1); assert.equal(now[0].origin, 'web');
+  assert.equal(now[0].footer.mode, 'custom'); assert.equal(now[0].footer.custom, 'My own footer');
+  assert.equal(getSetting('s1', 'newsTargets', {})['555@g.us'], undefined);
+  sent.length = 0;
+  await cycle(['Brand new cmd story here', 'Old story number one here']);
+  const c = sent.find((x) => x.jid === '555@g.us').content, t = c.text || c.caption;
+  assert.ok(t.includes('> *My own footer*')); assert.ok(!t.includes(DEFAULT_FOOTER)); assert.equal(c[NO_FOOTER], true);
+  news.adminNewsRemove(now[0].id);
 });
 
 test('if the chat cannot be told, it is still added and the problem is reported', async () => {
