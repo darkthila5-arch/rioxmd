@@ -93,8 +93,54 @@
       h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: () => save(ta.value.trim()) }, 'Save'), h('button', { class: 'btn alt', type: 'button', onclick: () => save('') }, 'Use built-in')));
   }
 
+  /* ---------- WhatsApp About: default for newly linked numbers + what each number shows now ---------- */
+  let about = null, aboutListEl = null, aboutPoll = null;
+  const aboutLabel = (a) => (a === null || a === undefined ? '…' : a === '' ? '(empty)' : a);
+  function drawAboutList() {
+    if (!aboutListEl) return;
+    aboutListEl.replaceChildren(...(!about?.numbers?.length ? [h('p', { class: 'note' }, 'No linked numbers yet.')]
+      : about.numbers.map((n) => h('div', { class: 'row', style: 'display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)' },
+        h('b', { style: 'white-space:nowrap' }, `+${n.phone}`), h('small', { class: 'pill' + (n.online ? ' on' : '') }, n.online ? 'Online' : 'Offline'),
+        h('span', { style: 'min-width:0;overflow-wrap:anywhere' }, aboutLabel(n.about))))));
+  }
+  const stopAboutPoll = () => { clearInterval(aboutPoll); aboutPoll = null; };
+  // reload the list a few times (the numbers are changed / read one after another, a few seconds apart)
+  const startAboutPoll = (times) => {
+    stopAboutPoll(); let n = 0;
+    aboutPoll = setInterval(async () => {
+      n += 1;
+      try { about = await call('GET', '/api/admin/about'); drawAboutList(); } catch { stopAboutPoll(); return; }
+      if (n >= times || (!about.refreshing && n >= 3 && about.numbers.every((x) => !x.online || x.about !== null))) stopAboutPoll();
+    }, 3000);
+  };
+  function aboutCard() {
+    if (!about) return h('section', { class: 'card' }, h('h2', {}, '✍️ WhatsApp About'), h('p', { class: 'note' }, 'Loading…'));
+    const input = h('input', { type: 'text', maxlength: about.max, placeholder: about.builtin, value: about.text, 'aria-label': 'Default About text', autocomplete: 'off' });
+    const auto = h('input', { type: 'checkbox', class: 'sw', role: 'switch', checked: about.auto, 'aria-label': 'Set the About when a number is linked' });
+    const save = async () => { try { about = await call('POST', '/api/admin/about/default', { text: input.value.trim(), auto: auto.checked }); toast('Saved.'); draw(); } catch (e) { toast(e.message, true); } };
+    const applyAll = async () => {
+      const count = about.numbers.filter((n) => n.online).length;
+      if (!count) { toast('No numbers are online right now.', true); return; }
+      if (!window.confirm(`Change the About of every linked number to:\n\n${about.effective}\n\n${count} number(s) are online. They are changed one by one, a few seconds apart.`)) return;
+      try { const r = await call('POST', '/api/admin/bulk', { action: 'about', ids: 'all', text: about.effective }); toast(`Changing the About of ${r.queued} number(s)…`); startAboutPoll(40); }
+      catch (e) { toast(e.message, true); }
+    };
+    const refresh = async () => { try { about = await call('POST', '/api/admin/about/refresh'); drawAboutList(); toast('Reading the About of every online number…'); startAboutPoll(30); } catch (e) { toast(e.message, true); } };
+    aboutListEl = h('div', { class: 'stack' });
+    const el = h('section', { class: 'card' }, h('h2', {}, '✍️ WhatsApp About'),
+      h('p', { class: 'note' }, `The About line of every number. When a new number is linked the bot sets it to the text below. Empty = "${about.builtin}". Max ${about.max} characters. Only brand-new links get it by themselves; use the button to apply it to numbers that are already linked.`),
+      h('div', { class: 'field sm' }, input),
+      h('label', { class: 'row' }, h('span', { class: 'txt' }, h('b', {}, 'Set it when a number is linked'), h('small', {}, 'Switch off to leave the About of new numbers alone.')), auto),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: save }, 'Save'), h('button', { class: 'btn alt', type: 'button', onclick: applyAll }, 'Apply to all linked numbers now')),
+      h('h3', { class: 'sub' }, 'What each number shows now'),
+      h('div', { class: 'actions' }, h('button', { class: 'btn alt sm', type: 'button', onclick: refresh }, 'Refresh')),
+      aboutListEl);
+    drawAboutList();
+    return el;
+  }
+
   function draw() {
-    root.replaceChildren(...ITEMS.slice(0, 4).map(card), callMsgCard(), card(ITEMS[4]));
+    root.replaceChildren(...ITEMS.slice(0, 4).map(card), callMsgCard(), card(ITEMS[4]), aboutCard());
     // order: alive picture, menu picture, alive voice, alive video note, call message, call picture
   }
 
@@ -102,7 +148,7 @@
   let loading = false;
   const load = async () => {
     if (loading) return; loading = true;
-    try { data = await call('GET', '/api/admin/botmedia'); draw(); } catch (e) { toast(e.message, true); } finally { loading = false; }
+    try { data = await call('GET', '/api/admin/botmedia'); try { about = await call('GET', '/api/admin/about'); } catch { /* the rest still works */ } draw(); if (about && about.numbers.some((n) => n.online && n.about === null)) startAboutPoll(10); } catch (e) { toast(e.message, true); } finally { loading = false; }
   };
   new MutationObserver(() => { if (visible()) load(); }).observe(pane, { attributes: true, attributeFilter: ['hidden'] });
   new MutationObserver(() => { if (visible()) load(); }).observe(panel, { attributes: true, attributeFilter: ['hidden'] });

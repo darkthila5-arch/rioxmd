@@ -325,6 +325,7 @@
   /* ---------- /admin ---------- */
   async function adminPage() {
     let current = null, first = true, all = [], overview = null, filter = 'all', timer = null;
+    let lastBulkSeen; // time of the last finished bulk job the admin has been told about
     const sel = new Set();
 
     const stat = (value, label, count, tone) => {
@@ -363,7 +364,7 @@
         chk.checked = sel.has(s.id);
         chk.addEventListener('change', () => { chk.checked ? sel.add(s.id) : sel.delete(s.id); drawSelection(); });
         ul.append(h('li', {}, chk, h('button', { class: 'go', type: 'button', 'aria-current': s.id === current ? 'true' : 'false', onclick: () => open(s.id) },
-          h('span', { class: 'who' }, h('span', { class: `sdot ${dotClass(s)}`, 'aria-hidden': 'true' }), h('span', { class: 'num' }, s.linked ? `+${s.phone}` : 'Pairing in progress')),
+          h('span', { class: 'who' }, h('span', { class: `sdot ${dotClass(s)}`, 'aria-hidden': 'true' }), h('span', { style: 'display:flex;flex-direction:column;min-width:0' }, h('span', { class: 'num' }, s.linked ? `+${s.phone}` : 'Pairing in progress'), s.linked && h('small', { class: 'meta', title: s.about || '', style: 'max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, aboutText(s.about)))),
           h('span', { class: 'pills' },
             h('span', { class: `pill${isOnline(s) ? ' on' : ''}` }, friendly(s.status)),
             h('span', { class: 'pill' }, s.mode === 'private' ? 'Private' : 'Public'),
@@ -446,6 +447,9 @@
         drawAttention();
         $('#pairSwitch').checked = o.pairingOpen;
         drawBoost(o.boost);
+        const lb = o.lastBulk;
+        if (lastBulkSeen === undefined) lastBulkSeen = lb?.at || 0;
+        else if (lb && lb.at > lastBulkSeen) { lastBulkSeen = lb.at; toast(`${lb.label}: ${lb.ok} done${lb.failed ? `, ${lb.failed} failed${lb.error ? ` (${lb.error})` : ''}` : ''}`, !!lb.failed && !lb.ok); }
         const b = o.bulk;
         $('#bulkBar').hidden = !b;
         if (b) { $('#bulkLabel').textContent = b.label; $('#bulkCount').textContent = `${b.done}/${b.total}`; $('#bulkFill').style.width = `${Math.round((b.done / Math.max(1, b.total)) * 100)}%`; }
@@ -465,8 +469,10 @@
     const lock = () => document.body.classList.toggle('noscroll', !$('#detail').hidden || !$('#bulk').hidden);
     const closeDetail = () => { current = null; $('#detail').hidden = true; $('#scrim').hidden = true; lock(); drawList(); };
     const closeBulk = () => { $('#bulk').hidden = true; lock(); };
+    const aboutText = (a) => (a === null || a === undefined ? 'About: …' : a === '' ? 'About: (empty)' : `About: ${a}`);
     const drawDetail = (d) => {
       $('#detailTitle').textContent = d.linked ? `+${d.phone}` : 'Pairing in progress';
+      $('#aboutLine').textContent = aboutText(d.about);
       $('#detailPills').replaceChildren(...[
         h('span', { class: `pill${d.status === 'connected' ? ' on' : ''}` }, friendly(d.status)),
         h('span', { class: `pill${d.webPassword ? '' : ' warn'}` }, d.webPassword ? 'Web password set' : 'No web password'),
@@ -485,15 +491,16 @@
         renderSettings($('#groups'), d.settings, (p) => api('PATCH', `/api/admin/session/${id}/settings`, p).then((r) => { refresh(); return r; }), undefined, undefined, d.host);
         drawList();
         if (scroll) $('.drawer-body').scrollTop = 0;
+        if (d.status === 'connected') api('GET', `/api/admin/session/${id}/about`).then((r) => { if (current === id) $('#aboutLine').textContent = aboutText(r.about); }).catch(() => {});
       } catch (e) { toast(e.message, true); refresh(); }
     };
     const one = (btn, path, dialog, done, closes) => btn.addEventListener('click', busy(btn, async () => {
       if (!current) return;
       const a = await ask(dialog); if (!a) return;
       try {
-        await api('POST', `/api/admin/session/${current}/${path}`, dialog.input ? { text: a.value } : undefined);
-        toast(done);
-        if (closes) closeDetail(); else if (path === 'reset') await open(current, false);
+        const r = await api('POST', `/api/admin/session/${current}/${path}`, dialog.input ? { text: a.value } : undefined);
+        toast(path === 'about' && r && r.confirmed === false ? 'Sent, but WhatsApp has not shown the new About yet. Check again in a moment.' : done);
+        if (closes) closeDetail(); else if (path === 'reset' || path === 'about') await open(current, false);
         refresh();
       } catch (e) { toast(e.message, true); }
     }));
