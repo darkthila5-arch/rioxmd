@@ -500,6 +500,7 @@
     one($('#restart'), 'restart', { title: 'Restart this bot?', body: 'The connection drops and comes back by itself in a few seconds.', ok: 'Restart' }, 'Restarting');
     one($('#resetPass'), 'password', { title: 'Send a new web password?', body: 'It goes to this number\'s own WhatsApp chat. Their old password stops working.', ok: 'Send' }, 'New password sent');
     one($('#notice'), 'notice', { title: 'Message this number', body: 'It arrives in their own WhatsApp chat as a notice from the bot.', input: true, placeholder: 'Write your message…', ok: 'Send' }, 'Message sent');
+    one($('#aboutOne'), 'about', { title: 'Change the About', body: 'The WhatsApp "About" of this number is replaced (max 139 characters).', input: true, placeholder: 'New About text…', ok: 'Change' }, 'About changed');
     one($('#resetOne'), 'reset', { title: 'Reset this number\'s settings?', body: 'Every option goes back to its default.', ok: 'Reset', danger: true }, 'Settings reset');
     one($('#remove'), 'delete', { title: 'Unlink and delete?', body: 'The bot logs out of this number and its saved settings are deleted. This cannot be undone.', ok: 'Unlink', danger: true }, 'Session deleted', true);
 
@@ -1066,6 +1067,7 @@
     bulkBtn($('#bRestart'), 'restart', { title: 'Restart the selected bots?', body: 'They reconnect by themselves, one after another.', ok: 'Restart' }, 'Restart');
     bulkBtn($('#bPass'), 'password', { title: 'Send new web passwords?', body: 'Each number gets a new password in its own chat. Old passwords stop working.', ok: 'Send' }, 'Passwords');
     bulkBtn($('#bNotice'), 'notice', { title: 'Message the selected numbers', body: 'Sent one by one to each number\'s own chat.', input: true, placeholder: 'Write your message…', ok: 'Send' }, 'Message');
+    bulkBtn($('#bAbout'), 'about', { title: 'Change the About of the selected numbers', body: 'Max 139 characters. Changed one by one, a few seconds apart.', input: true, placeholder: 'New About text…', ok: 'Change' }, 'About');
     bulkBtn($('#bReset'), 'reset', { title: 'Reset their settings?', body: 'Every option goes back to its default.', ok: 'Reset', danger: true }, 'Reset');
     bulkBtn($('#bDelete'), 'delete', { title: 'Unlink and delete them?', body: 'Each bot logs out and its saved settings are deleted. This cannot be undone.', ok: 'Unlink all', danger: true }, 'Unlink');
 
