@@ -92,6 +92,8 @@ label{display:block;font-weight:600;font-size:.92rem;margin:0 0 8px}
 .field:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 24%,transparent)}
 .field.bad{border-color:var(--error);animation:shake .4s var(--ease)}
 .plus{padding:0 4px 0 18px;color:var(--accent);font-weight:800;font-size:1.2rem}
+/* the global :focus-visible ring (above) beats the plain input{outline:0} rule, which drew a second box INSIDE the field. The field's own ring (.field:focus-within) is the only one wanted. Switches / checkboxes keep their keyboard ring. */
+.field :is(input,textarea,select):not(.sw):not(.chk):focus-visible{outline:0}
 input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ink);padding:15px 16px 15px 4px;font:inherit;font-size:1.15rem;letter-spacing:.06em}
 input::placeholder{color:var(--muted);opacity:.55}
 .hint{color:var(--muted);font-size:.82rem;margin:8px 2px 0}
