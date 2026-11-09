@@ -84,6 +84,7 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `PUBLIC_URL` | Public address of the site (for example `https://your-app.onrender.com`). Used in the web password message. Render's own `RENDER_EXTERNAL_URL` is used when this is empty. |
 | `WEB_SECRET` | Long random text used to sign web logins. Set it, otherwise everyone is logged out on each restart. |
 | `ADMIN_USER`, `ADMIN_PASSWORD` | Login for `/admin` (user defaults to `admin`). The admin site stays off unless the password has 10+ characters. |
+| `ADMIN_CODE` | Secret end of the admin link (6 to 64 letters, digits, `-` or `_`). With it set the login page is only at `/admin/<ADMIN_CODE>`; plain `/admin` redirects to the pair site. Not set = `/admin` shows the login like before. |
 | `TIMEZONE` | Greeting and clock time zone (default `Asia/Colombo`). |
 | `TIKTOK_RAPIDAPI_KEY` | Your RapidAPI key for `.tts` (ScrapTik, subscribe on rapidapi.com, the free plan is enough). **Never put it in the repo or share it: set it only in Render's Environment tab.** |
 | `TIKTOK_SEARCH_URL` | Optional: any other JSON search API for `.tts`. Paste the URL from its "Code snippet" and write `{q}` where the search words go. RapidAPI URLs get the key and host headers added automatically. |
@@ -213,7 +214,7 @@ Owner only, per linked account. The owner's own number and `OWNER_NUMBER` are ne
 - Only a salted hash of the password is stored. 5 wrong attempts block a number or an IP for 10 minutes. Logins are signed, `HttpOnly`, `SameSite=Strict` cookies that last 12 hours.
 
 **For the host (`/admin`)**
-- Set `ADMIN_PASSWORD` (10+ characters), optionally `ADMIN_USER`, and `WEB_SECRET`. Admin logins last 4 hours.
+- Set `ADMIN_PASSWORD` (10+ characters), optionally `ADMIN_USER`, `ADMIN_CODE` (the admin page is then `https://your-site/admin/<ADMIN_CODE>`; `/admin` alone goes to the pair site) and `WEB_SECRET`. Admin logins last 4 hours.
 - Overview tiles: linked numbers, online now, new links open/paused, memory, uptime, storage, call service.
 - **Control every session**: search and filter the list (all / online / offline), tick the numbers you want (or *Select online*), then use the **Control box**: change one option for all of them (any option from the settings page), restart, send new web passwords, send a message to each number's own chat, reset settings, or unlink and delete. Restart, passwords, messages and unlinking run in the background one number at a time (slow on purpose, so WhatsApp never sees a burst) with a live progress bar.
 - **Commands tab**: every command can be switched on or off for all numbers. Commands are **grouped in the same categories as the menu** (General, Download, News, Media, Group, Fun, Status, Owner, Download tools, Auto news, Call, Host owner), each group has **All on / All off**. New commands appear automatically (listed under *Other* until you add them to `CMD_CATS` in `lib/web.js`).
