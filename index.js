@@ -7,6 +7,7 @@ import { clearTimers, destroySession, restoreSessions, startSession } from './li
 import { flushSettings } from './lib/storage.js';
 import { startCallbot } from './lib/callbot.js';
 import { isPairingOpen, mountWeb } from './lib/web.js';
+import { mountPremiumPage } from './lib/premiumpage.js';
 
 const app = express();
 // How many proxies sit in front of the app (default 1 = Render). Every login lockout and rate limit uses the client IP, so this must be right:
@@ -103,6 +104,7 @@ app.delete('/api/session/:id', apiLimiter, authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
+mountPremiumPage(app); // /premium page: plans, price, contact button, premium days check
 mountWeb(app); // /settings and /admin
 
 app.get('/health', (_req, res) => res.json({ ok: true, bot: BOT_NAME, activeSessions: sessions.size, storage: state.mongoCol ? 'mongodb' : 'files', pairing: isPairingOpen() }));

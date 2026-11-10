@@ -19,6 +19,10 @@ services:
         sync: false           # set this in Render to turn the /admin site on (10+ characters)
       - key: ADMIN_CODE
         sync: false           # secret part of the admin link: the login is at /admin/<this code>, plain /admin goes to the pair site (6-64 letters / digits)
+      - key: PREMIUM_PLANS
+        sync: false           # shown on /premium: days|name|price|note ; separated by semicolons, e.g. 30|1 Month|Rs. 500;90|3 Months|Rs. 1,200|Best value
+      - key: PREMIUM_CONTACT
+        sync: false           # WhatsApp number (digits) for the "Contact owner" button; empty = OWNER_NUMBER
       - key: PUBLIC_URL
         sync: false           # e.g. https://your-app.onrender.com (used in the web password message)
       - key: BOT_NAME

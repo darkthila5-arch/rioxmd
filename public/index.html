@@ -10,13 +10,18 @@
 <meta property="og:title" content="RIO X MD • Link your WhatsApp">
 <meta property="og:description" content="Get your pair code in seconds and run RIO X MD on your own WhatsApp.">
 <meta property="og:type" content="website">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RIO X MD">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css?v=2">
 <link rel="stylesheet" href="/notices.css?v=1">
+<link rel="stylesheet" href="/premium.css?v=1">
 </head>
 <body>
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -104,10 +109,14 @@
 </main>
 
 <footer>
-  <div class="wrap">RIO X MD • 🍃💗⃝⃘⃘̬ٜٜٜ̬͞͠. ©ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʀɪᴏ x ᴍᴅ 𒈒<br><small>Use your own account only. Never share your pair code.</small></div>
+  <div class="wrap">
+    <div class="foot-links"><a href="/premium">👑 Premium plans</a><button id="installBtn" type="button" hidden>📲 Install app</button></div>
+    <p class="pwa-tip" id="pwaTip" hidden></p>
+    RIO X MD • 🍃💗⃝⃘⃘̬ٜٜٜ̬͞͠. ©ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʀɪᴏ x ᴍᴅ 𒈒<br><small>Use your own account only. Never share your pair code.</small></div>
 </footer>
 <script src="/script.js"></script>
 <script src="/notices.js?v=1"></script>
+<script src="/pwa.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>

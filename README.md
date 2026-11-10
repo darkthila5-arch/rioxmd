@@ -48,6 +48,10 @@ The repo ships a `Dockerfile` (Node bot + Go call service + ffmpeg + git) and `r
 Important: a service created as "Node" cannot be switched to Docker. Create a new Docker service, copy the variables, then delete the old one (two services on the same sessions disconnect each other).
 Without a disk, files are wiped on every redeploy. With `MONGO_URL` the WhatsApp sessions, settings and saved call clips are also kept in MongoDB. The call-service link (`SESSION_DIR/_callbot`) needs the disk.
 
+## Premium page and installable app
+- `/premium` is a public page with the plans and prices (from `PREMIUM_PLANS`), what premium gives, a **Contact owner** button (opens WhatsApp with the chosen plan written in) and **Check my premium days**: the visitor types a number and sees how many premium days are left. The check answers the same for "free" and "not linked", is limited to 12 tries per 10 minutes per IP, and never shows anything else about a number.
+- The pair site and the premium page are a **PWA**: `manifest.webmanifest`, `sw.js`, `offline.html` and the icons in `public/`. Chrome / Edge / Android show an **Install app** link in the footer; iPhone Safari shows how to use *Add to Home Screen*. The service worker only handles the pair page, `/premium` and static files (network first, offline page when there is no internet). It never touches `/api`, `/admin`, `/settings` or `/health`.
+
 ## Project layout and adding commands
 ```
 index.js            pairing website + API, startup / shutdown
@@ -84,6 +88,8 @@ Optional fields: `owner: true` (owner only), `hidden: true` (silent for everyone
 | `PUBLIC_URL` | Public address of the site (for example `https://your-app.onrender.com`). Used in the web password message. Render's own `RENDER_EXTERNAL_URL` is used when this is empty. |
 | `WEB_SECRET` | Long random text used to sign web logins. Set it, otherwise everyone is logged out on each restart. |
 | `ADMIN_USER`, `ADMIN_PASSWORD` | Login for `/admin` (user defaults to `admin`). The admin site stays off unless the password has 10+ characters. |
+| `PREMIUM_PLANS` | Plans on the `/premium` page: `days\|name\|price\|note`, separated by `;` (up to 6). Example: `30\|1 Month\|Rs. 500;90\|3 Months\|Rs. 1,200\|Best value`. A note with the word *best* or *popular* highlights that plan. |
+| `PREMIUM_CONTACT`, `PREMIUM_FEATURES`, `PREMIUM_NOTE` | Number for the "Contact owner" button (default `OWNER_NUMBER`), the "What you get" list (split with `;`, default list built in), and a one-line note under the plans (for example how to pay). |
 | `ADMIN_CODE` | Secret end of the admin link (6 to 64 letters, digits, `-` or `_`). With it set the login page is only at `/admin/<ADMIN_CODE>`; plain `/admin` redirects to the pair site. Not set = `/admin` shows the login like before. |
 | `TIMEZONE` | Greeting and clock time zone (default `Asia/Colombo`). |
 | `TIKTOK_RAPIDAPI_KEY` | Your RapidAPI key for `.tts` (ScrapTik, subscribe on rapidapi.com, the free plan is enough). **Never put it in the repo or share it: set it only in Render's Environment tab.** |
