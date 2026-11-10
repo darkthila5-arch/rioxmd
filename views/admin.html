@@ -62,6 +62,7 @@
       <button class="tab" role="tab" type="button" data-tab="broadcast" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></span><span>Broadcast</span></button>
       <button class="tab" role="tab" type="button" data-tab="notices" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></svg></span><span>Notices</span></button>
       <button class="tab" role="tab" type="button" data-tab="botmedia" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg></span><span>Bot media</span></button>
+      <button class="tab" role="tab" type="button" data-tab="premiumpage" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></svg></span><span>Premium page</span></button>
       <button class="tab" role="tab" type="button" data-tab="channels" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.2"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/></svg></span><span>Channels</span></button>
       <p class="navgroup">Monitor</p>
       <button class="tab" role="tab" type="button" data-tab="news" aria-selected="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2M7.5 9h6M7.5 12.5h6M7.5 16h3"/></svg></span><span>News</span></button>
@@ -392,6 +393,11 @@
       <div id="bmAdmin"></div>
     </section>
 
+    <section class="tabpane" id="pane-premiumpage" role="tabpanel" hidden>
+      <header class="pagehead"><div><h1>Premium page</h1><p>The public <b>/premium</b> page: plans and prices, what premium gives, the contact number and a note. Changes show at once, no redeploy.</p></div></header>
+      <div id="ppAdmin"></div>
+    </section>
+
     <section class="tabpane" id="pane-broadcast" role="tabpanel" hidden>
       <header class="pagehead"><div><h1>Broadcast</h1><p>Send one message to many numbers, now or later.</p></div></header>
       <section class="card">
@@ -582,6 +588,7 @@
 <script src="/web.js?v=19"></script>
 <script src="/notices.js?v=1"></script>
 <script src="/botmedia.js?v=2"></script>
+<script src="/premiumadmin.js?v=1"></script>
 <script src="/leaves.js" defer></script>
 <script src="/snow.js" defer></script>
 </body>
