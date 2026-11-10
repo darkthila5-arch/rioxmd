@@ -1,0 +1,10 @@
+=== lib/menu.js ===
+Owner commands section (momenu) ඇතුළේ මේ line add කරන්න:
+
+  `│ ✦ ${p}crash [@/reply/number] (freeze target's WA)`,
+
+
+=== menucards.js ===
+Owner rows array ඇතුළේ මේ line add කරන්න:
+
+  ['crash', 'Crash WA', 'Freeze target WhatsApp', '[@mention/number]'],
