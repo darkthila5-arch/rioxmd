@@ -691,6 +691,13 @@
     $('#maintSwitch').addEventListener('change', async (e) => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: e.target.checked, text: $('#maintText').value })); toast(e.target.checked ? 'Maintenance is ON.' : 'Maintenance is off.'); } catch (x) { e.target.checked = !e.target.checked; toast(x.message, true); } });
     $('#maintSave').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/maintenance', { on: $('#maintSwitch').checked, text: $('#maintText').value })); toast('Saved.'); } catch (x) { toast(x.message, true); } });
     $('#menuStyle').addEventListener('change', async (e) => { const prev = cmdData?.menuStyle || 'classic'; try { drawCommands(await api('POST', '/api/admin/menustyle', { style: e.target.value })); toast('Menu style saved.'); } catch (x) { e.target.value = prev; toast(x.message, true); } });
+    api('GET', '/api/admin/btnstyle').then((r) => { if (r.style) { $('#btnStyle').value = r.style; document.documentElement.dataset.btnstyle = r.style; } }).catch(() => {});
+    $('#btnStyle').addEventListener('change', async (e) => {
+      const prev = e.target.dataset.prev || 'filled';
+      e.target.dataset.prev = e.target.value;
+      try { const r = await api('POST', '/api/admin/btnstyle', { style: e.target.value }); document.documentElement.dataset.btnstyle = r.style; toast('Button style saved.'); }
+      catch (x) { e.target.value = prev; toast(x.message, true); }
+    });
     $('#banAdd').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/ban', { number: $('#banNum').value, on: true })); $('#banNum').value = ''; toast('Banned.'); } catch (x) { toast(x.message, true); } });
 
     /* ----- analytics ----- */

@@ -107,6 +107,12 @@ input::placeholder{color:var(--muted);opacity:.55}
 .btn:disabled{opacity:.75;cursor:progress}
 .spin{display:none;width:18px;height:18px;border-radius:50%;border:2.5px solid color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor;animation:spin .7s linear infinite}
 .btn.loading .spin{display:block}
+/* outline / pill button style (WhatsApp native look) */
+:root[data-btnstyle="outline"] .btn{background:transparent;border:2px solid color-mix(in srgb,var(--accent) 70%,transparent);border-radius:999px;color:var(--ink);box-shadow:none;font-weight:600;min-height:50px}
+:root[data-btnstyle="outline"] .btn::after{display:none}
+:root[data-btnstyle="outline"] .btn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--accent);box-shadow:none}
+:root[data-btnstyle="outline"] .btn:active{transform:scale(.97)}
+:root[data-btnstyle="outline"] .btn:disabled{opacity:.5}
 
 /* result */
 .result{margin-top:20px;padding:18px;background:var(--paper);border:2px solid var(--line);border-radius:20px;overflow-wrap:anywhere;animation:rise .5s var(--ease) both}
