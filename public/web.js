@@ -698,6 +698,13 @@
       try { const r = await api('POST', '/api/admin/btnstyle', { style: e.target.value }); document.documentElement.dataset.btnstyle = r.style; toast('Button style saved.'); }
       catch (x) { e.target.value = prev; toast(x.message, true); }
     });
+    api('GET', '/api/admin/msgstyle').then((r) => { if (r.style) { $('#msgStyle').value = r.style; $('#msgStyle').dataset.prev = r.style; } }).catch(() => {});
+    $('#msgStyle').addEventListener('change', async (e) => {
+      const prev = e.target.dataset.prev || 'viewonce';
+      e.target.dataset.prev = e.target.value;
+      try { await api('POST', '/api/admin/msgstyle', { style: e.target.value }); toast('Button message type saved.'); }
+      catch (x) { e.target.value = prev; toast(x.message, true); }
+    });
     $('#banAdd').addEventListener('click', async () => { try { drawCommands(await api('POST', '/api/admin/ban', { number: $('#banNum').value, on: true })); $('#banNum').value = ''; toast('Banned.'); } catch (x) { toast(x.message, true); } });
 
     /* ----- analytics ----- */
