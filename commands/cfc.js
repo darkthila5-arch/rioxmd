@@ -15,21 +15,21 @@
 // command is handled by the router: the host admin (OWNER_NUMBER / OWNER_LID) can always use it; any other number
 // needs active premium (/admin or .premium shows the plan) — see lib/router.js.
 import { PREFIX } from '../lib/config.js';
-import { adminGuard, getGroupCfg, setGroupCfg, sendCfcHistory, MAX_CFC_MSGS } from '../lib/groups.js';
+import { adminGuard, getGroupCfg, setGroupCfg, sendCfcHistory, DEFAULT_CFC_TITLE, MAX_CFC_MSGS } from '../lib/groups.js';
 
-const onoff = (v) => (v ? '✅ ON' : '❌ OFF');
+const onoff = (v) => (v ? 'ON ✅' : 'OFF 🚫');
 const MAX_TITLE = 150;
 const MAX_MSG = 700;
 
 function statusText(cfg) {
   return [
-    '╭━━━〔 🗂️ *CFC STATUS* 〕━━━⬣',
-    `┃ Enabled: ${onoff(cfg.cfcOn)}`,
-    `┃ Title: ${cfg.cfcTitle || '(not set — the group name is used)'}`,
-    `┃ Messages: ${cfg.cfcHistory.length}/${MAX_CFC_MSGS}`,
-    '╰━━━━━━━━━━━━━━━━━━━━⬣',
+    '📦 *CFC Status*',
     '',
-    '*Usage:*',
+    `Enabled: ${onoff(cfg.cfcOn)}`,
+    `Title: ${cfg.cfcTitle || DEFAULT_CFC_TITLE}`,
+    `Messages: ${cfg.cfcHistory.length}`,
+    '',
+    'Usage:',
     `${PREFIX}cfc on`,
     `${PREFIX}cfc off`,
     `${PREFIX}cfc settitle <title>`,
@@ -39,7 +39,7 @@ function statusText(cfg) {
     `${PREFIX}cfc clear`,
     `${PREFIX}cfc reset`,
     '',
-    '_Placeholders you can use inside a saved message: {user} {group} {count} {desc}_',
+    `_Up to ${MAX_CFC_MSGS} messages. Placeholders you can use: {user} {group} {count} {desc}_`,
     '_👑 Premium command — the bot host owner never needs premium for this._',
   ].join('\n');
 }
